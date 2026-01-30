@@ -6,7 +6,18 @@ import type {
   Action,
   Handle,
 } from "@sveltejs/kit";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, Cause } from "effect";
+
+/**
+ * Converts an Effect Cause to a more descriptive error message
+ */
+function causeToError(cause: Cause.Cause<unknown>): Error {
+  const message = Cause.pretty(cause);
+  const error = new Error(message);
+  // Preserve the original cause for debugging
+  (error as any).cause = cause;
+  return error;
+}
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit server load function.
@@ -38,7 +49,7 @@ export function effectServerLoad<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw new Error(`Effect failed: ${cause}`);
+        throw causeToError(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;
@@ -78,7 +89,7 @@ export function effectLoad<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw new Error(`Effect failed: ${cause}`);
+        throw causeToError(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;
@@ -117,7 +128,7 @@ export function effectAction<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw new Error(`Effect failed: ${cause}`);
+        throw causeToError(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;
@@ -145,7 +156,7 @@ export function effectActions<
 >(
   actions: Record<
     string,
-    (event: RequestEvent<Params, RouteId>) => Effect.Effect<any, unknown>
+    (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown>
   >
 ): Actions<Params, OutputData, RouteId> {
   const wrappedActions: Actions<Params, OutputData, RouteId> = {};
@@ -184,7 +195,7 @@ export function effectHandle(
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw new Error(`Effect failed: ${cause}`);
+        throw causeToError(cause);
       },
       onSuccess: (value) => value,
     });
@@ -220,7 +231,8 @@ export function effectEndpoint<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        return new Response(JSON.stringify({ error: String(cause) }), {
+        const message = Cause.pretty(cause);
+        return new Response(JSON.stringify({ error: message }), {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });

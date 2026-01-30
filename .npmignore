@@ -1,0 +1,21 @@
+# Source files
+src/
+tsconfig.json
+
+# Tests
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# Development files
+.github/
+.changeset/
+
+# Build artifacts
+*.tsbuildinfo
+node_modules/
+
+# Misc
+.DS_Store
+*.log
