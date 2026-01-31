@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
     }
   },
   "files": [
@@ -43,6 +47,9 @@
     "url": "https://github.com/thomasfosterau/effect-svelte/issues"
   },
   "homepage": "https://github.com/thomasfosterau/effect-svelte#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "@sveltejs/kit": "^2.0.0",
     "effect": "^3.0.0"

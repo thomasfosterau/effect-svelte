@@ -16,19 +16,24 @@ npm install @thomasfosterau/effect-svelte effect @sveltejs/kit
 - 🪝 **Hooks**: Integrate Effect into SvelteKit hooks
 - 💪 **Type-safe**: Full TypeScript support with proper type inference
 - 🎯 **Error Handling**: Automatic Effect error handling and conversion
+- 📦 **Namespace API**: Clean, organized API with `SvelteKit` namespace
 
 ## Usage
 
+The library provides two entry points:
+- `@thomasfosterau/effect-svelte` - Universal (client + server) adapters
+- `@thomasfosterau/effect-svelte/server` - Server-only adapters
+
 ### Server Load Functions
 
-Use `effectServerLoad` to wrap Effect code in server-side load functions:
+Use `SvelteKit.load` from the `/server` export for server-side load functions:
 
 ```typescript
 // src/routes/+page.server.ts
-import { effectServerLoad } from '@thomasfosterau/effect-svelte';
+import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
 import { Effect } from 'effect';
 
-export const load = effectServerLoad((event) =>
+export const load = SvelteKit.load((event) =>
   Effect.gen(function* () {
     // Your Effect-based logic here
     const userId = event.params.id;
@@ -40,14 +45,14 @@ export const load = effectServerLoad((event) =>
 
 ### Universal Load Functions
 
-Use `effectLoad` for universal (client + server) load functions:
+Use `SvelteKit.load` from the main export for universal (client + server) load functions:
 
 ```typescript
 // src/routes/+page.ts
-import { effectLoad } from '@thomasfosterau/effect-svelte';
+import { SvelteKit } from '@thomasfosterau/effect-svelte';
 import { Effect } from 'effect';
 
-export const load = effectLoad((event) =>
+export const load = SvelteKit.load((event) =>
   Effect.gen(function* () {
     const data = yield* processData();
     return { data };
@@ -57,16 +62,16 @@ export const load = effectLoad((event) =>
 
 ### Form Actions
 
-Use `effectAction` for individual actions or `effectActions` for multiple actions:
+Use `SvelteKit.action` for individual actions or `SvelteKit.actions` for multiple actions:
 
 ```typescript
 // src/routes/+page.server.ts
-import { effectAction, effectActions } from '@thomasfosterau/effect-svelte';
+import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
 import { Effect } from 'effect';
 
 // Single action
 export const actions = {
-  default: effectAction((event) =>
+  default: SvelteKit.action((event) =>
     Effect.gen(function* () {
       const formData = yield* Effect.promise(() => event.request.formData());
       const email = formData.get('email');
@@ -77,7 +82,7 @@ export const actions = {
 };
 
 // Multiple actions
-export const actions = effectActions({
+export const actions = SvelteKit.actions({
   create: (event) =>
     Effect.gen(function* () {
       const formData = yield* Effect.promise(() => event.request.formData());
@@ -96,22 +101,22 @@ export const actions = effectActions({
 
 ### API Endpoints
 
-Use `effectEndpoint` to create Effect-based API route handlers:
+Use `SvelteKit.endpoint` to create Effect-based API route handlers:
 
 ```typescript
 // src/routes/api/users/+server.ts
-import { effectEndpoint } from '@thomasfosterau/effect-svelte';
+import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
 import { Effect } from 'effect';
 import { json } from '@sveltejs/kit';
 
-export const GET = effectEndpoint((event) =>
+export const GET = SvelteKit.endpoint((event) =>
   Effect.gen(function* () {
     const users = yield* fetchUsers();
     return json(users);
   })
 );
 
-export const POST = effectEndpoint((event) =>
+export const POST = SvelteKit.endpoint((event) =>
   Effect.gen(function* () {
     const data = yield* Effect.promise(() => event.request.json());
     const user = yield* createUser(data);
@@ -122,14 +127,14 @@ export const POST = effectEndpoint((event) =>
 
 ### Hooks
 
-Use `effectHandle` to integrate Effect into SvelteKit hooks:
+Use `SvelteKit.handle` to integrate Effect into SvelteKit hooks:
 
 ```typescript
 // src/hooks.server.ts
-import { effectHandle } from '@thomasfosterau/effect-svelte';
+import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
 import { Effect } from 'effect';
 
-export const handle = effectHandle(({ event, resolve }) =>
+export const handle = SvelteKit.handle(({ event, resolve }) =>
   Effect.gen(function* () {
     // Pre-processing with Effect
     const startTime = Date.now();
@@ -153,12 +158,14 @@ All helpers automatically handle Effect failures. By default:
 - Load functions and actions throw errors that SvelteKit can catch
 - Endpoints return a 500 response with error details in JSON format
 
+Error messages preserve Effect's structured error information using `Cause.pretty()` for better debugging.
+
 You can customize error handling by wrapping your Effect code with error recovery:
 
 ```typescript
 import { Effect } from 'effect';
 
-export const load = effectServerLoad((event) =>
+export const load = SvelteKit.load((event) =>
   Effect.gen(function* () {
     const data = yield* fetchData().pipe(
       Effect.catchAll((error) => 
