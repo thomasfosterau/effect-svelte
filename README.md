@@ -284,19 +284,19 @@ Subscribe to an Effect Stream and collect emissions:
 
 ### Layer 3: Convenience Hooks
 
-#### useDerivedEffect - Reactive Effect
+#### derived - Reactive Effect
 
 Re-run an effect whenever reactive dependencies change:
 
 ```svelte
 <script lang="ts">
-  import { useDerivedEffect } from '@thomasfosterau/effect-svelte';
+  import { derived } from '@thomasfosterau/effect-svelte';
   import { Effect } from 'effect';
 
   let userId = $state(1);
 
   // Effect re-runs automatically when userId changes
-  const user = useDerivedEffect(() => 
+  const user = derived(() => 
     Effect.gen(function* () {
       const data = yield* fetchUser(userId);
       return data;
@@ -425,7 +425,7 @@ const message = match(result, {
     provideRuntime, 
     useEffect, 
     useStream, 
-    useDerivedEffect 
+    derived 
   } from '@thomasfosterau/effect-svelte';
   import { Effect, Stream, Schedule, Runtime, Cause } from 'effect';
 
@@ -447,7 +447,7 @@ const message = match(result, {
 
   // Reactive effect tied to component state
   let searchTerm = $state('');
-  const searchResults = useDerivedEffect(() =>
+  const searchResults = derived(() =>
     searchTerm.length > 0
       ? Effect.gen(function* () {
           const results = yield* performSearch(searchTerm);

@@ -4,33 +4,10 @@ import { getRuntime } from "./context.svelte.js";
 import type { AsyncResult } from "./types.js";
 
 /**
- * Provides the Effect Reactivity layer in the Svelte context.
- * This should be called at the root of your component tree alongside provideRuntime.
- * 
- * Note: Make sure your runtime includes the Reactivity layer.
- * 
- * @example
- * ```svelte
- * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
- *   import { Runtime, Layer } from 'effect';
- *   import { Reactivity } from '@effect/experimental';
- *   
- *   const runtime = Runtime.defaultRuntime.pipe(
- *     Runtime.updateLayer(Layer.provide(Reactivity.layer))
- *   );
- *   Svelte.provideRuntime(runtime);
- * </script>
- * ```
- */
-export function provideReactivity(): void {
-  // This is a placeholder function for documentation purposes
-  // The runtime should be provided with the Reactivity layer included
-}
-
-/**
  * Creates a reactive query that automatically re-runs when the specified keys are invalidated.
  * Returns the current result as a Svelte reactive value.
+ * 
+ * Note: Make sure your runtime includes the Reactivity layer from @effect/experimental.
  * 
  * @param keys - Reactivity keys that this query depends on
  * @param effect - The Effect to run when keys are invalidated

@@ -9,9 +9,6 @@
  * - **SvelteKit**: Effect adapters for SvelteKit (load functions, actions, endpoints, hooks)
  */
 
-import * as SvelteExports from "./svelte/index.js";
-import { SvelteKit as SvelteKitExports } from "./svelte-kit/index.js";
-
 /**
  * Svelte namespace containing Effect-Svelte interoperability primitives.
  * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5 runes.
@@ -31,7 +28,7 @@ import { SvelteKit as SvelteKitExports } from "./svelte-kit/index.js";
  * </script>
  * ```
  */
-export const Svelte = SvelteExports;
+export * as Svelte from "./svelte/index.js";
 
 /**
  * SvelteKit namespace containing Effect adapters for SvelteKit.
@@ -51,7 +48,7 @@ export const Svelte = SvelteExports;
  * );
  * ```
  */
-export const SvelteKit = SvelteKitExports;
+export { SvelteKit } from "./svelte-kit/index.js";
 
 // Also export individual items for convenience
 export * from "./svelte/index.js";

@@ -23,8 +23,7 @@ export {
   reactiveQuery, 
   reactiveStream, 
   reactiveMutation, 
-  invalidateKeys,
-  provideReactivity 
+  invalidateKeys
 } from "./reactivity.svelte.js";
 
 // Svelte-to-Effect Direction
