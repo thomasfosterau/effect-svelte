@@ -244,7 +244,7 @@ Run an Effect and track its result state:
 ```svelte
 <script lang="ts">
   import { useEffect } from '@thomasfosterau/effect-svelte';
-  import { Effect } from 'effect';
+  import { Effect, Cause } from 'effect';
 
   const { result, run, interrupt } = useEffect(
     Effect.delay(Effect.succeed(42), '1 second'),
@@ -401,6 +401,7 @@ Type guards for working with `AsyncResult`:
 
 ```typescript
 import { isInitial, isPending, isSuccess, isFailure, match } from '@thomasfosterau/effect-svelte';
+import { Cause } from 'effect';
 
 // Type guards
 if (isSuccess(result)) {

@@ -67,19 +67,20 @@ export function useEffect<A, E, R>(
     // Set to pending state
     result = { _tag: 'pending' };
 
-    // Run the effect
-    currentFiber = Runtime.runFork(runtime)(effect);
+    // Run the effect and capture the fiber reference
+    const runningFiber = Runtime.runFork(runtime)(effect);
+    currentFiber = runningFiber;
 
     // Handle the result
     Runtime.runFork(runtime)(
       Effect.gen(function* () {
-        const exit = yield* Fiber.await(currentFiber!);
+        const exit = yield* Fiber.await(runningFiber);
         
         // Only update result if this is still the current fiber
         // (it might have been interrupted by a new run)
-        if (currentFiber && Exit.isSuccess(exit)) {
+        if (currentFiber === runningFiber && Exit.isSuccess(exit)) {
           result = { _tag: 'success', value: exit.value };
-        } else if (currentFiber && Exit.isFailure(exit)) {
+        } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
           // Check if it was interrupted (normal cleanup) vs actual failure
           if (!Exit.isInterrupted(exit)) {
             result = { _tag: 'failure', cause: exit.cause };
@@ -87,7 +88,7 @@ export function useEffect<A, E, R>(
         }
         
         // Clear fiber reference if this was the current one
-        if (currentFiber) {
+        if (currentFiber === runningFiber) {
           currentFiber = null;
         }
       })

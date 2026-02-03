@@ -174,6 +174,9 @@ function handle(
 /**
  * Wraps an Effect-based function to work as a SvelteKit API endpoint handler.
  * 
+ * By default, errors are logged server-side and a generic error message is returned to clients.
+ * For development/debugging, you can pass options to expose full error details.
+ * 
  * @example
  * ```ts
  * import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
@@ -192,16 +195,26 @@ function endpoint<
   Params extends Record<string, string> = any,
   RouteId extends string | null = any
 >(
-  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown>
+  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown>,
+  options?: { exposeErrors?: boolean }
 ): (event: RequestEvent<Params, RouteId>) => Promise<Response> {
+  const { exposeErrors = false } = options ?? {};
+  
   return async (event) => {
     const effect = fn(event);
     const exit = await Effect.runPromiseExit(effect);
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        const message = Cause.pretty(cause);
-        return new Response(JSON.stringify({ error: message }), {
+        // Always log the full error server-side for debugging
+        console.error('Endpoint error:', Cause.pretty(cause));
+        
+        // Return generic error message to client unless explicitly enabled
+        const clientMessage = exposeErrors 
+          ? Cause.pretty(cause) 
+          : 'Internal server error';
+        
+        return new Response(JSON.stringify({ error: clientMessage }), {
           status: 500,
           headers: { "Content-Type": "application/json" },
         });

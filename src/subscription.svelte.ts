@@ -105,7 +105,8 @@ export function usePubSub<A>(
       yield* Stream.runForEach(
         Stream.fromQueue(queue),
         (value) => Effect.sync(() => {
-          values.push(value);
+          // Use reassignment for Svelte reactivity
+          values = [...values, value];
         })
       );
     });

@@ -31,28 +31,18 @@ export class SignalEmitter<A> {
   constructor() {
     // Use Stream.async to create a stream with a push-based API
     this._stream = Stream.async<A>((emit) => {
-      // Create an unbounded queue for buffering
-      const queue: A[] = [];
       let isDone = false;
 
-      // Set up the emit function
+      // Set up the emit function to immediately emit values
       this._emit = (value: A) => {
         if (!isDone) {
-          queue.push(value);
-          // Emit all queued values
-          while (queue.length > 0) {
-            const val = queue.shift();
-            if (val !== undefined) {
-              emit.single(val);
-            }
-          }
+          emit.single(value);
         }
       };
 
       // Return cleanup function
       return Effect.sync(() => {
         isDone = true;
-        queue.length = 0;
         this._emit = () => {};
       });
     });

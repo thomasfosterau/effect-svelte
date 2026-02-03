@@ -57,38 +57,42 @@ export function useStream<A, E, R>(
     // Subscribe to the stream
     const subscription = Stream.runForEach(stream, (value) => 
       Effect.sync(() => {
-        // Accumulate values efficiently
-        values.push(value);
+        // Accumulate values with reassignment for Svelte reactivity
+        values = [...values, value];
         
-        // Update result with successful chunk so far
+        // Update result with successful chunk so far (only create chunk when needed)
         result = { _tag: 'success', value: Chunk.fromIterable(values) };
       })
     );
 
-    // Run the subscription as a fiber
-    fiber = Runtime.runFork(runtime)(subscription);
+    // Run the subscription as a fiber and capture the reference
+    const runningFiber = Runtime.runFork(runtime)(subscription);
+    fiber = runningFiber;
 
     // Wait for completion and handle result
     Runtime.runFork(runtime)(
       Effect.gen(function* () {
-        const exit = yield* Fiber.await(fiber!);
+        const exit = yield* Fiber.await(runningFiber);
         
-        if (Exit.isSuccess(exit)) {
-          // Stream completed successfully
-          result = { _tag: 'success', value: Chunk.fromIterable(values) };
-        } else if (Exit.isFailure(exit)) {
-          // Distinguish between interruption (normal cleanup) and actual failures
-          if (!Exit.isInterrupted(exit)) {
-            result = { _tag: 'failure', cause: exit.cause };
-          } else {
-            // Interrupted - keep the current success state with accumulated values
-            if (values.length > 0) {
-              result = { _tag: 'success', value: Chunk.fromIterable(values) };
+        // Only update if this is still the current fiber
+        if (fiber === runningFiber) {
+          if (Exit.isSuccess(exit)) {
+            // Stream completed successfully - use current values, not captured
+            result = { _tag: 'success', value: Chunk.fromIterable(values) };
+          } else if (Exit.isFailure(exit)) {
+            // Distinguish between interruption (normal cleanup) and actual failures
+            if (!Exit.isInterrupted(exit)) {
+              result = { _tag: 'failure', cause: exit.cause };
+            } else {
+              // Interrupted - keep the current success state with accumulated values
+              if (values.length > 0) {
+                result = { _tag: 'success', value: Chunk.fromIterable(values) };
+              }
             }
           }
+          
+          fiber = null;
         }
-        
-        fiber = null;
       })
     );
 

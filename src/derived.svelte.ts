@@ -50,24 +50,29 @@ export function useDerivedEffect<A, E, R>(
     // Set to pending state
     result = { _tag: 'pending' };
 
-    // Run the effect
-    currentFiber = Runtime.runFork(runtime)(effect);
+    // Run the effect and capture the fiber reference
+    const runningFiber = Runtime.runFork(runtime)(effect);
+    currentFiber = runningFiber;
 
     // Handle the result
     Runtime.runFork(runtime)(
       Effect.gen(function* () {
-        const exit = yield* Fiber.await(currentFiber!);
+        const exit = yield* Fiber.await(runningFiber);
         
-        if (Exit.isSuccess(exit)) {
+        // Only update result if this is still the current fiber
+        if (currentFiber === runningFiber && Exit.isSuccess(exit)) {
           result = { _tag: 'success', value: exit.value };
-        } else if (Exit.isFailure(exit)) {
+        } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
           // Only update result if not interrupted (interruption is normal when deps change)
           if (!Exit.isInterrupted(exit)) {
             result = { _tag: 'failure', cause: exit.cause };
           }
         }
         
-        currentFiber = null;
+        // Clear fiber reference if this was the current one
+        if (currentFiber === runningFiber) {
+          currentFiber = null;
+        }
       })
     );
 
