@@ -63,7 +63,7 @@ Use `load` from `@thomasfosterau/effect-svelte/kit` for universal (client + serv
 
 ```typescript
 // src/routes/+page.ts
-import { load } from '@thomasfosterau/effect-svelte';
+import { load } from '@thomasfosterau/effect-svelte/kit';
 import { Effect } from 'effect';
 
 export const load = load((event) =>
@@ -503,7 +503,7 @@ Provide a runtime with the Reactivity layer:
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { provideRuntime } from '@thomasfosterau/effect-svelte';
   import { Runtime } from 'effect';
   import { Reactivity } from '@effect/experimental';
 
@@ -520,7 +520,7 @@ Automatically re-runs when keys are invalidated:
 
 ```svelte
 <script lang="ts">
-  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { reactiveQuery } from '@thomasfosterau/effect-svelte';
   import { Effect } from 'effect';
 
   let userId = $state(1);
@@ -548,7 +548,7 @@ Invalidates keys after completion:
 
 ```svelte
 <script lang="ts">
-  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { reactiveMutation } from '@thomasfosterau/effect-svelte';
   import { Effect } from 'effect';
 
   let userId = $state(1);
@@ -579,7 +579,7 @@ Stream that emits when keys are invalidated:
 
 ```svelte
 <script lang="ts">
-  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { reactiveStream } from '@thomasfosterau/effect-svelte';
   import { Effect } from 'effect';
 
   const messages = reactiveStream(

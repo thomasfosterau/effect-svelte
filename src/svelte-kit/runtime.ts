@@ -22,18 +22,21 @@ export class SvelteKitRequestEvent extends Context.Tag("SvelteKitRequestEvent")<
  * 
  * @example
  * ```ts
- * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/server';
+ * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
  * import * as HttpClient from '@effect/platform/HttpClient';
  * 
- * export const load = SvelteKitRuntime.serverLoad((event) =>
- *   Effect.gen(function* () {
- *     // Access HttpClient from the runtime
- *     const client = yield* HttpClient.HttpClient;
- *     const response = yield* client.get("https://api.example.com/data");
- *     return { data: response };
- *   })
- * );
+ * export const load = (event) => {
+ *   const runtime = SvelteKitRuntime.forRequest(event);
+ *   return runtime.runPromise(
+ *     Effect.gen(function* () {
+ *       // Access HttpClient from the runtime
+ *       const client = yield* HttpClient.HttpClient;
+ *       const response = yield* client.get("https://api.example.com/data");
+ *       return { data: response };
+ *     })
+ *   );
+ * };
  * ```
  */
 export class SvelteKitRuntime {
@@ -139,7 +142,7 @@ export class SvelteKitRuntime {
  * 
  * @example
  * ```ts
- * import { runWithSvelteKitRuntime } from '@thomasfosterau/effect-svelte/server';
+ * import { runWithSvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
  * 
  * export const load = async (event) => {

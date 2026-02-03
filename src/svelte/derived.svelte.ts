@@ -10,12 +10,12 @@ import type { AsyncResult } from "./types.js";
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
+ *   import { derived } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *   
  *   let userId = $state(1);
  *   
- *   const user = Svelte.derived(() => 
+ *   const user = derived(() => 
  *     Effect.gen(function* () {
  *       const response = yield* fetchUser(userId);
  *       return response;

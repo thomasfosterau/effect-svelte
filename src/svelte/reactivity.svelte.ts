@@ -15,13 +15,13 @@ import type { AsyncResult } from "./types.js";
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
+ *   import { reactiveQuery } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *   
  *   // Query that depends on a user ID key
  *   let userId = $state(1);
  *   
- *   const user = Svelte.reactiveQuery(
+ *   const user = reactiveQuery(
  *     () => ['user', userId],
  *     () => Effect.gen(function* () {
  *       const data = yield* fetchUser(userId);
@@ -104,10 +104,10 @@ export function reactiveQuery<A, E, R>(
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
+ *   import { reactiveStream } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *   
- *   const messages = Svelte.reactiveStream(
+ *   const messages = reactiveStream(
  *     ['messages'],
  *     Effect.gen(function* () {
  *       const data = yield* fetchMessages();
@@ -215,10 +215,10 @@ export function reactiveStream<A, E, R>(
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
+ *   import { reactiveMutation } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *   
- *   const updateUser = Svelte.reactiveMutation(
+ *   const updateUser = reactiveMutation(
  *     ['user', userId],
  *     Effect.gen(function* () {
  *       yield* updateUserInDB(userId, data);
