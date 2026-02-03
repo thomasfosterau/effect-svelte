@@ -57,8 +57,8 @@ export function useStream<A, E, R>(
     // Subscribe to the stream
     const subscription = Stream.runForEach(stream, (value) => 
       Effect.sync(() => {
-        // Accumulate values
-        values = [...values, value];
+        // Accumulate values efficiently
+        values.push(value);
         
         // Update result with successful chunk so far
         result = { _tag: 'success', value: Chunk.fromIterable(values) };

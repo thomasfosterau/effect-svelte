@@ -105,7 +105,7 @@ export function usePubSub<A>(
       yield* Stream.runForEach(
         Stream.fromQueue(queue),
         (value) => Effect.sync(() => {
-          values = [...values, value];
+          values.push(value);
         })
       );
     });

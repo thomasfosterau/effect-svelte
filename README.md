@@ -1,27 +1,39 @@
 # @thomasfosterau/effect-svelte
 
-A library for seamless interoperation between [Effect](https://effect.website/) and [SvelteKit](https://kit.svelte.dev/). This library provides helpers to wrap Effect-based code for use in SvelteKit's load functions, actions, endpoints, and hooks.
+A library for seamless interoperation between [Effect](https://effect.website/) and [Svelte](https://svelte.dev/) / [SvelteKit](https://kit.svelte.dev/). This library provides helpers to:
+1. Wrap Effect-based code for use in SvelteKit's load functions, actions, endpoints, and hooks
+2. Create reactive Svelte 5 components that integrate with Effect-TS using runes
 
 ## Installation
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect @sveltejs/kit
+npm install @thomasfosterau/effect-svelte effect svelte @sveltejs/kit
 ```
 
 ## Features
 
+### SvelteKit Integration
 - 🔄 **Load Functions**: Wrap Effect code for both server and universal load functions
 - ⚡ **Actions**: Convert Effect-based logic into SvelteKit form actions
 - 🌐 **Endpoints**: Use Effect in API route handlers
 - 🪝 **Hooks**: Integrate Effect into SvelteKit hooks
+
+### Svelte 5 Runes Integration
+- 🎯 **Runtime Context**: Provide Effect runtime via Svelte context
+- 🔄 **Lifecycle Management**: Scope primitive tied to component lifecycle
+- 🚀 **Core Runners**: Reactive hooks for Effect and Stream
+- 💡 **Convenience Hooks**: Query pattern, derived effects, and subscriptions
+- 🌊 **Bidirectional**: Bridge Svelte reactivity to Effect streams
+
+All features are:
 - 💪 **Type-safe**: Full TypeScript support with proper type inference
-- 🎯 **Error Handling**: Automatic Effect error handling and conversion
-- 📦 **Namespace API**: Clean, organized API with `SvelteKit` namespace
+- 🎯 **Error Handling**: Automatic Effect error handling with Cause preservation
+- 📦 **Modular**: Clean, organized API with layered architecture
 
 ## Usage
 
 The library provides two entry points:
-- `@thomasfosterau/effect-svelte` - Universal (client + server) adapters
+- `@thomasfosterau/effect-svelte` - Universal adapters + Svelte 5 runes integration
 - `@thomasfosterau/effect-svelte/server` - Server-only adapters
 
 ### Server Load Functions
@@ -180,6 +192,292 @@ export const load = SvelteKit.load((event) =>
 ## TypeScript
 
 All functions are fully typed and provide proper type inference for parameters and return values. The types align with SvelteKit's native types.
+
+---
+
+## Svelte 5 Runes Integration
+
+The library provides a complete integration layer between Effect-TS and Svelte 5's runes system, enabling reactive components that seamlessly work with Effect programs.
+
+### Architecture
+
+The integration is built in layers, where each layer builds upon the previous:
+
+- **Layer 0**: Runtime context provision
+- **Layer 1**: Scope primitive (lifecycle management)
+- **Layer 2**: Core runners (Effect and Stream adapters)
+- **Layer 3**: Convenience hooks and utilities
+
+### Core Types
+
+```typescript
+type AsyncResult<A, E> =
+  | { readonly _tag: 'initial' }
+  | { readonly _tag: 'pending' }
+  | { readonly _tag: 'success'; readonly value: A }
+  | { readonly _tag: 'failure'; readonly cause: Cause<E> };
+```
+
+### Layer 0: Runtime Context
+
+Provide the Effect runtime at the root of your component tree:
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+  import { provideRuntime } from '@thomasfosterau/effect-svelte';
+  import { Runtime } from 'effect';
+
+  // Provide runtime to all child components
+  provideRuntime(Runtime.defaultRuntime);
+</script>
+
+<YourApp />
+```
+
+### Layer 2: Core Runners
+
+#### useEffect - Run a Single Effect
+
+Run an Effect and track its result state:
+
+```svelte
+<script lang="ts">
+  import { useEffect } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  const { result, run, interrupt } = useEffect(
+    Effect.delay(Effect.succeed(42), '1 second'),
+    { immediate: true }
+  );
+</script>
+
+{#if result._tag === 'pending'}
+  <p>Loading...</p>
+{:else if result._tag === 'success'}
+  <p>Result: {result.value}</p>
+  <button onclick={run}>Run Again</button>
+{:else if result._tag === 'failure'}
+  <p>Error: {Cause.pretty(result.cause)}</p>
+{/if}
+```
+
+#### useStream - Subscribe to a Stream
+
+Subscribe to an Effect Stream and collect emissions:
+
+```svelte
+<script lang="ts">
+  import { useStream } from '@thomasfosterau/effect-svelte';
+  import { Stream, Schedule } from 'effect';
+
+  const counter = useStream(
+    Stream.iterate(0, n => n + 1).pipe(
+      Stream.schedule(Schedule.spaced('1 second'))
+    )
+  );
+</script>
+
+<p>Latest: {counter.latest}</p>
+<p>All values: {counter.values.join(', ')}</p>
+```
+
+### Layer 3: Convenience Hooks
+
+#### useDerivedEffect - Reactive Effect
+
+Re-run an effect whenever reactive dependencies change:
+
+```svelte
+<script lang="ts">
+  import { useDerivedEffect } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  let userId = $state(1);
+
+  // Effect re-runs automatically when userId changes
+  const user = useDerivedEffect(() => 
+    Effect.gen(function* () {
+      const data = yield* fetchUser(userId);
+      return data;
+    })
+  );
+</script>
+
+<button onclick={() => userId++}>Next User</button>
+
+{#if user._tag === 'success'}
+  <p>User: {user.value.name}</p>
+{/if}
+```
+
+#### useQuery - Query Pattern
+
+Run a query with manual refetch capability:
+
+```svelte
+<script lang="ts">
+  import { useQuery } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  const query = useQuery(
+    Effect.gen(function* () {
+      const data = yield* fetchData();
+      return data;
+    })
+  );
+</script>
+
+<button onclick={query.refetch}>Refresh</button>
+
+{#if query.result._tag === 'success'}
+  <pre>{JSON.stringify(query.result.value, null, 2)}</pre>
+{/if}
+```
+
+#### useSubscriptionRef - Subscribe to SubscriptionRef
+
+```svelte
+<script lang="ts">
+  import { useSubscriptionRef } from '@thomasfosterau/effect-svelte';
+  
+  // Assume counterRef is a SubscriptionRef<number>
+  const count = useSubscriptionRef(counterRef);
+</script>
+
+<p>Count: {count}</p>
+```
+
+#### usePubSub - Subscribe to PubSub
+
+```svelte
+<script lang="ts">
+  import { usePubSub } from '@thomasfosterau/effect-svelte';
+  
+  // Assume messagePubSub is a PubSub<string>
+  const messages = usePubSub(messagePubSub);
+</script>
+
+<p>Latest: {messages.latest}</p>
+<ul>
+  {#each messages.values as msg}
+    <li>{msg}</li>
+  {/each}
+</ul>
+```
+
+### Svelte → Effect: SignalEmitter
+
+Bridge Svelte reactive state to Effect streams:
+
+```svelte
+<script lang="ts">
+  import { SignalEmitter } from '@thomasfosterau/effect-svelte';
+  import { Stream } from 'effect';
+
+  let count = $state(0);
+  const emitter = new SignalEmitter<number>();
+
+  // Emit reactive values into the stream
+  $effect(() => {
+    emitter.emit(count);
+  });
+
+  // Now use emitter.stream in Effect pipelines
+  const doubled = useStream(
+    emitter.stream.pipe(
+      Stream.map(n => n * 2)
+    )
+  );
+</script>
+
+<button onclick={() => count++}>Increment</button>
+<p>Original: {count}, Doubled: {doubled.latest}</p>
+```
+
+### Utility Functions
+
+Type guards for working with `AsyncResult`:
+
+```typescript
+import { isInitial, isPending, isSuccess, isFailure, match } from '@thomasfosterau/effect-svelte';
+
+// Type guards
+if (isSuccess(result)) {
+  console.log(result.value); // Type-safe access
+}
+
+// Pattern matching
+const message = match(result, {
+  initial: () => 'Not started',
+  pending: () => 'Loading...',
+  success: (value) => `Result: ${value}`,
+  failure: (cause) => `Error: ${Cause.pretty(cause)}`
+});
+```
+
+### Complete Example
+
+```svelte
+<script lang="ts">
+  import { 
+    provideRuntime, 
+    useEffect, 
+    useStream, 
+    useDerivedEffect 
+  } from '@thomasfosterau/effect-svelte';
+  import { Effect, Stream, Schedule, Runtime, Cause } from 'effect';
+
+  // Provide runtime (typically done at app root)
+  provideRuntime(Runtime.defaultRuntime);
+
+  // Simple effect with manual triggering
+  const greeting = useEffect(
+    Effect.succeed('Hello, Effect!'),
+    { immediate: true }
+  );
+
+  // Stream with automatic updates
+  const timer = useStream(
+    Stream.iterate(0, n => n + 1).pipe(
+      Stream.schedule(Schedule.spaced('1 second'))
+    )
+  );
+
+  // Reactive effect tied to component state
+  let searchTerm = $state('');
+  const searchResults = useDerivedEffect(() =>
+    searchTerm.length > 0
+      ? Effect.gen(function* () {
+          const results = yield* performSearch(searchTerm);
+          return results;
+        })
+      : Effect.succeed([])
+  );
+</script>
+
+<div>
+  <h2>Greeting</h2>
+  {#if greeting.result._tag === 'success'}
+    <p>{greeting.result.value}</p>
+  {/if}
+
+  <h2>Timer</h2>
+  <p>Elapsed: {timer.latest} seconds</p>
+
+  <h2>Search</h2>
+  <input bind:value={searchTerm} placeholder="Search..." />
+  {#if searchResults._tag === 'success'}
+    <ul>
+      {#each searchResults.value as result}
+        <li>{result}</li>
+      {/each}
+    </ul>
+  {:else if searchResults._tag === 'pending'}
+    <p>Searching...</p>
+  {/if}
+</div>
+```
 
 ## Contributing
 

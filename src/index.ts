@@ -92,7 +92,7 @@ export { useQuery, type UseQueryReturn } from "./query.svelte.js";
 export { useSubscriptionRef, usePubSub, type UsePubSubReturn } from "./subscription.svelte.js";
 
 // Svelte-to-Effect Direction
-export { SignalEmitter, createBoundedEmitter } from "./emitter.js";
+export { SignalEmitter } from "./emitter.js";
 
 // Types and Utilities
 export type { AsyncResult } from "./types.js";

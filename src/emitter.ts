@@ -28,8 +28,8 @@ export class SignalEmitter<A> {
   private _stream: Stream.Stream<A, never, never>;
   private _emit: (value: A) => void = () => {};
 
-  constructor(_capacity: number = 16) {
-    // Use Stream.asyncPush to create a stream with a push-based API
+  constructor() {
+    // Use Stream.async to create a stream with a push-based API
     this._stream = Stream.async<A>((emit) => {
       // Create an unbounded queue for buffering
       const queue: A[] = [];
@@ -73,14 +73,4 @@ export class SignalEmitter<A> {
   get stream(): Stream.Stream<A, never, never> {
     return this._stream;
   }
-}
-
-/**
- * Creates a SignalEmitter with a bounded queue.
- * When the queue is full, new values will be dropped.
- * 
- * @param capacity Maximum number of values to buffer
- */
-export function createBoundedEmitter<A>(capacity: number): SignalEmitter<A> {
-  return new SignalEmitter<A>(capacity);
 }
