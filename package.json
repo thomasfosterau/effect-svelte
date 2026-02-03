@@ -11,9 +11,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js"
+    "./kit": {
+      "types": "./dist/svelte-kit/index.d.ts",
+      "import": "./dist/svelte-kit/index.js"
+    },
+    "./kit/server": {
+      "types": "./dist/svelte-kit/server.d.ts",
+      "import": "./dist/svelte-kit/server.js"
+    },
+    "./kit/client": {
+      "types": "./dist/svelte-kit/client.d.ts",
+      "import": "./dist/svelte-kit/client.js"
     }
   },
   "files": [
@@ -51,11 +59,16 @@
     "access": "public"
   },
   "peerDependencies": {
+    "@effect/experimental": "^0.58.0",
+    "@effect/platform": "^0.94.0",
     "@sveltejs/kit": "^2.0.0",
-    "effect": "^3.0.0"
+    "effect": "^3.0.0",
+    "svelte": "^5.0.0"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
+    "@effect/experimental": "^0.58.0",
+    "@effect/platform": "^0.94.0",
     "@sveltejs/kit": "^2.0.0",
     "effect": "^3.0.0",
     "typescript": "^5.3.3"

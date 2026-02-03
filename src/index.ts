@@ -1,73 +1,31 @@
-import type {
-  Load,
-} from "@sveltejs/kit";
-import { Effect, Exit, Cause } from "effect";
-
 /**
- * Custom error type that preserves the original Effect Cause.
- */
-class EffectCauseError extends Error {
-  declare cause: Cause.Cause<unknown>;
-
-  constructor(message: string, cause: Cause.Cause<unknown>) {
-    super(message);
-    this.name = "EffectCauseError";
-    this.cause = cause;
-  }
-}
-
-/**
- * Converts an Effect Cause to a more descriptive error message
- */
-function causeToError(cause: Cause.Cause<unknown>): Error {
-  const message = Cause.pretty(cause);
-  return new EffectCauseError(message, cause);
-}
-
-/**
- * Wraps an Effect-based function to work as a SvelteKit universal load function.
+ * @thomasfosterau/effect-svelte
+ * 
+ * Effect-Svelte interoperability primitives for Svelte 5 runes.
+ * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5.
+ * 
+ * For SvelteKit helpers, import from:
+ * - `@thomasfosterau/effect-svelte/kit` - Universal helpers
+ * - `@thomasfosterau/effect-svelte/kit/server` - Server-only helpers
+ * - `@thomasfosterau/effect-svelte/kit/client` - Client-only helpers
  * 
  * @example
- * ```ts
- * import { SvelteKit } from '@thomasfosterau/effect-svelte';
- * import { Effect } from 'effect';
- * 
- * export const load = SvelteKit.load((event) =>
- *   Effect.gen(function* () {
- *     const data = yield* processData();
- *     return { data };
- *   })
- * );
+ * ```svelte
+ * <script lang="ts">
+ *   import { provideRuntime, derived } from '@thomasfosterau/effect-svelte';
+ *   import { Effect, Runtime } from 'effect';
+ *   
+ *   // Provide runtime at app root
+ *   provideRuntime(Runtime.defaultRuntime);
+ *   
+ *   // Use reactive effects
+ *   let userId = $state(1);
+ *   const user = derived(() => fetchUser(userId));
+ * </script>
  * ```
  */
-function load<
-  Params extends Record<string, string> = any,
-  InputData extends Record<string, unknown> | null = any,
-  ParentData extends Record<string, unknown> = any,
-  OutputData extends Record<string, unknown> | void = any,
-  RouteId extends string | null = any
->(
-  fn: (
-    event: Parameters<Load<Params, InputData, ParentData, OutputData, RouteId>>[0]
-  ) => Effect.Effect<OutputData, unknown>
-): Load<Params, InputData, ParentData, OutputData, RouteId> {
-  return async (event) => {
-    const effect = fn(event);
-    const exit = await Effect.runPromiseExit(effect);
 
-    return Exit.match(exit, {
-      onFailure: (cause) => {
-        throw causeToError(cause);
-      },
-      onSuccess: (value) => value,
-    }) as OutputData;
-  };
-}
+// Export all Svelte helpers from root
+export * from "./svelte/index.js";
+export type { AsyncResult } from "./svelte/types.js";
 
-/**
- * SvelteKit namespace containing universal (client + server) Effect adapters.
- * Use these functions to wrap Effect programs for SvelteKit universal contexts.
- */
-export const SvelteKit = {
-  load,
-} as const;
