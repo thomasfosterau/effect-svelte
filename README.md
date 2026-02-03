@@ -480,6 +480,193 @@ const message = match(result, {
 </div>
 ```
 
+---
+
+## Effect Reactivity Integration (@effect/experimental)
+
+The library provides deep integration with `@effect/experimental`'s Reactivity module, enabling automatic cache invalidation and reactive queries similar to libraries like TanStack Query but fully integrated with Effect.
+
+### Installation
+
+```bash
+npm install @effect/experimental
+```
+
+### Setup
+
+Provide a runtime with the Reactivity layer:
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { Runtime } from 'effect';
+  import { Reactivity } from '@effect/experimental';
+
+  const runtime = Runtime.make(Reactivity.layer);
+  Svelte.provideRuntime(runtime);
+</script>
+
+<YourApp />
+```
+
+### Reactive Query
+
+Automatically re-runs when keys are invalidated:
+
+```svelte
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  let userId = $state(1);
+
+  // This query depends on the 'user' key with the current userId
+  const user = Svelte.reactiveQuery(
+    () => ['user', userId],
+    () => Effect.gen(function* () {
+      const data = yield* fetchUser(userId);
+      return data;
+    })
+  );
+</script>
+
+{#if user._tag === 'success'}
+  <p>User: {user.value.name}</p>
+{:else if user._tag === 'pending'}
+  <p>Loading...</p>
+{/if}
+```
+
+### Reactive Mutation
+
+Invalidates keys after completion:
+
+```svelte
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  let userId = $state(1);
+
+  const updateUser = Svelte.reactiveMutation(
+    () => ['user', userId],
+    () => Effect.gen(function* () {
+      yield* updateUserInDB(userId, newData);
+      return { success: true };
+    })
+  );
+
+  function handleUpdate() {
+    updateUser.run(); // Automatically invalidates ['user', userId]
+  }
+</script>
+
+<button onclick={handleUpdate}>Update User</button>
+
+{#if updateUser.result._tag === 'success'}
+  <p>Updated successfully!</p>
+{/if}
+```
+
+### Reactive Stream
+
+Stream that emits when keys are invalidated:
+
+```svelte
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { Effect } from 'effect';
+
+  const messages = Svelte.reactiveStream(
+    ['messages'], // Keys to watch
+    Effect.gen(function* () {
+      const data = yield* fetchMessages();
+      return data;
+    })
+  );
+</script>
+
+<ul>
+  {#each messages.values as msg}
+    <li>{msg}</li>
+  {/each}
+</ul>
+```
+
+### Manual Invalidation
+
+Trigger re-queries manually:
+
+```svelte
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+
+  function handleRefresh() {
+    // This will re-run all queries depending on these keys
+    Svelte.invalidateKeys(['users', 'messages']);
+  }
+</script>
+
+<button onclick={handleRefresh}>Refresh All</button>
+```
+
+### Complete Example with Reactivity
+
+```svelte
+<script lang="ts">
+  import { Svelte } from '@thomasfosterau/effect-svelte';
+  import { Effect, Runtime } from 'effect';
+  import { Reactivity } from '@effect/experimental';
+
+  // Setup runtime with Reactivity
+  const runtime = Runtime.make(Reactivity.layer);
+  Svelte.provideRuntime(runtime);
+
+  // Reactive state
+  let searchTerm = $state('');
+
+  // Reactive query - automatically re-runs when keys are invalidated
+  const results = Svelte.reactiveQuery(
+    () => ['search', searchTerm],
+    () => Effect.gen(function* () {
+      if (!searchTerm) return [];
+      const data = yield* searchAPI(searchTerm);
+      return data;
+    })
+  );
+
+  // Mutation that invalidates the search results
+  const clearCache = Svelte.reactiveMutation(
+    () => ['search', searchTerm],
+    () => Effect.succeed({ cleared: true })
+  );
+</script>
+
+<input bind:value={searchTerm} placeholder="Search..." />
+<button onclick={() => clearCache.run()}>Clear Cache</button>
+
+{#if results._tag === 'success'}
+  <ul>
+    {#each results.value as item}
+      <li>{item.name}</li>
+    {/each}
+  </ul>
+{:else if results._tag === 'pending'}
+  <p>Searching...</p>
+{/if}
+```
+
+### Benefits
+
+1. **Automatic Cache Invalidation**: Mutations automatically invalidate related queries
+2. **Declarative Dependencies**: Specify what keys a query depends on
+3. **Type-Safe**: Full TypeScript inference for queries and mutations
+4. **Composable**: Works seamlessly with other Effect primitives
+5. **Efficient**: Only re-runs queries when their keys are actually invalidated
+
+This makes it possible to build entire components using Effect's reactive primitives instead of Svelte's built-in state management, while still leveraging Svelte's rendering capabilities.
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/thomasfosterau/effect-svelte).

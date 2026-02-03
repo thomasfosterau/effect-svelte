@@ -18,6 +18,15 @@ export { derived } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
 export { useSubscriptionRef, usePubSub, type UsePubSubReturn } from "./subscription.svelte.js";
 
+// Layer 4: Effect Reactivity Integration (@effect/experimental)
+export { 
+  reactiveQuery, 
+  reactiveStream, 
+  reactiveMutation, 
+  invalidateKeys,
+  provideReactivity 
+} from "./reactivity.svelte.js";
+
 // Svelte-to-Effect Direction
 export { SignalEmitter } from "./emitter.js";
 
