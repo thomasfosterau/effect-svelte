@@ -1,4 +1,4 @@
-import { Stream, Runtime, Fiber, Exit, Effect, Chunk } from "effect";
+import { Stream, Runtime, Fiber, Exit, Effect } from "effect";
 import { getRuntime } from "./context.svelte.js";
 import type { AsyncResult } from "./types.js";
 
@@ -6,7 +6,7 @@ export interface UseStreamReturn<A, E> {
   /**
    * The current result state of the stream
    */
-  readonly result: AsyncResult<Chunk.Chunk<A>, E>;
+  readonly result: AsyncResult<ReadonlyArray<A>, E>;
   
   /**
    * All values emitted by the stream so far
@@ -45,7 +45,7 @@ export function useStream<A, E, R>(
 ): UseStreamReturn<A, E> {
   const runtime = getRuntime<R>();
   
-  let result = $state<AsyncResult<Chunk.Chunk<A>, E>>({ _tag: 'initial' });
+  let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: 'initial' });
   let values = $state<A[]>([]);
   let fiber = $state<Fiber.RuntimeFiber<void, E> | null>(null);
 
@@ -60,8 +60,8 @@ export function useStream<A, E, R>(
         // Accumulate values with reassignment for Svelte reactivity
         values = [...values, value];
         
-        // Update result with successful chunk so far (only create chunk when needed)
-        result = { _tag: 'success', value: Chunk.fromIterable(values) };
+        // Update result state without creating Chunk on each emission
+        result = { _tag: 'success', value: values };
       })
     );
 
@@ -77,8 +77,8 @@ export function useStream<A, E, R>(
         // Only update if this is still the current fiber
         if (fiber === runningFiber) {
           if (Exit.isSuccess(exit)) {
-            // Stream completed successfully - use current values, not captured
-            result = { _tag: 'success', value: Chunk.fromIterable(values) };
+            // Stream completed successfully - use current values
+            result = { _tag: 'success', value: values };
           } else if (Exit.isFailure(exit)) {
             // Distinguish between interruption (normal cleanup) and actual failures
             if (!Exit.isInterrupted(exit)) {
@@ -86,7 +86,7 @@ export function useStream<A, E, R>(
             } else {
               // Interrupted - keep the current success state with accumulated values
               if (values.length > 0) {
-                result = { _tag: 'success', value: Chunk.fromIterable(values) };
+                result = { _tag: 'success', value: values };
               }
             }
           }
