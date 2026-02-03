@@ -79,7 +79,7 @@ export function reactiveQuery<A, E, R>(
     );
 
     // Run the query
-    const runningFiber = Runtime.runFork(runtime)(queryEffect);
+    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(queryEffect);
     fiber = runningFiber;
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
@@ -158,7 +158,7 @@ export function reactiveStream<A, E, R>(
     );
 
     // Run the subscription
-    const runningFiber = Runtime.runFork(runtime)(subscription);
+    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(subscription);
     fiber = runningFiber;
 
     // Wait for completion and handle result
@@ -258,7 +258,7 @@ export function reactiveMutation<A, E, R>(
     const mutationEffect = Reactivity.mutation(currentEffect, currentKeys);
 
     // Run the mutation
-    const runningFiber = Runtime.runFork(runtime)(mutationEffect);
+    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(mutationEffect);
     currentFiber = runningFiber;
 
     // Handle the result
@@ -322,5 +322,5 @@ export function invalidateKeys(
   keys: ReadonlyArray<unknown>
 ): void {
   const runtime = getRuntime();
-  Runtime.runSync(runtime)(Reactivity.invalidate(keys));
+  Runtime.runSync(runtime as Runtime.Runtime<any>)(Reactivity.invalidate(keys));
 }

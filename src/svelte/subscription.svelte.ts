@@ -116,7 +116,7 @@ export function usePubSub<A>(
     });
 
     // Run the subscription
-    fiber = Runtime.runFork(runtime)(subscriptionEffect);
+    fiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(subscriptionEffect);
 
     // Cleanup: interrupt subscription on unmount
     return () => {

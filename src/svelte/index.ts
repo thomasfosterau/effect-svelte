@@ -5,6 +5,7 @@
 
 // Layer 0: Runtime Context
 export { provideRuntime, getRuntime } from "./context.svelte.js";
+export { SvelteRuntime, defaultSvelteRuntime } from "./runtime.js";
 
 // Layer 1: Scope Primitive
 export { useScope, useScopeCallback } from "./scope.svelte.js";
