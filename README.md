@@ -32,20 +32,22 @@ All features are:
 
 ## Usage
 
-The library provides two entry points:
-- `@thomasfosterau/effect-svelte` - Universal adapters + Svelte 5 runes integration
-- `@thomasfosterau/effect-svelte/server` - Server-only adapters
+The library provides multiple entry points:
+- `@thomasfosterau/effect-svelte` - Svelte 5 runes integration
+- `@thomasfosterau/effect-svelte/kit` - Universal SvelteKit helpers
+- `@thomasfosterau/effect-svelte/kit/server` - Server-only SvelteKit helpers
+- `@thomasfosterau/effect-svelte/kit/client` - Client-only SvelteKit helpers (future)
 
 ### Server Load Functions
 
-Use `SvelteKit.load` from the `/server` export for server-side load functions:
+Use `serverLoad` from `@thomasfosterau/effect-svelte/kit/server` for server-side load functions:
 
 ```typescript
 // src/routes/+page.server.ts
-import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
+import { serverLoad } from '@thomasfosterau/effect-svelte/kit/server';
 import { Effect } from 'effect';
 
-export const load = SvelteKit.load((event) =>
+export const load = serverLoad((event) =>
   Effect.gen(function* () {
     // Your Effect-based logic here
     const userId = event.params.id;
@@ -57,14 +59,14 @@ export const load = SvelteKit.load((event) =>
 
 ### Universal Load Functions
 
-Use `SvelteKit.load` from the main export for universal (client + server) load functions:
+Use `load` from `@thomasfosterau/effect-svelte/kit` for universal (client + server) load functions:
 
 ```typescript
 // src/routes/+page.ts
-import { SvelteKit } from '@thomasfosterau/effect-svelte';
+import { load } from '@thomasfosterau/effect-svelte';
 import { Effect } from 'effect';
 
-export const load = SvelteKit.load((event) =>
+export const load = load((event) =>
   Effect.gen(function* () {
     const data = yield* processData();
     return { data };
@@ -74,16 +76,16 @@ export const load = SvelteKit.load((event) =>
 
 ### Form Actions
 
-Use `SvelteKit.action` for individual actions or `SvelteKit.actions` for multiple actions:
+Use `action` for individual actions or `actions` for multiple actions:
 
 ```typescript
 // src/routes/+page.server.ts
-import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
+import { action, actions } from '@thomasfosterau/effect-svelte/kit/server';
 import { Effect } from 'effect';
 
 // Single action
 export const actions = {
-  default: SvelteKit.action((event) =>
+  default: action((event) =>
     Effect.gen(function* () {
       const formData = yield* Effect.promise(() => event.request.formData());
       const email = formData.get('email');
@@ -94,7 +96,7 @@ export const actions = {
 };
 
 // Multiple actions
-export const actions = SvelteKit.actions({
+export const actions = actions({
   create: (event) =>
     Effect.gen(function* () {
       const formData = yield* Effect.promise(() => event.request.formData());
@@ -113,22 +115,22 @@ export const actions = SvelteKit.actions({
 
 ### API Endpoints
 
-Use `SvelteKit.endpoint` to create Effect-based API route handlers:
+Use `endpoint` to create Effect-based API route handlers:
 
 ```typescript
 // src/routes/api/users/+server.ts
-import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
+import { endpoint } from '@thomasfosterau/effect-svelte/kit/server';
 import { Effect } from 'effect';
 import { json } from '@sveltejs/kit';
 
-export const GET = SvelteKit.endpoint((event) =>
+export const GET = endpoint((event) =>
   Effect.gen(function* () {
     const users = yield* fetchUsers();
     return json(users);
   })
 );
 
-export const POST = SvelteKit.endpoint((event) =>
+export const POST = endpoint((event) =>
   Effect.gen(function* () {
     const data = yield* Effect.promise(() => event.request.json());
     const user = yield* createUser(data);
@@ -139,14 +141,16 @@ export const POST = SvelteKit.endpoint((event) =>
 
 ### Hooks
 
-Use `SvelteKit.handle` to integrate Effect into SvelteKit hooks:
+### Hooks
+
+Use `handle` to integrate Effect into SvelteKit hooks:
 
 ```typescript
 // src/hooks.server.ts
-import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
+import { handle } from '@thomasfosterau/effect-svelte/kit/server';
 import { Effect } from 'effect';
 
-export const handle = SvelteKit.handle(({ event, resolve }) =>
+export const handle = handle(({ event, resolve }) =>
   Effect.gen(function* () {
     // Pre-processing with Effect
     const startTime = Date.now();
@@ -177,7 +181,7 @@ You can customize error handling by wrapping your Effect code with error recover
 ```typescript
 import { Effect } from 'effect';
 
-export const load = SvelteKit.load((event) =>
+export const load = load((event) =>
   Effect.gen(function* () {
     const data = yield* fetchData().pipe(
       Effect.catchAll((error) => 
@@ -504,7 +508,7 @@ Provide a runtime with the Reactivity layer:
   import { Reactivity } from '@effect/experimental';
 
   const runtime = Runtime.make(Reactivity.layer);
-  Svelte.provideRuntime(runtime);
+  provideRuntime(runtime);
 </script>
 
 <YourApp />
@@ -522,7 +526,7 @@ Automatically re-runs when keys are invalidated:
   let userId = $state(1);
 
   // This query depends on the 'user' key with the current userId
-  const user = Svelte.reactiveQuery(
+  const user = reactiveQuery(
     () => ['user', userId],
     () => Effect.gen(function* () {
       const data = yield* fetchUser(userId);
@@ -549,7 +553,7 @@ Invalidates keys after completion:
 
   let userId = $state(1);
 
-  const updateUser = Svelte.reactiveMutation(
+  const updateUser = reactiveMutation(
     () => ['user', userId],
     () => Effect.gen(function* () {
       yield* updateUserInDB(userId, newData);
@@ -578,7 +582,7 @@ Stream that emits when keys are invalidated:
   import { Svelte } from '@thomasfosterau/effect-svelte';
   import { Effect } from 'effect';
 
-  const messages = Svelte.reactiveStream(
+  const messages = reactiveStream(
     ['messages'], // Keys to watch
     Effect.gen(function* () {
       const data = yield* fetchMessages();
@@ -604,7 +608,7 @@ Trigger re-queries manually:
 
   function handleRefresh() {
     // This will re-run all queries depending on these keys
-    Svelte.invalidateKeys(['users', 'messages']);
+    invalidateKeys(['users', 'messages']);
   }
 </script>
 
@@ -621,13 +625,13 @@ Trigger re-queries manually:
 
   // Setup runtime with Reactivity
   const runtime = Runtime.make(Reactivity.layer);
-  Svelte.provideRuntime(runtime);
+  provideRuntime(runtime);
 
   // Reactive state
   let searchTerm = $state('');
 
   // Reactive query - automatically re-runs when keys are invalidated
-  const results = Svelte.reactiveQuery(
+  const results = reactiveQuery(
     () => ['search', searchTerm],
     () => Effect.gen(function* () {
       if (!searchTerm) return [];
@@ -637,7 +641,7 @@ Trigger re-queries manually:
   );
 
   // Mutation that invalidates the search results
-  const clearCache = Svelte.reactiveMutation(
+  const clearCache = reactiveMutation(
     () => ['search', searchTerm],
     () => Effect.succeed({ cleared: true })
   );

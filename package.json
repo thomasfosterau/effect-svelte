@@ -11,17 +11,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./svelte": {
-      "types": "./dist/svelte/index.d.ts",
-      "import": "./dist/svelte/index.js"
-    },
-    "./svelte-kit": {
+    "./kit": {
       "types": "./dist/svelte-kit/index.d.ts",
       "import": "./dist/svelte-kit/index.js"
     },
-    "./server": {
-      "types": "./dist/svelte-kit/index.d.ts",
-      "import": "./dist/svelte-kit/index.js"
+    "./kit/server": {
+      "types": "./dist/svelte-kit/server.d.ts",
+      "import": "./dist/svelte-kit/server.js"
+    },
+    "./kit/client": {
+      "types": "./dist/svelte-kit/client.d.ts",
+      "import": "./dist/svelte-kit/client.js"
     }
   },
   "files": [

@@ -1,56 +1,31 @@
 /**
  * @thomasfosterau/effect-svelte
  * 
- * A library for seamless interoperation between Effect-TS, Svelte 5, and SvelteKit.
+ * Effect-Svelte interoperability primitives for Svelte 5 runes.
+ * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5.
  * 
- * ## Exports
- * 
- * - **Svelte**: Effect-Svelte interoperability primitives for Svelte 5 runes
- * - **SvelteKit**: Effect adapters for SvelteKit (load functions, actions, endpoints, hooks)
- */
-
-/**
- * Svelte namespace containing Effect-Svelte interoperability primitives.
- * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5 runes.
+ * For SvelteKit helpers, import from:
+ * - `@thomasfosterau/effect-svelte/kit` - Universal helpers
+ * - `@thomasfosterau/effect-svelte/kit/server` - Server-only helpers
+ * - `@thomasfosterau/effect-svelte/kit/client` - Client-only helpers
  * 
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from '@thomasfosterau/effect-svelte';
+ *   import { provideRuntime, derived } from '@thomasfosterau/effect-svelte';
  *   import { Effect, Runtime } from 'effect';
  *   
  *   // Provide runtime at app root
- *   Svelte.provideRuntime(Runtime.defaultRuntime);
+ *   provideRuntime(Runtime.defaultRuntime);
  *   
  *   // Use reactive effects
  *   let userId = $state(1);
- *   const user = Svelte.derived(() => fetchUser(userId));
+ *   const user = derived(() => fetchUser(userId));
  * </script>
  * ```
  */
-export * as Svelte from "./svelte/index.js";
 
-/**
- * SvelteKit namespace containing Effect adapters for SvelteKit.
- * Provides helpers for load functions, actions, endpoints, and hooks.
- * 
- * @example
- * ```ts
- * // src/routes/+page.server.ts
- * import { SvelteKit } from '@thomasfosterau/effect-svelte';
- * import { Effect } from 'effect';
- * 
- * export const load = SvelteKit.serverLoad((event) =>
- *   Effect.gen(function* () {
- *     const data = yield* fetchData();
- *     return { data };
- *   })
- * );
- * ```
- */
-export { SvelteKit } from "./svelte-kit/index.js";
-
-// Also export individual items for convenience
+// Export all Svelte helpers from root
 export * from "./svelte/index.js";
 export type { AsyncResult } from "./svelte/types.js";
 
