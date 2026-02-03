@@ -3,7 +3,11 @@ import { getRuntime } from "./context.svelte.js";
 
 /**
  * Subscribe to an Effect SubscriptionRef and get reactive updates.
- * Returns the current value which updates automatically when the ref changes.
+ * Returns the current value directly (not wrapped in an object) for ergonomic use in templates.
+ * 
+ * Note: This hook returns the value directly, unlike other hooks that return objects.
+ * This design choice prioritizes simplicity since SubscriptionRef already manages its own
+ * state, and users typically only need the current value without additional metadata.
  * 
  * @example
  * ```svelte
