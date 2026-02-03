@@ -53,7 +53,7 @@ export function useEffect<A, E, R>(
   options: UseEffectOptions = {}
 ): UseEffectReturn<A, E> {
   const { immediate = false } = options;
-  const runtime = getRuntime<R>();
+  const runtime = getRuntime() as Runtime.Runtime<R>;
   
   let result = $state<AsyncResult<A, E>>({ _tag: 'initial' });
   let currentFiber = $state<Fiber.RuntimeFiber<A, E> | null>(null);

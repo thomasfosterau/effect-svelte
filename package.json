@@ -11,9 +11,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./server": {
-      "types": "./dist/server/index.d.ts",
-      "import": "./dist/server/index.js"
+    "./svelte": {
+      "types": "./dist/svelte/index.d.ts",
+      "import": "./dist/svelte/index.js"
+    },
+    "./svelte-kit": {
+      "types": "./dist/svelte-kit/index.d.ts",
+      "import": "./dist/svelte-kit/index.js"
     }
   },
   "files": [

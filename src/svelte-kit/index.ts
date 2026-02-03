@@ -4,6 +4,7 @@ import type {
   Actions,
   Action,
   Handle,
+  Load,
 } from "@sveltejs/kit";
 import { Effect, Exit, Cause } from "effect";
 
@@ -33,10 +34,10 @@ function causeToError(cause: Cause.Cause<unknown>): Error {
  * 
  * @example
  * ```ts
- * import { SvelteKit } from '@thomasfosterau/effect-svelte/server';
+ * import { SvelteKit } from '@thomasfosterau/effect-svelte';
  * import { Effect } from 'effect';
  * 
- * export const load = SvelteKit.load((event) =>
+ * export const load = SvelteKit.serverLoad((event) =>
  *   Effect.gen(function* () {
  *     const data = yield* fetchData();
  *     return { data };
@@ -44,7 +45,7 @@ function causeToError(cause: Cause.Cause<unknown>): Error {
  * );
  * ```
  */
-function load<
+function serverLoad<
   Params extends Record<string, string> = any,
   ParentData extends Record<string, any> = any,
   OutputData extends Record<string, any> | void = any,
@@ -52,6 +53,46 @@ function load<
 >(
   fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown>
 ): ServerLoad<Params, ParentData, OutputData, RouteId> {
+  return async (event) => {
+    const effect = fn(event);
+    const exit = await Effect.runPromiseExit(effect);
+
+    return Exit.match(exit, {
+      onFailure: (cause) => {
+        throw causeToError(cause);
+      },
+      onSuccess: (value) => value,
+    }) as OutputData;
+  };
+}
+
+/**
+ * Wraps an Effect-based function to work as a SvelteKit universal load function.
+ * 
+ * @example
+ * ```ts
+ * import { SvelteKit } from '@thomasfosterau/effect-svelte';
+ * import { Effect } from 'effect';
+ * 
+ * export const load = SvelteKit.load((event) =>
+ *   Effect.gen(function* () {
+ *     const data = yield* processData();
+ *     return { data };
+ *   })
+ * );
+ * ```
+ */
+function load<
+  Params extends Record<string, string> = any,
+  InputData extends Record<string, unknown> | null = any,
+  ParentData extends Record<string, unknown> = any,
+  OutputData extends Record<string, unknown> | void = any,
+  RouteId extends string | null = any
+>(
+  fn: (
+    event: Parameters<Load<Params, InputData, ParentData, OutputData, RouteId>>[0]
+  ) => Effect.Effect<OutputData, unknown>
+): Load<Params, InputData, ParentData, OutputData, RouteId> {
   return async (event) => {
     const effect = fn(event);
     const exit = await Effect.runPromiseExit(effect);
@@ -225,11 +266,12 @@ function endpoint<
 }
 
 /**
- * SvelteKit namespace containing server-side Effect adapters.
- * Use these functions to wrap Effect programs for SvelteKit server-only contexts.
+ * SvelteKit namespace containing Effect adapters for SvelteKit.
+ * Provides helpers for load functions, actions, endpoints, and hooks.
  */
 export const SvelteKit = {
   load,
+  serverLoad,
   action,
   actions,
   handle,

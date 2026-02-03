@@ -10,12 +10,12 @@ import type { AsyncResult } from "./types.js";
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { useDerivedEffect } from 'effect-svelte';
+ *   import { Svelte } from 'effect-svelte';
  *   import { Effect } from 'effect';
  *   
  *   let userId = $state(1);
  *   
- *   const user = useDerivedEffect(() => 
+ *   const user = Svelte.derived(() => 
  *     Effect.gen(function* () {
  *       const response = yield* fetchUser(userId);
  *       return response;
@@ -30,10 +30,10 @@ import type { AsyncResult } from "./types.js";
  * {/if}
  * ```
  */
-export function useDerivedEffect<A, E, R>(
+export function derived<A, E, R>(
   fn: () => Effect.Effect<A, E, R>
 ): AsyncResult<A, E> {
-  const runtime = getRuntime<R>();
+  const runtime = getRuntime() as Runtime.Runtime<R>;
   
   let result = $state<AsyncResult<A, E>>({ _tag: 'initial' });
   let currentFiber = $state<Fiber.RuntimeFiber<A, E> | null>(null);

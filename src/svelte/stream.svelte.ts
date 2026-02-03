@@ -43,7 +43,7 @@ export interface UseStreamReturn<A, E> {
 export function useStream<A, E, R>(
   stream: Stream.Stream<A, E, R>
 ): UseStreamReturn<A, E> {
-  const runtime = getRuntime<R>();
+  const runtime = getRuntime() as Runtime.Runtime<R>;
   
   let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: 'initial' });
   let values = $state<A[]>([]);
