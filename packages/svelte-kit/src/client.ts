@@ -10,3 +10,4 @@
 // Example: client-side navigation hooks, client-side error boundaries, etc.
 
 export const placeholder = "Client-only helpers will be added here";
+export * from "./remote-call.js";

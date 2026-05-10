@@ -242,3 +242,4 @@ export function endpoint<
  * Export the SvelteKit runtime utilities for advanced use cases.
  */
 export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
+export { RemoteFunction } from "./remote.server.js";
