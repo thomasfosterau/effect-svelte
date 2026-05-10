@@ -1,70 +1,20 @@
 {
-  "name": "@thomasfosterau/effect-svelte",
-  "version": "0.0.0",
-  "description": "A library for working with Svelte, SvelteKit and Effect",
+  "name": "effect-svelte-workspace",
+  "private": true,
+  "description": "Monorepo workspace for Effect integrations with Svelte and SvelteKit",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./kit": {
-      "types": "./dist/svelte-kit/index.d.ts",
-      "import": "./dist/svelte-kit/index.js"
-    },
-    "./kit/server": {
-      "types": "./dist/svelte-kit/server.d.ts",
-      "import": "./dist/svelte-kit/server.js"
-    },
-    "./kit/client": {
-      "types": "./dist/svelte-kit/client.d.ts",
-      "import": "./dist/svelte-kit/client.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
+  "workspaces": [
+    "packages/svelte",
+    "packages/svelte-kit"
   ],
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
+    "build": "npm run build --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
     "prepare": "effect-language-service patch",
-    "prepublishOnly": "npm run clean && npm run build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "npm run build && changeset publish"
-  },
-  "keywords": [
-    "effect",
-    "svelte",
-    "sveltekit",
-    "typescript",
-    "functional-programming"
-  ],
-  "author": "Thomas Foster",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/thomasfosterau/effect-svelte.git"
-  },
-  "bugs": {
-    "url": "https://github.com/thomasfosterau/effect-svelte/issues"
-  },
-  "homepage": "https://github.com/thomasfosterau/effect-svelte#readme",
-  "publishConfig": {
-    "access": "public"
-  },
-  "peerDependencies": {
-    "@effect/experimental": "^0.58.0",
-    "@effect/platform": "^0.94.0",
-    "@sveltejs/kit": "^2.0.0",
-    "effect": "^3.0.0",
-    "svelte": "^5.0.0"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
@@ -73,6 +23,7 @@
     "@effect/platform": "^0.94.0",
     "@sveltejs/kit": "^2.0.0",
     "effect": "^3.0.0",
+    "svelte": "^5.0.0",
     "typescript": "^5.3.3"
   }
 }

@@ -29,7 +29,7 @@ function causeToError(cause: Cause.Cause<unknown>): Error {
  * 
  * @example
  * ```ts
- * import { load } from '@thomasfosterau/effect-svelte/kit';
+ * import { load } from '@thomasfosterau/effect-svelte-kit';
  * import { Effect } from 'effect';
  * 
  * export const load = load((event) =>
@@ -55,7 +55,7 @@ export function load<
     // Universal loads can run on server or client, so we only provide runtime on server
     const runtime = (event as any).request ? SvelteKitRuntime.forRequest(event as any) : null;
     const effect = fn(event);
-    const exit = runtime 
+    const exit = runtime
       ? await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>)
       : await Effect.runPromiseExit(effect);
 

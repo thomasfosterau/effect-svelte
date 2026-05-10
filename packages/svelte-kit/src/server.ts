@@ -35,7 +35,7 @@ function causeToError(cause: Cause.Cause<unknown>): Error {
  * 
  * @example
  * ```ts
- * import { serverLoad } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { serverLoad } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * import { HttpClient } from '@effect/platform';
  * 
@@ -76,7 +76,7 @@ export function serverLoad<
  * 
  * @example
  * ```ts
- * import { action } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { action } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * 
  * export const actions = {
@@ -117,7 +117,7 @@ export function action<
  * 
  * @example
  * ```ts
- * import { actions } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { actions } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * 
  * export const actions = actions({
@@ -151,7 +151,7 @@ export function actions<
  * 
  * @example
  * ```ts
- * import { handle } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { handle } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * 
  * export const handle = handle(({ event, resolve }) =>
@@ -190,7 +190,7 @@ export function handle(
  * 
  * @example
  * ```ts
- * import { endpoint } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { endpoint } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * import { json } from '@sveltejs/kit';
  * import { HttpClient } from '@effect/platform';
@@ -212,7 +212,7 @@ export function endpoint<
   options?: { exposeErrors?: boolean }
 ): (event: RequestEvent<Params, RouteId>) => Promise<Response> {
   const { exposeErrors = false } = options ?? {};
-  
+
   return async (event) => {
     const runtime = SvelteKitRuntime.forRequest(event);
     const effect = fn(event);
@@ -222,12 +222,12 @@ export function endpoint<
       onFailure: (cause) => {
         // Always log the full error server-side for debugging
         console.error('Endpoint error:', Cause.pretty(cause));
-        
+
         // Return generic error message to client unless explicitly enabled
-        const clientMessage = exposeErrors 
-          ? Cause.pretty(cause) 
+        const clientMessage = exposeErrors
+          ? Cause.pretty(cause)
           : 'Internal server error';
-        
+
         return new Response(JSON.stringify({ error: clientMessage }), {
           status: 500,
           headers: { "Content-Type": "application/json" },

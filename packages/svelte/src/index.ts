@@ -5,9 +5,9 @@
  * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5.
  * 
  * For SvelteKit helpers, import from:
- * - `@thomasfosterau/effect-svelte/kit` - Universal helpers
- * - `@thomasfosterau/effect-svelte/kit/server` - Server-only helpers
- * - `@thomasfosterau/effect-svelte/kit/client` - Client-only helpers
+ * - `@thomasfosterau/effect-svelte-kit` - Universal helpers
+ * - `@thomasfosterau/effect-svelte-kit/server` - Server-only helpers
+ * - `@thomasfosterau/effect-svelte-kit/client` - Client-only helpers
  * 
  * @example
  * ```svelte

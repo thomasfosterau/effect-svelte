@@ -12,8 +12,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "incremental": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "esModuleInterop": true,
@@ -31,7 +29,5 @@
       }
     ],
     "noFallthroughCasesInSwitch": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  }
 }

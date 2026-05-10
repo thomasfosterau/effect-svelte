@@ -10,7 +10,7 @@ import type { RequestEvent } from "@sveltejs/kit";
 export class SvelteKitRequestEvent extends Context.Tag("SvelteKitRequestEvent")<
   SvelteKitRequestEvent,
   RequestEvent
->() {}
+>() { }
 
 /**
  * Custom runtime for SvelteKit server-side helpers.
@@ -22,7 +22,7 @@ export class SvelteKitRequestEvent extends Context.Tag("SvelteKitRequestEvent")<
  * 
  * @example
  * ```ts
- * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * import * as HttpClient from '@effect/platform/HttpClient';
  * 
@@ -86,7 +86,7 @@ export class SvelteKitRuntime {
    * 
    * @example
    * ```ts
-   * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/server';
+  * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte-kit/server';
    * import { Layer, Context } from 'effect';
    * 
    * class Database extends Context.Tag("Database")<Database, {
@@ -142,7 +142,7 @@ export class SvelteKitRuntime {
  * 
  * @example
  * ```ts
- * import { runWithSvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { runWithSvelteKitRuntime } from '@thomasfosterau/effect-svelte-kit/server';
  * import { Effect } from 'effect';
  * 
  * export const load = async (event) => {
