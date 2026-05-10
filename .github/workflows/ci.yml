@@ -17,18 +17,26 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          fetch-depth: 0
+
+      - name: Set Nx SHAs
+        uses: nrwl/nx-set-shas@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Validate affected projects (PR)
+        if: github.event_name == 'pull_request'
+        run: bun run ci:affected
 
-      - name: Build
-        run: npm run build
+      - name: Validate all projects (main)
+        if: github.event_name != 'pull_request'
+        run: |
+          bun run typecheck
+          bun run build

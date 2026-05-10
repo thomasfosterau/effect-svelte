@@ -30,7 +30,11 @@ npm install @thomasfosterau/effect-svelte @thomasfosterau/effect-svelte-kit effe
 ### Svelte runtime and hooks
 
 ```ts
-import { provideRuntime, useEffect, derived } from "@thomasfosterau/effect-svelte";
+import {
+  provideRuntime,
+  useEffect,
+  derived,
+} from "@thomasfosterau/effect-svelte";
 ```
 
 ### SvelteKit universal load
@@ -42,7 +46,13 @@ import { load } from "@thomasfosterau/effect-svelte-kit";
 ### SvelteKit server helpers
 
 ```ts
-import { serverLoad, action, actions, handle, endpoint } from "@thomasfosterau/effect-svelte-kit/server";
+import {
+  serverLoad,
+  action,
+  actions,
+  handle,
+  endpoint,
+} from "@thomasfosterau/effect-svelte-kit/server";
 ```
 
 ### SvelteKit client helpers
@@ -55,10 +65,10 @@ import { placeholder } from "@thomasfosterau/effect-svelte-kit/client";
 
 This split is a breaking change and does not include compatibility aliases.
 
-| Old import | New import |
-|---|---|
-| @thomasfosterau/effect-svelte | @thomasfosterau/effect-svelte |
-| @thomasfosterau/effect-svelte/kit | @thomasfosterau/effect-svelte-kit |
+| Old import                               | New import                               |
+| ---------------------------------------- | ---------------------------------------- |
+| @thomasfosterau/effect-svelte            | @thomasfosterau/effect-svelte            |
+| @thomasfosterau/effect-svelte/kit        | @thomasfosterau/effect-svelte-kit        |
 | @thomasfosterau/effect-svelte/kit/server | @thomasfosterau/effect-svelte-kit/server |
 | @thomasfosterau/effect-svelte/kit/client | @thomasfosterau/effect-svelte-kit/client |
 
@@ -67,35 +77,56 @@ This split is a breaking change and does not include compatibility aliases.
 ### Install
 
 ```bash
-npm install
+bun install
 ```
 
 ### Build all packages
 
 ```bash
-npm run build
+bun run build
+```
+
+### Build affected packages
+
+```bash
+bun run build:affected
 ```
 
 ### Typecheck all packages
 
 ```bash
-npm run typecheck
+bun run typecheck
+```
+
+### Typecheck affected packages
+
+```bash
+bun run typecheck:affected
 ```
 
 ### Clean all package outputs
 
 ```bash
-npm run clean
+bun run clean
 ```
+
+Nx powers workspace orchestration. You can also run individual tasks directly:
+
+```bash
+bunx nx run effect-svelte:build
+bunx nx run effect-svelte-kit:typecheck
+```
+
+Pull request CI uses Nx affected-target filtering. Pushes to main run full typecheck and build.
 
 ## Release workflow
 
 Changesets is configured at the workspace root.
 
 ```bash
-npm run changeset
-npm run version
-npm run release
+bun run changeset
+bun run version
+bun run release
 ```
 
 Each package can be versioned independently.
