@@ -25,6 +25,13 @@
 				"command": "bun run clean",
 				"cwd": "packages/svelte-kit"
 			}
+		},
+		"test": {
+			"executor": "nx:run-commands",
+			"options": {
+				"command": "bun test",
+				"cwd": "packages/svelte-kit"
+			}
 		}
 	}
 }

@@ -37,6 +37,35 @@ import {
 } from "@thomasfosterau/effect-svelte";
 ```
 
+### SvelteKit Vite plugin (recommended)
+
+```ts
+// vite.config.ts
+import { sveltekit } from "@sveltejs/kit/vite";
+import { effectKit } from "@thomasfosterau/effect-svelte-kit/vite";
+
+export default {
+  plugins: [effectKit(), sveltekit()],
+};
+```
+
+With the plugin installed, you can return an Effect (or a function returning
+an Effect) directly from any standard SvelteKit route file (`+page.ts`,
+`+page.server.ts`, `+layout(.server).ts`, `+server.ts`,
+`hooks.(server|client).ts`):
+
+```ts
+// +page.server.ts
+import { Effect } from "effect";
+
+export const load = (event) => Effect.succeed({ id: event.params.id });
+```
+
+The plugin rewrites the export so it goes through the same runtime as the
+explicit wrappers below; plain promise/value-returning functions pass through
+unchanged. See `packages/svelte-kit/README.md` for the full table of
+supported file/export combinations.
+
 ### SvelteKit universal load
 
 ```ts
