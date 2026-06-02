@@ -1,28 +1,25 @@
 # effect-svelte
 
-Monorepo for Effect integrations with Svelte and SvelteKit.
+Effect integrations for Svelte 5 runes and SvelteKit, published as a single package:
+`@thomasfosterau/effect-svelte`.
 
-## Packages
-
-1. @thomasfosterau/effect-svelte
-2. @thomasfosterau/effect-svelte-kit
+- `@thomasfosterau/effect-svelte` - Svelte 5 runes integration for Effect
+- `@thomasfosterau/effect-svelte/kit` - SvelteKit helpers (universal)
+- `@thomasfosterau/effect-svelte/kit/server` - SvelteKit server-only helpers
+- `@thomasfosterau/effect-svelte/kit/client` - SvelteKit client-only helpers
+- `@thomasfosterau/effect-svelte/kit/vite` - The `effectKit()` Vite plugin
 
 ## Installation
-
-Install only what you need.
 
 ```bash
 npm install @thomasfosterau/effect-svelte effect svelte
 ```
 
-```bash
-npm install @thomasfosterau/effect-svelte-kit effect @sveltejs/kit
-```
-
-If your app uses both APIs:
+If you use the SvelteKit helpers, you also need the (optional) SvelteKit peer
+dependencies:
 
 ```bash
-npm install @thomasfosterau/effect-svelte @thomasfosterau/effect-svelte-kit effect svelte @sveltejs/kit
+npm install @thomasfosterau/effect-svelte effect svelte @sveltejs/kit @effect/platform
 ```
 
 ## Usage
@@ -30,11 +27,7 @@ npm install @thomasfosterau/effect-svelte @thomasfosterau/effect-svelte-kit effe
 ### Svelte runtime and hooks
 
 ```ts
-import {
-  provideRuntime,
-  useEffect,
-  derived,
-} from "@thomasfosterau/effect-svelte";
+import { provideRuntime, useEffect, derived } from "@thomasfosterau/effect-svelte";
 ```
 
 ### SvelteKit Vite plugin (recommended)
@@ -42,7 +35,7 @@ import {
 ```ts
 // vite.config.ts
 import { sveltekit } from "@sveltejs/kit/vite";
-import { effectKit } from "@thomasfosterau/effect-svelte-kit/vite";
+import { effectKit } from "@thomasfosterau/effect-svelte/kit/vite";
 
 export default {
   plugins: [effectKit(), sveltekit()],
@@ -63,13 +56,27 @@ export const load = (event) => Effect.succeed({ id: event.params.id });
 
 The plugin rewrites the export so it goes through the same runtime as the
 explicit wrappers below; plain promise/value-returning functions pass through
-unchanged. See `packages/svelte-kit/README.md` for the full table of
-supported file/export combinations.
+unchanged.
+
+#### Supported exports
+
+| File                | Exports auto-wrapped                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| `+page.ts`          | `load`                                                                 |
+| `+page.server.ts`   | `load`, `actions`                                                      |
+| `+layout.ts`        | `load`                                                                 |
+| `+layout.server.ts` | `load`                                                                 |
+| `+server.ts`        | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `fallback` |
+| `hooks.server.ts`   | `handle`, `handleFetch`, `handleError`, `init`                         |
+| `hooks.client.ts`   | `handleError`, `init`                                                  |
+
+Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` are never
+touched.
 
 ### SvelteKit universal load
 
 ```ts
-import { load } from "@thomasfosterau/effect-svelte-kit";
+import { load } from "@thomasfosterau/effect-svelte/kit";
 ```
 
 ### SvelteKit server helpers
@@ -81,84 +88,56 @@ import {
   actions,
   handle,
   endpoint,
-} from "@thomasfosterau/effect-svelte-kit/server";
+} from "@thomasfosterau/effect-svelte/kit/server";
 ```
 
 ### SvelteKit client helpers
 
 ```ts
-import { placeholder } from "@thomasfosterau/effect-svelte-kit/client";
+import { placeholder } from "@thomasfosterau/effect-svelte/kit/client";
 ```
 
-## Migration from previous single-package API
+## Development
 
-This split is a breaking change and does not include compatibility aliases.
-
-| Old import                               | New import                               |
-| ---------------------------------------- | ---------------------------------------- |
-| @thomasfosterau/effect-svelte            | @thomasfosterau/effect-svelte            |
-| @thomasfosterau/effect-svelte/kit        | @thomasfosterau/effect-svelte-kit        |
-| @thomasfosterau/effect-svelte/kit/server | @thomasfosterau/effect-svelte-kit/server |
-| @thomasfosterau/effect-svelte/kit/client | @thomasfosterau/effect-svelte-kit/client |
-
-## Workspace development
-
-### Install
+This repository is managed by [Vite+](https://viteplus.dev). Day-to-day
+commands:
 
 ```bash
-bun install
+vp install   # Install dependencies
+vp check     # Format, lint, and type-check
+vp test      # Run the test suite (Vitest)
+vp pack      # Build the library (tsdown)
 ```
 
-### Build all packages
+If you don't have the `vp` global CLI installed, every command is also
+available through the package scripts (`pnpm run check`, `pnpm run test`,
+`pnpm run build`, ...), or install it with:
 
 ```bash
-bun run build
+curl -fsSL https://vite.plus | bash
 ```
 
-### Build affected packages
+All tooling (build, test, lint, format) is configured in a single
+`vite.config.ts` at the repository root.
 
-```bash
-bun run build:affected
+### Project layout
+
 ```
-
-### Typecheck all packages
-
-```bash
-bun run typecheck
+src/           Svelte 5 runes integration (package root export)
+src/kit/       SvelteKit helpers (./kit subpath exports)
+tests/         Vitest test suite
+vite.config.ts Vite+ configuration (pack, test, lint, fmt)
 ```
-
-### Typecheck affected packages
-
-```bash
-bun run typecheck:affected
-```
-
-### Clean all package outputs
-
-```bash
-bun run clean
-```
-
-Nx powers workspace orchestration. You can also run individual tasks directly:
-
-```bash
-bunx nx run effect-svelte:build
-bunx nx run effect-svelte-kit:typecheck
-```
-
-Pull request CI uses Nx affected-target filtering. Pushes to main run full typecheck and build.
 
 ## Release workflow
 
-Changesets is configured at the workspace root.
+Changesets is configured at the repository root.
 
 ```bash
-bun run changeset
-bun run version
-bun run release
+vp run changeset   # Create a changeset
+vp run version     # Apply pending changesets to the package version
+vp run release     # Build and publish to npm
 ```
-
-Each package can be versioned independently.
 
 ## License
 

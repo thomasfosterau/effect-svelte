@@ -1,8 +1,8 @@
 ---
-"@thomasfosterau/effect-svelte-kit": minor
+"@thomasfosterau/effect-svelte": minor
 ---
 
-Add `effectKit()` Vite plugin at `@thomasfosterau/effect-svelte-kit/vite`.
+Add `effectKit()` Vite plugin at `@thomasfosterau/effect-svelte/kit/vite`.
 
 The plugin rewrites the standard SvelteKit route exports (`load`, `actions`,
 `handle`, `handleFetch`, `handleError`, `init`, and HTTP method handlers in
@@ -15,4 +15,4 @@ are not affected, making the plugin safe to enable on existing projects.
 Existing explicit wrappers (`load`, `serverLoad`, `action`, `actions`,
 `handle`, `endpoint`, ...) continue to be exported and supported.
 
-New dependencies: `magic-string` (runtime), `vite` (peer, `^5 || ^6 || ^7`).
+New dependencies: `magic-string` (runtime), `vite` (optional peer, `^5 || ^6 || ^7 || ^8`).

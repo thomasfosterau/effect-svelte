@@ -1,26 +1,17 @@
 {
-	"name": "Thomas' Website",
-	"image": "mcr.microsoft.com/devcontainers/typescript-node:latest",
-	"features": {
-		"ghcr.io/devcontainers-extra/features/bun:1": {},
-		"ghcr.io/devcontainers/features/common-utils:2": {},
-		"ghcr.io/devcontainers/features/github-cli:1": {},
-		"ghcr.io/devcontainers-extra/features/ripgrep:1": {}
-	},
-	"postCreateCommand": "bun install && bunx playwright install --with-deps chromium",
-	"forwardPorts": [
-		8787,
-		8976
-	],
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"dbaeumer.vscode-eslint",
-				"svelte.svelte-vscode",
-				"bradlc.vscode-tailwindcss",
-				"esbenp.prettier-vscode"
-			]
-		}
-	},
-	"workspaceFolder": "/workspaces/effect-svelte"
+  "name": "effect-svelte",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/pnpm:2": {},
+    "ghcr.io/devcontainers-extra/features/ripgrep:1": {}
+  },
+  "postCreateCommand": "pnpm install",
+  "customizations": {
+    "vscode": {
+      "extensions": ["svelte.svelte-vscode", "oxc.oxc-vscode"]
+    }
+  },
+  "workspaceFolder": "/workspaces/effect-svelte"
 }

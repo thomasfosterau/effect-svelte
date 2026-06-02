@@ -1,7 +1,9 @@
 {
-	"typescript.tsdk": "./node_modules/typescript/lib",
-	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"chat.tools.terminal.autoApprove": {
-		"bun": true
-	}
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "oxc.fmt.configPath": "./vite.config.ts",
+  "chat.tools.terminal.autoApprove": {
+    "pnpm": true,
+    "vp": true
+  }
 }
