@@ -35,3 +35,11 @@ jobs:
 
       - name: Build
         run: vp pack
+
+      # The example apps consume the built package from dist/, so they run
+      # after `vp pack`.
+      - name: Typecheck examples
+        run: vp run --filter "example-*" typecheck
+
+      - name: Build examples
+        run: vp run --filter "example-*" build

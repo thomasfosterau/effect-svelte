@@ -1,0 +1,25 @@
+{
+  "name": "example-realtime-dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Real-time market dashboard built with Svelte 5, Effect streams, and @thomasfosterau/effect-svelte",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@effect/experimental": "^0.58.0",
+    "@thomasfosterau/effect-svelte": "workspace:*",
+    "effect": "^3.0.0",
+    "svelte": "^5.46.4"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "^5.3.3",
+    "vite": "^8.0.0"
+  }
+}

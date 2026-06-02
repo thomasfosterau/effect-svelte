@@ -41,3 +41,8 @@ SvelteKit helpers:
 - `RemoteFunction.query/form/command/prerender` now correctly detect Standard
   Schema validators that are callable values (such as Effect's
   `Schema.standardSchemaV1`), instead of mistaking them for handler functions.
+- New `callCommandWithUpdates(command, input, ...queries)` helper that calls a
+  remote command with SvelteKit's single-flight query updates, mirroring
+  `submitFormWithUpdates`.
+- `submitForm` / `submitFormWithUpdates` accept the newer SvelteKit `submit()`
+  signature (which returns `Promise<boolean>`).

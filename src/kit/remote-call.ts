@@ -49,6 +49,22 @@ export function callCommand<Input, Output>(
   return fromRemotePromise(() => command(input as Input));
 }
 
+/**
+ * Calls a remote command and refreshes the given queries in the same round
+ * trip (SvelteKit's single-flight mutations).
+ *
+ * Newer SvelteKit versions cache remote query instances, so a command that
+ * changes data those queries depend on must list them here (or call
+ * `query.refresh()` afterwards) for their cached values to update.
+ */
+export function callCommandWithUpdates<Input, Output>(
+  command: RemoteCommand<Input, Output>,
+  input: Input,
+  ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>
+): Effect.Effect<Output, unknown, never> {
+  return fromRemotePromise(() => command(input).updates(...queries));
+}
+
 export function callPrerender<Output>(
   prerender: RemotePrerenderFunction<void, Output>,
 ): Effect.Effect<Output, unknown, never>;
@@ -69,17 +85,24 @@ export function callPrerender<Input, Output>(
   return fromRemotePromise(() => prerender(input as Input));
 }
 
-export type RemoteSubmit = () => Promise<void> & {
-  updates: (...queries: Array<RemoteQuery<any> | RemoteQueryOverride>) => Promise<void>;
+/**
+ * The shape of an enhanced remote form `submit` function. The promise result
+ * is left open (SvelteKit returns `Promise<void>` in older versions and
+ * `Promise<boolean>` in newer ones).
+ */
+export type RemoteSubmit = () => PromiseLike<unknown> & {
+  updates: (...queries: Array<RemoteQuery<any> | RemoteQueryOverride>) => PromiseLike<unknown>;
 };
 
-export function submitForm(submit: () => Promise<void>): Effect.Effect<void, unknown, never> {
-  return fromRemotePromise(() => submit());
+export function submitForm(
+  submit: () => PromiseLike<unknown>,
+): Effect.Effect<void, unknown, never> {
+  return Effect.asVoid(fromRemotePromise(() => submit()));
 }
 
 export function submitFormWithUpdates(
   submit: RemoteSubmit,
   ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>
 ): Effect.Effect<void, unknown, never> {
-  return fromRemotePromise(() => submit().updates(...queries));
+  return Effect.asVoid(fromRemotePromise(() => submit().updates(...queries)));
 }

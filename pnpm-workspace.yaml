@@ -1,2 +1,9 @@
 ignoredBuiltDependencies:
   - msgpackr-extract
+
+onlyBuiltDependencies:
+  - esbuild
+
+packages:
+  - "."
+  - "examples/*"
