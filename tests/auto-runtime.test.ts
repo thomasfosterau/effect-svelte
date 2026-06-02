@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
+import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
 import { Effect } from "effect";
+import * as HttpClient from "@effect/platform/HttpClient";
 import {
   wrapAction,
   wrapActions,
@@ -59,12 +61,52 @@ describe("wrapServerLoad", () => {
     const fn = wrapServerLoad(() => Effect.fail("boom"));
     await expect(fn!(mockEvent())).rejects.toThrow();
   });
+
+  it("passes redirect() through to SvelteKit", async () => {
+    const fn = wrapServerLoad(() =>
+      Effect.sync((): void => {
+        redirect(302, "/elsewhere");
+      }),
+    );
+    try {
+      await fn!(mockEvent());
+      throw new Error("expected a redirect to be thrown");
+    } catch (thrown) {
+      expect(isRedirect(thrown)).toBe(true);
+      expect((thrown as { location: string }).location).toBe("/elsewhere");
+    }
+  });
+
+  it("passes error() through to SvelteKit", async () => {
+    const fn = wrapServerLoad(() =>
+      Effect.sync((): void => {
+        error(404, "Not found");
+      }),
+    );
+    try {
+      await fn!(mockEvent());
+      throw new Error("expected an HttpError to be thrown");
+    } catch (thrown) {
+      expect(isHttpError(thrown)).toBe(true);
+      expect((thrown as { status: number }).status).toBe(404);
+    }
+  });
+
+  it("provides HttpClient from the runtime", async () => {
+    const fn = wrapServerLoad(() =>
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient;
+        return { hasClient: client !== undefined };
+      }),
+    );
+    const result = await fn!(mockEvent());
+    expect(result).toEqual({ hasClient: true });
+  });
 });
 
 describe("wrapLoad (universal)", () => {
-  it("runs effects on client-style events (no request)", async () => {
-    const fn = wrapLoad(() => Effect.succeed({ universal: true }));
-    const clientEvent = {
+  const clientEvent = () =>
+    ({
       url: new URL("http://localhost/"),
       params: {},
       route: { id: null },
@@ -74,9 +116,23 @@ describe("wrapLoad (universal)", () => {
       parent: async () => ({}),
       setHeaders: () => undefined,
       untrack: <T>(fn: () => T) => fn(),
-    } as any;
-    const result = await fn!(clientEvent);
+    }) as any;
+
+  it("runs effects on client-style events (no request)", async () => {
+    const fn = wrapLoad(() => Effect.succeed({ universal: true }));
+    const result = await fn!(clientEvent());
     expect(result).toEqual({ universal: true });
+  });
+
+  it("provides HttpClient on client-style events via the event fetch", async () => {
+    const fn = wrapLoad(() =>
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient;
+        return { hasClient: client !== undefined };
+      }),
+    );
+    const result = await fn!(clientEvent());
+    expect(result).toEqual({ hasClient: true });
   });
 });
 

@@ -1,41 +1,27 @@
 import type { Load } from "@sveltejs/kit";
-import { Effect, Exit, Cause } from "effect";
+import { Effect, Exit } from "effect";
+import type * as HttpClient from "@effect/platform/HttpClient";
 import { SvelteKitRuntime } from "./runtime.js";
-
-/**
- * Custom error type that preserves the original Effect Cause.
- */
-class EffectCauseError extends Error {
-  declare cause: Cause.Cause<unknown>;
-
-  constructor(message: string, cause: Cause.Cause<unknown>) {
-    super(message);
-    this.name = "EffectCauseError";
-    this.cause = cause;
-  }
-}
-
-/**
- * Converts an Effect Cause to a more descriptive error message
- */
-function causeToError(cause: Cause.Cause<unknown>): Error {
-  const message = Cause.pretty(cause);
-  return new EffectCauseError(message, cause);
-}
+import { causeToThrowable } from "./internal/error.js";
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit universal load function.
- * The effect will have access to platform services when running server-side.
+ *
+ * The effect has access to `HttpClient` on both the server and the client:
+ * it is backed by the load event's `fetch`, so relative URLs and SvelteKit's
+ * fetch behaviours (deduplication, cookies forwarding) work as expected.
  *
  * @example
  * ```ts
- * import { load } from '@thomasfosterau/effect-svelte/kit';
+ * import { load as effectLoad } from '@thomasfosterau/effect-svelte/kit';
+ * import * as HttpClient from '@effect/platform/HttpClient';
  * import { Effect } from 'effect';
  *
- * export const load = load((event) =>
+ * export const load = effectLoad((event) =>
  *   Effect.gen(function* () {
- *     const data = yield* processData();
- *     return { data };
+ *     const client = yield* HttpClient.HttpClient;
+ *     const response = yield* client.get(`/api/items/${event.params.id}`);
+ *     return { item: yield* response.json };
  *   })
  * );
  * ```
@@ -49,19 +35,22 @@ export function load<
 >(
   fn: (
     event: Parameters<Load<Params, InputData, ParentData, OutputData, RouteId>>[0],
-  ) => Effect.Effect<OutputData, unknown, never>,
+  ) => Effect.Effect<OutputData, unknown, HttpClient.HttpClient>,
 ): Load<Params, InputData, ParentData, OutputData, RouteId> {
   return async (event) => {
-    // Universal loads can run on server or client, so we only provide runtime on server
-    const runtime = (event as any).request ? SvelteKitRuntime.forRequest(event as any) : null;
+    // On the server the full runtime (HttpClient + SvelteKitRequestEvent) is
+    // available; on the client we provide HttpClient backed by the load
+    // event's fetch.
+    const runtime = (event as { request?: unknown }).request
+      ? SvelteKitRuntime.forRequest(event as never)
+      : SvelteKitRuntime.forFetch(event.fetch);
+
     const effect = fn(event);
-    const exit = runtime
-      ? await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>)
-      : await Effect.runPromiseExit(effect);
+    const exit = await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>);
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw causeToError(cause);
+        throw causeToThrowable(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;

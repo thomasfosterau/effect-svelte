@@ -1,5 +1,6 @@
-import { Stream, Runtime, Fiber, Exit, Effect } from "effect";
+import { Stream, Fiber, Exit, Effect } from "effect";
 import { getRuntime } from "./context.svelte.js";
+import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import type { AsyncResult } from "./types.js";
 
 export interface UseStreamReturn<A, E> {
@@ -26,7 +27,7 @@ export interface UseStreamReturn<A, E> {
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { useStream } from 'effect-svelte';
+ *   import { useStream } from '@thomasfosterau/effect-svelte';
  *   import { Stream, Schedule } from 'effect';
  *
  *   const counter = useStream(
@@ -41,11 +42,11 @@ export interface UseStreamReturn<A, E> {
  * ```
  */
 export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamReturn<A, E> {
-  const runtime = getRuntime() as Runtime.Runtime<R>;
+  const runtime = getRuntime() as RuntimeLike<R>;
 
   let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: "initial" });
   let values = $state<A[]>([]);
-  let fiber = $state<Fiber.RuntimeFiber<void, E> | null>(null);
+  let fiber: Fiber.RuntimeFiber<void, E> | null = null;
 
   $effect(() => {
     // Reset state
@@ -64,11 +65,11 @@ export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamRet
     );
 
     // Run the subscription as a fiber and capture the reference
-    const runningFiber = Runtime.runFork(runtime)(subscription);
+    const runningFiber = runFork(runtime)(subscription);
     fiber = runningFiber;
 
     // Wait for completion and handle result
-    Runtime.runFork(runtime)(
+    runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(runningFiber);
 
@@ -97,7 +98,7 @@ export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamRet
     // Cleanup: interrupt the subscription on unmount
     return () => {
       if (fiber !== null) {
-        Runtime.runSync(runtime)(Fiber.interrupt(fiber));
+        interruptFiber(fiber);
         fiber = null;
       }
     };

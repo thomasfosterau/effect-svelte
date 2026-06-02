@@ -1,4 +1,5 @@
 import { Scope, Exit, Effect } from "effect";
+import { untrack } from "svelte";
 
 /**
  * Creates an Effect Scope that is tied to the component lifecycle.
@@ -68,8 +69,10 @@ export function useScopeCallback(
     // Create the scope when component mounts
     const scope = Effect.runSync(Scope.make());
 
-    // Execute the callback with the scope
-    const cleanup = callback(scope);
+    // Execute the callback with the scope. The callback runs untracked so
+    // that reactive state it touches does not become a dependency of this
+    // effect — the callback is a once-per-mount setup, not a reactive one.
+    const cleanup = untrack(() => callback(scope));
 
     // Clean up
     return () => {

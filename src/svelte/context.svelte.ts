@@ -1,16 +1,16 @@
 import { createContext } from "svelte";
-import type { Runtime } from "effect";
 import { defaultSvelteRuntime } from "./runtime.js";
+import type { RuntimeLike } from "./internal/run.js";
 
 /**
  * Type-safe context for Effect runtime management.
  * Uses Svelte 5's createContext API for better type safety and developer experience.
  *
- * The runtime is typed to support any environment type, allowing users to provide
- * runtimes with specific service requirements. However, users must ensure their
- * runtime provides all required services for the effects they run.
+ * The context accepts either a plain `Runtime.Runtime` (e.g. `Runtime.defaultRuntime`)
+ * or a `ManagedRuntime` (e.g. `SvelteRuntime.defaultRuntime` / `SvelteRuntime.extend(...)`).
+ * Users must ensure their runtime provides all required services for the effects they run.
  */
-const [getRuntime, provideRuntimeInternal] = createContext<Runtime.Runtime<never>>();
+const [getRuntime, provideRuntimeInternal] = createContext<RuntimeLike<never>>();
 
 /**
  * Retrieves the Effect runtime from Svelte context.
@@ -18,7 +18,7 @@ const [getRuntime, provideRuntimeInternal] = createContext<Runtime.Runtime<never
  * @returns The runtime provided via provideRuntime
  * @throws Will throw if called outside of a component with a provided runtime
  */
-function getRuntimeContext(): Runtime.Runtime<never> {
+function getRuntimeContext(): RuntimeLike<never> {
   const runtime = getRuntime();
   if (runtime === undefined) {
     throw new Error(
@@ -53,9 +53,10 @@ function getRuntimeContext(): Runtime.Runtime<never> {
  * ```
  */
 function provideRuntime<R = never>(
-  runtime: Runtime.Runtime<R> = defaultSvelteRuntime as unknown as Runtime.Runtime<R>,
+  runtime: RuntimeLike<R> = defaultSvelteRuntime as RuntimeLike<R>,
 ): void {
-  provideRuntimeInternal(runtime as Runtime.Runtime<never>);
+  provideRuntimeInternal(runtime as RuntimeLike<never>);
 }
 
 export { getRuntimeContext as getRuntime, provideRuntime };
+export type { RuntimeLike };

@@ -1,43 +1,34 @@
 import type { ServerLoad, RequestEvent, Actions, Action, Handle } from "@sveltejs/kit";
 import { Effect, Exit, Cause } from "effect";
-import { SvelteKitRuntime } from "./runtime.js";
+import { isHttpError, isRedirect } from "@sveltejs/kit";
+import type * as HttpClient from "@effect/platform/HttpClient";
+import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
+import { causeToThrowable } from "./internal/error.js";
 
 /**
- * Custom error type that preserves the original Effect Cause.
+ * The services that the SvelteKit runtime provides to every wrapped effect.
  */
-class EffectCauseError extends Error {
-  declare cause: Cause.Cause<unknown>;
-
-  constructor(message: string, cause: Cause.Cause<unknown>) {
-    super(message);
-    this.name = "EffectCauseError";
-    this.cause = cause;
-  }
-}
-
-/**
- * Converts an Effect Cause to a more descriptive error message
- */
-function causeToError(cause: Cause.Cause<unknown>): Error {
-  const message = Cause.pretty(cause);
-  return new EffectCauseError(message, cause);
-}
+export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit server load function.
- * The effect will have access to platform services (HttpClient, Fetch, etc.) via the SvelteKit runtime.
+ * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
+ * via the SvelteKit runtime.
+ *
+ * SvelteKit control flow (`redirect()`, `error()`) raised inside the effect is
+ * passed through to SvelteKit.
  *
  * @example
  * ```ts
  * import { serverLoad } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
- * import { HttpClient } from '@effect/platform';
+ * import * as HttpClient from '@effect/platform/HttpClient';
  *
  * export const load = serverLoad((event) =>
  *   Effect.gen(function* () {
  *     const client = yield* HttpClient.HttpClient;
- *     const data = yield* client.get("https://api.example.com/data");
- *     return { data };
+ *     const response = yield* client.get("https://api.example.com/data");
+ *     return { data: yield* response.json };
  *   })
  * );
  * ```
@@ -48,7 +39,9 @@ export function serverLoad<
   OutputData extends Record<string, any> | void = any,
   RouteId extends string | null = any,
 >(
-  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, never>,
+  fn: (
+    event: RequestEvent<Params, RouteId>,
+  ) => Effect.Effect<OutputData, unknown, SvelteKitServices>,
 ): ServerLoad<Params, ParentData, OutputData, RouteId> {
   return async (event) => {
     const runtime = SvelteKitRuntime.forRequest(event);
@@ -57,7 +50,7 @@ export function serverLoad<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw causeToError(cause);
+        throw causeToThrowable(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;
@@ -66,7 +59,8 @@ export function serverLoad<
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit action handler.
- * The effect will have access to platform services (HttpClient, Fetch, etc.) via the SvelteKit runtime.
+ * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
+ * via the SvelteKit runtime.
  *
  * @example
  * ```ts
@@ -89,7 +83,9 @@ export function action<
   OutputData extends Record<string, any> | void = any,
   RouteId extends string | null = any,
 >(
-  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, never>,
+  fn: (
+    event: RequestEvent<Params, RouteId>,
+  ) => Effect.Effect<OutputData, unknown, SvelteKitServices>,
 ): Action<Params, OutputData, RouteId> {
   return async (event) => {
     const runtime = SvelteKitRuntime.forRequest(event);
@@ -98,7 +94,7 @@ export function action<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw causeToError(cause);
+        throw causeToThrowable(cause);
       },
       onSuccess: (value) => value,
     }) as OutputData;
@@ -127,7 +123,7 @@ export function actions<
 >(
   actionsMap: Record<
     string,
-    (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, never>
+    (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, SvelteKitServices>
   >,
 ): Actions<Params, OutputData, RouteId> {
   const wrappedActions: Actions<Params, OutputData, RouteId> = {};
@@ -141,14 +137,14 @@ export function actions<
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit hook.
- * The effect will have access to platform services via the SvelteKit runtime.
+ * The effect has access to platform services via the SvelteKit runtime.
  *
  * @example
  * ```ts
- * import { handle } from '@thomasfosterau/effect-svelte/kit/server';
+ * import { handle as effectHandle } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
  *
- * export const handle = handle(({ event, resolve }) =>
+ * export const handle = effectHandle(({ event, resolve }) =>
  *   Effect.gen(function* () {
  *     // Add custom logic before resolve
  *     const response = yield* Effect.promise(() => resolve(event));
@@ -159,7 +155,7 @@ export function actions<
  * ```
  */
 export function handle(
-  fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, never>,
+  fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, SvelteKitServices>,
 ): Handle {
   return async ({ event, resolve }) => {
     const runtime = SvelteKitRuntime.forRequest(event);
@@ -168,7 +164,7 @@ export function handle(
 
     return Exit.match(exit, {
       onFailure: (cause) => {
-        throw causeToError(cause);
+        throw causeToThrowable(cause);
       },
       onSuccess: (value) => value,
     });
@@ -177,23 +173,26 @@ export function handle(
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit API endpoint handler.
- * The effect will have access to platform services (HttpClient, Fetch, etc.) via the SvelteKit runtime.
+ * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
+ * via the SvelteKit runtime.
  *
- * By default, errors are logged server-side and a generic error message is returned to clients.
- * For development/debugging, you can pass options to expose full error details.
+ * SvelteKit control flow (`redirect()`, `error()`) raised inside the effect is
+ * passed through to SvelteKit. For any other failure, the error is logged
+ * server-side and a generic error message is returned to clients. For
+ * development/debugging, you can pass options to expose full error details.
  *
  * @example
  * ```ts
  * import { endpoint } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
  * import { json } from '@sveltejs/kit';
- * import { HttpClient } from '@effect/platform';
+ * import * as HttpClient from '@effect/platform/HttpClient';
  *
  * export const GET = endpoint((event) =>
  *   Effect.gen(function* () {
  *     const client = yield* HttpClient.HttpClient;
- *     const data = yield* client.get("https://api.example.com/data");
- *     return json(data);
+ *     const response = yield* client.get("https://api.example.com/data");
+ *     return json(yield* response.json);
  *   })
  * );
  * ```
@@ -202,7 +201,7 @@ export function endpoint<
   Params extends Record<string, string> = any,
   RouteId extends string | null = any,
 >(
-  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown, never>,
+  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown, SvelteKitServices>,
   options?: { exposeErrors?: boolean },
 ): (event: RequestEvent<Params, RouteId>) => Promise<Response> {
   const { exposeErrors = false } = options ?? {};
@@ -214,6 +213,12 @@ export function endpoint<
 
     return Exit.match(exit, {
       onFailure: (cause) => {
+        // Let SvelteKit handle its own control flow objects.
+        const squashed = Cause.squash(cause);
+        if (isRedirect(squashed) || isHttpError(squashed)) {
+          throw squashed;
+        }
+
         // Always log the full error server-side for debugging
         console.error("Endpoint error:", Cause.pretty(cause));
 

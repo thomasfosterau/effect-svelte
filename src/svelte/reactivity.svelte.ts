@@ -1,6 +1,8 @@
 import { Reactivity } from "@effect/experimental";
-import { Effect, Runtime, Fiber, Exit, Scope, Mailbox, Stream } from "effect";
+import { Effect, Fiber, Exit, Mailbox, Stream } from "effect";
 import { getRuntime } from "./context.svelte.js";
+import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
+import { assignResult } from "./internal/result.js";
 import type { AsyncResult } from "./types.js";
 
 /**
@@ -10,7 +12,7 @@ import type { AsyncResult } from "./types.js";
  * Note: Make sure your runtime includes the Reactivity layer from @effect/experimental.
  *
  * @param keys - Reactivity keys that this query depends on
- * @param effect - The Effect to run when keys are invalidated
+ * @param effectFn - The Effect to run when keys are invalidated
  *
  * @example
  * ```svelte
@@ -39,10 +41,12 @@ export function reactiveQuery<A, E, R>(
   keys: () => ReadonlyArray<unknown>,
   effectFn: () => Effect.Effect<A, E, R>,
 ): AsyncResult<A, E> {
-  const runtime = getRuntime();
+  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
 
-  let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
-  let fiber = $state<Fiber.RuntimeFiber<void, never> | null>(null);
+  // The result is updated by mutating this object in place (never reassigning),
+  // so the reference returned to the caller stays reactive.
+  const result = $state<Record<string, unknown>>({ _tag: "initial" });
+  let fiber: Fiber.RuntimeFiber<void, never> | null = null;
 
   $effect(() => {
     // Get the current keys (tracks Svelte dependencies)
@@ -50,47 +54,46 @@ export function reactiveQuery<A, E, R>(
     const effect = effectFn();
 
     // Set to pending state
-    result = { _tag: "pending" };
+    assignResult(result, { _tag: "pending" });
 
-    // Create a scope for this query
-    const queryEffect = Effect.gen(function* () {
-      const scope = yield* Scope.make();
+    // Run the reactive query inside a scope so that the registered
+    // invalidation handlers are cleaned up when the fiber is interrupted.
+    const queryEffect = Effect.scoped(
+      Effect.gen(function* () {
+        // Create a reactive query with the current keys
+        const mb = yield* Reactivity.query(effect, currentKeys);
 
-      // Create a reactive query with the current keys
-      const mb = yield* Reactivity.query(effect, currentKeys).pipe(
-        Effect.provideService(Scope.Scope, scope),
-      );
-
-      // Subscribe to the mailbox to get updates
-      yield* Stream.runForEach(Mailbox.toStream(mb), (value) =>
-        Effect.sync(() => {
-          result = { _tag: "success", value };
-        }),
-      );
-    }).pipe(
+        // Subscribe to the mailbox to get updates
+        yield* Stream.runForEach(Mailbox.toStream(mb), (value) =>
+          Effect.sync(() => {
+            assignResult(result, { _tag: "success", value });
+          }),
+        );
+      }),
+    ).pipe(
       Effect.catchAllCause((cause) =>
         Effect.sync(() => {
           if (!Exit.isInterrupted(Exit.failCause(cause))) {
-            result = { _tag: "failure", cause };
+            assignResult(result, { _tag: "failure", cause });
           }
         }),
       ),
     );
 
     // Run the query
-    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(queryEffect);
+    const runningFiber = runFork(runtime)(queryEffect);
     fiber = runningFiber;
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
     return () => {
       if (fiber !== null) {
-        Runtime.runSync(runtime)(Fiber.interrupt(fiber));
+        interruptFiber(fiber);
         fiber = null;
       }
     };
   });
 
-  return result;
+  return result as AsyncResult<A, E>;
 }
 
 /**
@@ -130,11 +133,11 @@ export function reactiveStream<A, E, R>(
   readonly values: ReadonlyArray<A>;
   readonly latest: A | undefined;
 } {
-  const runtime = getRuntime();
+  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
 
   let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: "initial" });
   let values = $state<A[]>([]);
-  let fiber = $state<Fiber.RuntimeFiber<void, E> | null>(null);
+  let fiber: Fiber.RuntimeFiber<void, E> | null = null;
 
   $effect(() => {
     // Reset state
@@ -157,11 +160,11 @@ export function reactiveStream<A, E, R>(
     );
 
     // Run the subscription
-    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(subscription);
+    const runningFiber = runFork(runtime)(subscription);
     fiber = runningFiber;
 
     // Wait for completion and handle result
-    Runtime.runFork(runtime)(
+    runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(runningFiber);
 
@@ -185,7 +188,7 @@ export function reactiveStream<A, E, R>(
     // Cleanup: interrupt the subscription on unmount
     return () => {
       if (fiber !== null) {
-        Runtime.runSync(runtime)(Fiber.interrupt(fiber));
+        interruptFiber(fiber);
         fiber = null;
       }
     };
@@ -235,15 +238,15 @@ export function reactiveMutation<A, E, R>(
   readonly result: AsyncResult<A, E>;
   run: () => void;
 } {
-  const runtime = getRuntime();
+  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
 
   let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
-  let currentFiber = $state<Fiber.RuntimeFiber<A, E> | null>(null);
+  let currentFiber: Fiber.RuntimeFiber<A, E> | null = null;
 
   const run = () => {
     // Interrupt any existing fiber
     if (currentFiber !== null) {
-      Runtime.runSync(runtime)(Fiber.interrupt(currentFiber));
+      interruptFiber(currentFiber);
     }
 
     // Get keys and effect
@@ -257,11 +260,11 @@ export function reactiveMutation<A, E, R>(
     const mutationEffect = Reactivity.mutation(currentEffect, currentKeys);
 
     // Run the mutation
-    const runningFiber = Runtime.runFork(runtime as Runtime.Runtime<any>)(mutationEffect);
+    const runningFiber = runFork(runtime)(mutationEffect);
     currentFiber = runningFiber;
 
     // Handle the result
-    Runtime.runFork(runtime)(
+    runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(runningFiber);
 
@@ -284,7 +287,7 @@ export function reactiveMutation<A, E, R>(
     // Cleanup: interrupt any running fiber on unmount
     return () => {
       if (currentFiber !== null) {
-        Runtime.runSync(runtime)(Fiber.interrupt(currentFiber));
+        interruptFiber(currentFiber);
         currentFiber = null;
       }
     };
@@ -299,25 +302,27 @@ export function reactiveMutation<A, E, R>(
 }
 
 /**
- * Manually invalidates the specified reactivity keys.
- * This will cause any reactive queries depending on these keys to re-run.
+ * Returns a function that manually invalidates reactivity keys, causing any
+ * reactive queries depending on those keys to re-run.
  *
- * @param keys - Reactivity keys to invalidate
+ * The hook must be called during component initialization (it reads the
+ * runtime from Svelte context); the returned function can then be called
+ * from anywhere, including event handlers.
  *
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Svelte } from 'effect-svelte';
+ *   import { useInvalidateKeys } from '@thomasfosterau/effect-svelte';
  *
- *   function handleRefresh() {
- *     Svelte.invalidateKeys(['users']);
- *   }
+ *   const invalidate = useInvalidateKeys();
  * </script>
  *
- * <button onclick={handleRefresh}>Refresh Users</button>
+ * <button onclick={() => invalidate(['users'])}>Refresh Users</button>
  * ```
  */
-export function invalidateKeys(keys: ReadonlyArray<unknown>): void {
-  const runtime = getRuntime();
-  Runtime.runSync(runtime as Runtime.Runtime<any>)(Reactivity.invalidate(keys));
+export function useInvalidateKeys(): (keys: ReadonlyArray<unknown>) => void {
+  const runtime = getRuntime() as RuntimeLike<Reactivity.Reactivity>;
+  return (keys) => {
+    runSync(runtime)(Reactivity.invalidate(keys));
+  };
 }

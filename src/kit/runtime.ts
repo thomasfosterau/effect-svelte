@@ -108,6 +108,24 @@ export class SvelteKitRuntime {
   }
 
   /**
+   * Creates a runtime that provides `HttpClient` backed by the given fetch
+   * implementation, without a `SvelteKitRequestEvent`.
+   *
+   * This is used for universal `load` functions running on the client, where
+   * there is no `RequestEvent` but the load event still exposes `fetch`.
+   *
+   * @param fetchFn - The fetch implementation to back HttpClient with
+   * @returns A managed runtime providing HttpClient
+   */
+  static forFetch(
+    fetchFn: typeof globalThis.fetch,
+  ): ManagedRuntime.ManagedRuntime<HttpClient.HttpClient, never> {
+    return ManagedRuntime.make(
+      FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn))),
+    );
+  }
+
+  /**
    * The base layer for SvelteKit without request-specific services.
    * Use this for effects that don't need access to the request.
    */

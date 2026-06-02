@@ -33,6 +33,23 @@ type EffectHandler = (arg: unknown) => UnknownEffect;
 type EffectFormHandler = (data: unknown, issue: unknown) => UnknownEffect;
 type EffectVoidHandler = () => UnknownEffect;
 
+/**
+ * Detects a Standard Schema validator via its `~standard` marker property.
+ *
+ * This cannot be a simple `typeof value === "function"` check on the handler
+ * position: some Standard Schema implementations (such as Effect's
+ * `Schema.standardSchemaV1`) return callable class values, which would be
+ * mistaken for handler functions.
+ */
+const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>
+  value !== null &&
+  (typeof value === "object" || typeof value === "function") &&
+  "~standard" in value;
+
+/** True when the argument is the no-validation handler overload. */
+const isBareHandler = (value: unknown): value is EffectVoidHandler =>
+  typeof value === "function" && !isStandardSchema(value);
+
 export function query<Output>(
   fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
 ): RemoteQueryFunction<void, Output>;
@@ -50,8 +67,8 @@ export function query(
   arg1: unknown,
   arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, SvelteKitEffectEnv>,
 ): any {
-  if (typeof arg1 === "function") {
-    const handler = arg1 as EffectVoidHandler;
+  if (isBareHandler(arg1)) {
+    const handler = arg1;
     return AppServer.query(() => runRemoteEffect(handler()));
   }
 
@@ -161,8 +178,8 @@ export function form<Schema extends StandardSchemaV1<RemoteFormInput, Record<str
   ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
 ): RemoteForm<StandardSchemaV1.InferInput<Schema>, Output>;
 export function form(arg1: unknown, arg2?: unknown): any {
-  if (typeof arg1 === "function") {
-    const handler = arg1 as EffectVoidHandler;
+  if (isBareHandler(arg1)) {
+    const handler = arg1;
     return AppServer.form(() => runRemoteEffect(handler()));
   }
 
@@ -192,8 +209,8 @@ export function command(
   arg1: unknown,
   arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, SvelteKitEffectEnv>,
 ): any {
-  if (typeof arg1 === "function") {
-    const handler = arg1 as EffectVoidHandler;
+  if (isBareHandler(arg1)) {
+    const handler = arg1;
     return AppServer.command(() => runRemoteEffect(handler()));
   }
 
@@ -244,8 +261,8 @@ export function prerender(
     dynamic?: boolean;
   },
 ): any {
-  if (typeof arg1 === "function") {
-    const handler = arg1 as EffectVoidHandler;
+  if (isBareHandler(arg1)) {
+    const handler = arg1;
     return AppServer.prerender(
       () => runRemoteEffect(handler()),
       arg2 as { inputs?: () => Promise<void[]> | void[]; dynamic?: boolean } | undefined,
