@@ -39,7 +39,12 @@ export default defineConfig({
 
   /** `vp lint` / `vp check` (Oxlint + tsgolint) */
   lint: {
-    ignorePatterns: ["dist/**"],
+    // The example apps are excluded from the root type-aware lint: they can
+    // only resolve the package (and SvelteKit's generated tsconfig) after
+    // `vp pack` / `svelte-kit sync` have run. CI validates them separately
+    // with `vp run --filter "example-*" typecheck` (svelte-check) after the
+    // build.
+    ignorePatterns: ["dist/**", "examples/**"],
     options: {
       typeAware: true,
       typeCheck: true,
