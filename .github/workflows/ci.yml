@@ -17,26 +17,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
         with:
-          bun-version: latest
+          cache: true
+          run-install: false
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: vp install --frozen-lockfile
 
-      - name: Validate affected projects (PR)
-        if: github.event_name == 'pull_request'
-        run: bun run ci:affected
+      - name: Check (format, lint, types)
+        run: vp check
 
-      - name: Validate all projects (main)
-        if: github.event_name != 'pull_request'
-        run: |
-          bun run typecheck
-          bun run build
+      - name: Test
+        run: vp test
+
+      - name: Build
+        run: vp pack
