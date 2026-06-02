@@ -3,7 +3,7 @@
   "typescript.enablePromptUseWorkspaceTsdk": true,
   "oxc.fmt.configPath": "./vite.config.ts",
   "chat.tools.terminal.autoApprove": {
-    "bun": true,
+    "pnpm": true,
     "vp": true
   }
 }

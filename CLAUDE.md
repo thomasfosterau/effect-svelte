@@ -5,7 +5,7 @@
 This repository is managed by [Vite+](https://viteplus.dev): a single npm package
 (`@thomasfosterau/effect-svelte`) with all tooling configured in `vite.config.ts`.
 
-- `vp install` - install dependencies (delegates to Bun)
+- `vp install` - install dependencies (delegates to pnpm)
 - `vp check` - format (Oxfmt), lint (Oxlint), and type-check (tsgolint); use `--fix` to autofix
 - `vp test` - run the Vitest test suite in `tests/`
 - `vp pack` - build the library with tsdown into `dist/`

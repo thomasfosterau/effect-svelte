@@ -2,12 +2,12 @@
   "name": "effect-svelte",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:latest",
   "features": {
-    "ghcr.io/devcontainers-extra/features/bun:1": {},
     "ghcr.io/devcontainers/features/common-utils:2": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/pnpm:2": {},
     "ghcr.io/devcontainers-extra/features/ripgrep:1": {}
   },
-  "postCreateCommand": "bun install",
+  "postCreateCommand": "pnpm install",
   "customizations": {
     "vscode": {
       "extensions": ["svelte.svelte-vscode", "oxc.oxc-vscode"]

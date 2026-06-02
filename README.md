@@ -110,8 +110,8 @@ vp pack      # Build the library (tsdown)
 ```
 
 If you don't have the `vp` global CLI installed, every command is also
-available through the package scripts (`bun run check`, `bun run test`,
-`bun run build`, ...), or install it with:
+available through the package scripts (`pnpm run check`, `pnpm run test`,
+`pnpm run build`, ...), or install it with:
 
 ```bash
 curl -fsSL https://vite.plus | bash
