@@ -12,8 +12,8 @@
  */
 
 import { createServer } from "node:http";
-import * as HttpMiddleware from "@effect/platform/HttpMiddleware";
-import * as HttpServer from "@effect/platform/HttpServer";
+import * as HttpMiddleware from "effect/unstable/http/HttpMiddleware";
+import * as HttpServer from "effect/unstable/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { Config, Effect, Layer } from "effect";
@@ -46,14 +46,14 @@ export const layer = (
 ): Layer.Layer<never, unknown> => {
   const prefix = options.envPrefix ?? "";
 
-  const serveLayer = Layer.unwrapEffect(
+  const serveLayer = Layer.unwrap(
     Effect.map(handler, (app) =>
       options.disableLogger ? HttpServer.serve(app) : HttpServer.serve(app, HttpMiddleware.logger),
     ),
   );
 
   const listenLayer = NodeHttpServer.layerConfig(createServer, {
-    port: Config.integer(`${prefix}PORT`).pipe(Config.withDefault(3000)),
+    port: Config.int(`${prefix}PORT`).pipe(Config.withDefault(3000)),
     host: Config.string(`${prefix}HOST`).pipe(Config.withDefault("0.0.0.0")),
   });
 
@@ -63,7 +63,7 @@ export const layer = (
 };
 
 /** The services provided to the handler effect by `NodeHttpServer.layerConfig`. */
-type NodeHttpServerServices = Layer.Layer.Success<ReturnType<typeof NodeHttpServer.layerConfig>>;
+type NodeHttpServerServices = Layer.Success<ReturnType<typeof NodeHttpServer.layerConfig>>;
 
 /**
  * Starts the production server and runs it until the process receives

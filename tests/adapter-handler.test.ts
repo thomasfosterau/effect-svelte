@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SSRManifest, Server } from "@sveltejs/kit";
-import * as HttpBody from "@effect/platform/HttpBody";
-import * as HttpClient from "@effect/platform/HttpClient";
-import * as HttpServer from "@effect/platform/HttpServer";
+import * as HttpBody from "effect/unstable/http/HttpBody";
+import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as HttpServer from "effect/unstable/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import { ConfigProvider, Effect } from "effect";
 import { makeHandler, type SvelteKitHandlerOptions } from "../src/kit/adapter/handler.js";
@@ -215,8 +215,9 @@ describe("makeHandler", () => {
       }).pipe(
         Effect.scoped,
         Effect.provide(NodeHttpServer.layerTest),
-        Effect.withConfigProvider(
-          ConfigProvider.fromMap(new Map([["ORIGIN", "https://example.com"]])),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromEnv({ env: { ORIGIN: "https://example.com" } }),
         ),
       ),
     );

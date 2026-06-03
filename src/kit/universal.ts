@@ -1,6 +1,6 @@
 import type { Load } from "@sveltejs/kit";
 import { Effect } from "effect";
-import type * as HttpClient from "@effect/platform/HttpClient";
+import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { makeUniversalRuntime, type UniversalRuntime } from "./app-runtime.js";
 
 // Shared runtime (no application layer) backing the standalone `load` wrapper.
@@ -21,7 +21,7 @@ const runtime = (): UniversalRuntime => (defaultRuntime ??= makeUniversalRuntime
  * @example
  * ```ts
  * import { load as effectLoad } from '@thomasfosterau/effect-svelte/kit';
- * import * as HttpClient from '@effect/platform/HttpClient';
+ * import * as HttpClient from 'effect/unstable/http/HttpClient';
  * import { Effect } from 'effect';
  *
  * export const load = effectLoad((event) =>

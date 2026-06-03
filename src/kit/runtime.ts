@@ -1,16 +1,15 @@
 import { Layer, ManagedRuntime, Context, Effect } from "effect";
-import * as HttpClient from "@effect/platform/HttpClient";
-import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
+import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type { RequestEvent } from "@sveltejs/kit";
 
 /**
  * Service that provides access to the current SvelteKit RequestEvent.
  * This allows Effect code to access request-specific data like cookies, headers, etc.
  */
-export class SvelteKitRequestEvent extends Context.Tag("SvelteKitRequestEvent")<
-  SvelteKitRequestEvent,
-  RequestEvent
->() {}
+export class SvelteKitRequestEvent extends Context.Service<SvelteKitRequestEvent, RequestEvent>()(
+  "SvelteKitRequestEvent",
+) {}
 
 /**
  * Custom runtime for SvelteKit server-side helpers.
@@ -24,7 +23,7 @@ export class SvelteKitRequestEvent extends Context.Tag("SvelteKitRequestEvent")<
  * ```ts
  * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
- * import * as HttpClient from '@effect/platform/HttpClient';
+ * import * as HttpClient from 'effect/unstable/http/HttpClient';
  *
  * export const load = (event) => {
  *   const runtime = SvelteKitRuntime.forRequest(event);
@@ -86,9 +85,9 @@ export class SvelteKitRuntime {
    * import { SvelteKitRuntime } from '@thomasfosterau/effect-svelte/kit/server';
    * import { Layer, Context } from 'effect';
    *
-   * class Database extends Context.Tag("Database")<Database, {
+   * class Database extends Context.Service<Database, {
    *   query: (sql: string) => Effect.Effect<unknown>
-   * }>() {}
+   * }>()("Database") {}
    *
    * const dbLayer = Layer.succeed(Database, {
    *   query: (sql) => Effect.succeed([])

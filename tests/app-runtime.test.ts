@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
 import { Context, Effect, Layer } from "effect";
-import * as HttpClient from "@effect/platform/HttpClient";
+import * as HttpClient from "effect/unstable/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/kit/app-runtime.js";
 import { SvelteKitRequestEvent } from "../src/kit/runtime.js";
 
@@ -20,7 +20,9 @@ const mockEvent = () =>
     isSubRequest: false,
   }) as any;
 
-class Greeter extends Context.Tag("test/Greeter")<Greeter, { greet: (name: string) => string }>() {}
+class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
+  "test/Greeter",
+) {}
 
 const greeterLayer = Layer.succeed(Greeter, { greet: (name) => `hello ${name}` });
 
@@ -140,7 +142,7 @@ describe("makeServerRuntime", () => {
 
   it("dispose() runs the layer's finalizers", async () => {
     let released = false;
-    const scopedLayer = Layer.scoped(
+    const scopedLayer = Layer.effect(
       Greeter,
       Effect.acquireRelease(Effect.succeed({ greet: (name: string) => name }), () =>
         Effect.sync(() => {

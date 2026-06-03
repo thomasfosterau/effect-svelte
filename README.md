@@ -12,22 +12,28 @@ Effect integrations for Svelte 5 runes and SvelteKit, published as a single pack
 
 ## Installation
 
+This package targets **Effect v4 (beta)**. All Effect ecosystem packages share
+a single version number in v4 — keep `effect` and `@effect/platform-node` on
+the same `4.0.0-beta.x` version.
+
 ```bash
-npm install @thomasfosterau/effect-svelte effect svelte
+npm install @thomasfosterau/effect-svelte effect@beta svelte
 ```
 
-If you use the SvelteKit helpers, you also need the (optional) SvelteKit peer
-dependencies:
+If you use the SvelteKit helpers, you also need the (optional) `@sveltejs/kit`
+peer dependency. The HTTP modules that previously lived in `@effect/platform`
+are part of `effect` itself in v4 (under `effect/unstable/http`), so no extra
+package is needed:
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect svelte @sveltejs/kit @effect/platform
+npm install @thomasfosterau/effect-svelte effect@beta svelte @sveltejs/kit
 ```
 
 If you use the Effect deployment adapter, you additionally need
 `@effect/platform-node` (the production server runs on it):
 
 ```bash
-npm install @effect/platform-node
+npm install @effect/platform-node@beta
 ```
 
 ## Usage
@@ -93,7 +99,7 @@ import { makeServerRuntime } from "@thomasfosterau/effect-svelte/kit/server";
 import { Layer } from "effect";
 import { Database } from "./database";
 
-export const runtime = makeServerRuntime(Database.Default);
+export const runtime = makeServerRuntime(Database.layer);
 ```
 
 ```ts
@@ -126,9 +132,10 @@ effectKit({ serverRuntime: "$lib/server/runtime" });
 ### Effect deployment adapter
 
 A SvelteKit [adapter](https://svelte.dev/docs/kit/adapters) (like
-`@sveltejs/adapter-node`) whose production server is an `@effect/platform`
-HTTP server — `Config`-based configuration, request tracing spans, and
-graceful shutdown through Effect scopes:
+`@sveltejs/adapter-node`) whose production server is an Effect HTTP server
+(`effect/unstable/http` + `@effect/platform-node`) — `Config`-based
+configuration, request tracing spans, and graceful shutdown through Effect
+scopes:
 
 ```js
 // svelte.config.js
@@ -145,17 +152,17 @@ node build       # PORT, HOST, ORIGIN, PROTOCOL_HEADER, ... read from the env
 ```
 
 The build also emits `build/handler.js`, which exports the whole SvelteKit
-app as a composable Effect `HttpApp` — mount it inside an existing
-`@effect/platform` server alongside your other routes:
+app as a composable Effect HTTP app — mount it inside an existing
+`effect/unstable/http` server alongside your other routes:
 
 ```ts
 import { handler } from "./build/handler.js";
-import { HttpServer } from "@effect/platform";
+import { HttpServer } from "effect/unstable/http";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { createServer } from "node:http";
 
-const server = Layer.unwrapEffect(Effect.map(handler, HttpServer.serve)).pipe(
+const server = Layer.unwrap(Effect.map(handler, HttpServer.serve)).pipe(
   Layer.provide(NodeHttpServer.layer(createServer, { port: 3000 })),
 );
 
@@ -164,7 +171,7 @@ NodeRuntime.runMain(Layer.launch(server));
 
 Unlike `adapter-node`, the server output is not bundled: deploy `build/`
 together with `package.json` and production `node_modules` (which must
-include `@thomasfosterau/effect-svelte`, `effect`, `@effect/platform`, and
+include `@thomasfosterau/effect-svelte`, `effect`, and
 `@effect/platform-node`).
 
 ### SvelteKit universal load

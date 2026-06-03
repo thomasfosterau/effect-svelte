@@ -14,8 +14,8 @@
 
 import type { Action, Actions, Handle, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import { Effect, Exit, Layer, ManagedRuntime } from "effect";
-import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
-import type * as HttpClient from "@effect/platform/HttpClient";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import { causeToThrowable } from "./internal/error.js";
 
@@ -160,7 +160,7 @@ export interface ServerRuntime<R = never, E = never> {
  * import { Layer } from 'effect';
  * import { Database } from './database';
  *
- * export const runtime = makeServerRuntime(Database.Default);
+ * export const runtime = makeServerRuntime(Database.layer);
  * ```
  *
  * ```ts
@@ -274,7 +274,7 @@ export interface UniversalRuntime<R = never, E = never> {
  * import { makeUniversalRuntime } from '@thomasfosterau/effect-svelte/kit';
  * import { ApiClient } from '$lib/api';
  *
- * export const runtime = makeUniversalRuntime(ApiClient.Default);
+ * export const runtime = makeUniversalRuntime(ApiClient.layer);
  * ```
  *
  * ```ts

@@ -13,10 +13,10 @@
  * ```svelte
  * <script lang="ts">
  *   import { provideRuntime, derived } from '@thomasfosterau/effect-svelte';
- *   import { Effect, Runtime } from 'effect';
+ *   import { Context, Effect } from 'effect';
  *
  *   // Provide runtime at app root
- *   provideRuntime(Runtime.defaultRuntime);
+ *   provideRuntime(Context.empty());
  *
  *   // Use reactive effects
  *   let userId = $state(1);

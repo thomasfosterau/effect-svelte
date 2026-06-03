@@ -6,7 +6,7 @@ import type { RuntimeLike } from "./internal/run.js";
  * Type-safe context for Effect runtime management.
  * Uses Svelte 5's createContext API for better type safety and developer experience.
  *
- * The context accepts either a plain `Runtime.Runtime` (e.g. `Runtime.defaultRuntime`)
+ * The context accepts either a plain services `Context.Context` (e.g. `Context.empty()`)
  * or a `ManagedRuntime` (e.g. `SvelteRuntime.defaultRuntime` / `SvelteRuntime.extend(...)`).
  * Users must ensure their runtime provides all required services for the effects they run.
  */

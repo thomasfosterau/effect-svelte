@@ -2,27 +2,26 @@
  * Runtime handler for the Effect SvelteKit adapter.
  *
  * `makeHandler` turns a built SvelteKit app (the `Server` class and manifest
- * emitted by `vite build`) into an `@effect/platform` `HttpApp` that serves
+ * emitted by `vite build`) into an Effect HTTP application that serves
  * static client assets, prerendered pages, and server-side rendered routes.
  *
  * The returned app is an ordinary Effect value: it can be served with the
  * generated `build/index.js` entry (see `./serve.js`), or mounted inside any
- * existing `@effect/platform` HTTP server alongside other routes.
+ * existing `effect/unstable/http` HTTP server alongside other routes.
  */
 
 import type { SSRManifest, Server as SvelteKitServer } from "@sveltejs/kit";
-import * as FileSystem from "@effect/platform/FileSystem";
-import * as HttpApp from "@effect/platform/HttpApp";
-import * as HttpMethod from "@effect/platform/HttpMethod";
-import * as HttpPlatform from "@effect/platform/HttpPlatform";
-import * as HttpServerRequest from "@effect/platform/HttpServerRequest";
-import * as HttpServerResponse from "@effect/platform/HttpServerResponse";
-import * as Path from "@effect/platform/Path";
-import { Config, Effect, Option, Runtime, Stream } from "effect";
+import * as FileSystem from "effect/FileSystem";
+import * as HttpMethod from "effect/unstable/http/HttpMethod";
+import * as HttpPlatform from "effect/unstable/http/HttpPlatform";
+import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import * as Path from "effect/Path";
+import { Config, Context, Effect, Option, Stream } from "effect";
 
 /**
- * The services required by the SvelteKit HttpApp. All of them are provided
- * by `NodeHttpServer.layer` / `NodeContext.layer` from `@effect/platform-node`.
+ * The services required by the SvelteKit HTTP application. All of them are
+ * provided by `NodeHttpServer.layer` from `@effect/platform-node`.
  */
 export type SvelteKitHttpAppServices =
   | FileSystem.FileSystem
@@ -30,9 +29,15 @@ export type SvelteKitHttpAppServices =
   | HttpPlatform.HttpPlatform;
 
 /**
- * The SvelteKit application as a composable `@effect/platform` HttpApp.
+ * The SvelteKit application as a composable Effect HTTP handler: an effect that
+ * produces an {@link HttpServerResponse.HttpServerResponse} for the current
+ * request. The `HttpServerRequest` is supplied per request by the server.
  */
-export type SvelteKitHttpApp = HttpApp.Default<never, SvelteKitHttpAppServices>;
+export type SvelteKitHttpApp = Effect.Effect<
+  HttpServerResponse.HttpServerResponse,
+  never,
+  SvelteKitHttpAppServices | HttpServerRequest.HttpServerRequest
+>;
 
 export interface SvelteKitHandlerOptions {
   /** The SvelteKit `Server` class exported by the build output (`./server/index.js`). */
@@ -59,10 +64,10 @@ const handlerConfig = (prefix: string) =>
     hostHeader: Config.option(Config.string(`${prefix}HOST_HEADER`)),
     portHeader: Config.option(Config.string(`${prefix}PORT_HEADER`)),
     addressHeader: Config.option(Config.string(`${prefix}ADDRESS_HEADER`)),
-    xffDepth: Config.integer(`${prefix}XFF_DEPTH`).pipe(Config.withDefault(1)),
+    xffDepth: Config.int(`${prefix}XFF_DEPTH`).pipe(Config.withDefault(1)),
   });
 
-type HandlerConfig = Effect.Effect.Success<ReturnType<typeof handlerConfig>>;
+type HandlerConfig = Effect.Success<ReturnType<typeof handlerConfig>>;
 
 /** Compute the request origin from configuration and headers (adapter-node semantics). */
 const originOf = (request: HttpServerRequest.HttpServerRequest, config: HandlerConfig): string => {
@@ -106,14 +111,16 @@ const clientAddressOf = (
 const toWebRequest = (
   request: HttpServerRequest.HttpServerRequest,
   url: URL,
-  runtime: Runtime.Runtime<never>,
+  context: Context.Context<never>,
 ): Request => {
+  // `Headers` is a redactable record-like value; copy the enumerable string
+  // entries into a plain record for the web `Request` constructor.
   const init: RequestInit & { duplex?: "half" } = {
     method: request.method,
-    headers: request.headers,
+    headers: { ...request.headers },
   };
   if (HttpMethod.hasBody(request.method)) {
-    init.body = Stream.toReadableStreamRuntime(request.stream, runtime);
+    init.body = Stream.toReadableStreamWith(request.stream, context);
     init.duplex = "half";
   }
   return new Request(url, init);
@@ -122,10 +129,10 @@ const toWebRequest = (
 const IMMUTABLE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };
 
 /**
- * Creates the SvelteKit HttpApp.
+ * Creates the SvelteKit HTTP handler.
  *
  * The returned effect initialises the SvelteKit server (running your app's
- * server `init` hook) and yields an HttpApp that:
+ * server `init` hook) and yields an HTTP handler that:
  *
  * 1. serves static client assets from `<dir>/client` (with immutable cache
  *    headers for hashed build assets),
@@ -134,14 +141,14 @@ const IMMUTABLE_HEADERS = { "cache-control": "public, max-age=31536000, immutabl
  *
  * @example
  * ```ts
- * // Mounting SvelteKit inside an existing @effect/platform server:
+ * // Mounting SvelteKit inside an existing effect/unstable/http server:
  * import { handler } from "./build/handler.js";
- * import { HttpServer } from "@effect/platform";
+ * import * as HttpServer from "effect/unstable/http/HttpServer";
  * import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
  * import { Effect, Layer } from "effect";
  * import { createServer } from "node:http";
  *
- * const serverLayer = Layer.unwrapEffect(
+ * const serverLayer = Layer.unwrap(
  *   Effect.map(handler, (app) => HttpServer.serve(app))
  * ).pipe(Layer.provide(NodeHttpServer.layer(createServer, { port: 3000 })));
  *
@@ -155,7 +162,7 @@ export const makeHandler = (
     const config = yield* handlerConfig(options.envPrefix ?? "").pipe(Effect.orDie);
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const runtime = yield* Effect.runtime<never>();
+    const context = yield* Effect.context<never>();
 
     const clientDir = path.join(options.dir, "client");
     const prerenderedDir = path.join(options.dir, "prerendered");
@@ -167,8 +174,7 @@ export const makeHandler = (
     yield* Effect.promise(() =>
       server.init({
         env: (options.env ?? {}) as Record<string, string>,
-        read: (file) =>
-          Stream.toReadableStreamRuntime(fs.stream(path.join(serverDir, file)), runtime),
+        read: (file) => Stream.toReadableStreamWith(fs.stream(path.join(serverDir, file)), context),
       }),
     );
 
@@ -219,20 +225,22 @@ export const makeHandler = (
             ? [`${pathname}index.html`, `${pathname.slice(0, -1)}.html`]
             : [pathname, `${pathname}.html`, `${pathname}/index.html`];
 
-      return Effect.reduce(
-        candidates,
-        Option.none<HttpServerResponse.HttpServerResponse>(),
-        (found, candidate) =>
-          Option.isSome(found) ? Effect.succeed(found) : serveFile(prerenderedDir, candidate),
-      );
+      return Effect.gen(function* () {
+        let found = Option.none<HttpServerResponse.HttpServerResponse>();
+        for (const candidate of candidates) {
+          if (Option.isSome(found)) break;
+          found = yield* serveFile(prerenderedDir, candidate);
+        }
+        return found;
+      });
     };
 
     const immutablePrefix = `/${options.manifest.appPath}/immutable/`;
 
-    // The HttpApp itself, evaluated once per request.
+    // The HTTP handler itself, evaluated once per request.
     return Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      const requestRuntime = yield* Effect.runtime<never>();
+      const requestContext = yield* Effect.context<never>();
 
       const origin = originOf(request, config);
       const url = new URL(request.url, origin);
@@ -262,7 +270,7 @@ export const makeHandler = (
       }
 
       // 3. Server-side rendering.
-      const webRequest = toWebRequest(request, url, requestRuntime);
+      const webRequest = toWebRequest(request, url, requestContext);
       const response = yield* Effect.promise(() =>
         server.respond(webRequest, {
           getClientAddress: () => clientAddressOf(request, config),

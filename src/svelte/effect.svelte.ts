@@ -1,4 +1,4 @@
-import { Effect, Fiber, Exit } from "effect";
+import { Cause, Effect, Fiber, Exit } from "effect";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import type { AsyncResult } from "./types.js";
@@ -57,7 +57,7 @@ export function useEffect<A, E, R>(
   const runtime = getRuntime() as RuntimeLike<R>;
 
   let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
-  let currentFiber: Fiber.RuntimeFiber<A, E> | null = null;
+  let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   const run = () => {
     // Interrupt any existing fiber
@@ -83,7 +83,7 @@ export function useEffect<A, E, R>(
           result = { _tag: "success", value: exit.value };
         } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
           // Check if it was interrupted (normal cleanup) vs actual failure
-          if (!Exit.isInterrupted(exit)) {
+          if (!Cause.hasInterrupts(exit.cause)) {
             result = { _tag: "failure", cause: exit.cause };
           }
         }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
 import { Context, Effect, Layer } from "effect";
-import * as HttpClient from "@effect/platform/HttpClient";
+import * as HttpClient from "effect/unstable/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/kit/app-runtime.js";
 import {
   wrapAction,
@@ -201,10 +201,9 @@ describe("wrapEndpoint", () => {
 });
 
 describe("runtime module support", () => {
-  class Greeter extends Context.Tag("auto-test/Greeter")<
-    Greeter,
-    { greet: (name: string) => string }
-  >() {}
+  class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
+    "auto-test/Greeter",
+  ) {}
 
   const greeterLayer = Layer.succeed(Greeter, { greet: (name) => `hello ${name}` });
 

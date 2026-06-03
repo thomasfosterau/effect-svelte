@@ -2,8 +2,8 @@
  * Effect deployment adapter for SvelteKit.
  *
  * Like `@sveltejs/adapter-node`, but the production server is an
- * `@effect/platform` HTTP server: requests are handled by an Effect
- * `HttpApp`, configuration is read through `Config`, and startup/shutdown is
+ * `effect/unstable/http` HTTP server: requests are handled by an Effect HTTP
+ * handler, configuration is read through `Config`, and startup/shutdown is
  * managed by Effect layers and scopes (SIGINT/SIGTERM trigger a graceful
  * shutdown that runs all finalizers).
  *
@@ -21,14 +21,14 @@
  * The build output (`build/` by default) contains:
  *
  * - `index.js` — runs the production server: `node build`
- * - `handler.js` — exports the SvelteKit app as a composable Effect `HttpApp`,
- *   for mounting inside an existing `@effect/platform` server
+ * - `handler.js` — exports the SvelteKit app as a composable Effect HTTP
+ *   handler, for mounting inside an existing `effect/unstable/http` server
  * - `client/`, `server/`, `prerendered/`, `manifest.js` — the built app
  *
  * Unlike `adapter-node`, the server output is not bundled: the deployment
  * needs `node_modules` with the app's production dependencies installed
- * (including `@thomasfosterau/effect-svelte`, `effect`, `@effect/platform`,
- * and `@effect/platform-node`).
+ * (including `@thomasfosterau/effect-svelte`, `effect`, and
+ * `@effect/platform-node`).
  */
 
 import { writeFileSync } from "node:fs";
@@ -68,10 +68,10 @@ import { manifest, prerendered, base } from "./manifest.js";
 const dir = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The SvelteKit application as a composable Effect HttpApp.
+ * The SvelteKit application as a composable Effect HTTP handler.
  *
  * Serve it with the generated index.js, or mount it inside any
- * \`@effect/platform\` HTTP server.
+ * \`effect/unstable/http\` HTTP server.
  */
 export const handler = makeHandler({
   Server,

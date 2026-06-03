@@ -33,11 +33,11 @@ export function useSubscriptionRef<A>(
 
   // Get initial value synchronously
   let value = $state<A>(runSync(runtime)(SubscriptionRef.get(ref)));
-  let fiber: Fiber.RuntimeFiber<void, never> | null = null;
+  let fiber: Fiber.Fiber<void, never> | null = null;
 
   $effect(() => {
-    // Subscribe to changes - changes is a property on the ref
-    const changesStream = ref.changes;
+    // Subscribe to changes - emits the current value and all subsequent updates
+    const changesStream = SubscriptionRef.changes(ref);
 
     const subscription = Stream.runForEach(changesStream, (newValue: A) =>
       Effect.sync(() => {
@@ -101,25 +101,19 @@ export function usePubSub<A>(pubsub: PubSub.PubSub<A>): UsePubSubReturn<A> {
   const runtime = getRuntime() as RuntimeLike<never>;
 
   let values = $state<A[]>([]);
-  let fiber: Fiber.RuntimeFiber<void, never> | null = null;
+  let fiber: Fiber.Fiber<void, never> | null = null;
 
   $effect(() => {
     // Reset values
     values = [];
 
-    // Subscribe to the PubSub. The subscription is scoped so it is cleaned up
-    // when the fiber is interrupted on unmount.
-    const subscriptionEffect = Effect.scoped(
-      Effect.gen(function* () {
-        const queue = yield* PubSub.subscribe(pubsub);
-
-        // Process messages from the queue
-        yield* Stream.runForEach(Stream.fromQueue(queue), (value) =>
-          Effect.sync(() => {
-            // Use reassignment for Svelte reactivity
-            values = [...values, value];
-          }),
-        );
+    // Subscribe to the PubSub. `Stream.fromPubSub` manages the underlying
+    // subscription within its own scope, cleaned up when the fiber is
+    // interrupted on unmount.
+    const subscriptionEffect = Stream.runForEach(Stream.fromPubSub(pubsub), (value) =>
+      Effect.sync(() => {
+        // Use reassignment for Svelte reactivity
+        values = [...values, value];
       }),
     );
 

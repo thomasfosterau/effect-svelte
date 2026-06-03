@@ -1,4 +1,4 @@
-import { Stream, Effect } from "effect";
+import { Stream, Effect, Queue } from "effect";
 
 /**
  * A bridge that converts Svelte reactive state into Effect streams.
@@ -29,14 +29,14 @@ export class SignalEmitter<A> {
   private _emit: (value: A) => void = () => {};
 
   constructor() {
-    // Use Stream.async to create a stream with a push-based API
-    this._stream = Stream.async<A>((emit) => {
+    // Use Stream.callback to create a stream with a push-based API
+    this._stream = Stream.callback<A>((queue) => {
       let isDone = false;
 
       // Set up the emit function to immediately emit values
       this._emit = (value: A) => {
         if (!isDone) {
-          void emit.single(value);
+          Queue.offerUnsafe(queue, value);
         }
       };
 

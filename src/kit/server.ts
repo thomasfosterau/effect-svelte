@@ -26,7 +26,7 @@ const runtime = (): ServerRuntime => (defaultRuntime ??= makeServerRuntime());
  * ```ts
  * import { serverLoad } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
- * import * as HttpClient from '@effect/platform/HttpClient';
+ * import * as HttpClient from 'effect/unstable/http/HttpClient';
  *
  * export const load = serverLoad((event) =>
  *   Effect.gen(function* () {
@@ -151,7 +151,7 @@ export function handle(
  * import { endpoint } from '@thomasfosterau/effect-svelte/kit/server';
  * import { Effect } from 'effect';
  * import { json } from '@sveltejs/kit';
- * import * as HttpClient from '@effect/platform/HttpClient';
+ * import * as HttpClient from 'effect/unstable/http/HttpClient';
  *
  * export const GET = endpoint((event) =>
  *   Effect.gen(function* () {
