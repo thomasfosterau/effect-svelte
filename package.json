@@ -50,6 +50,18 @@
       "types": "./dist/kit/vite.d.ts",
       "import": "./dist/kit/vite.js"
     },
+    "./kit/adapter": {
+      "types": "./dist/kit/adapter/index.d.ts",
+      "import": "./dist/kit/adapter/index.js"
+    },
+    "./kit/adapter/handler": {
+      "types": "./dist/kit/adapter/handler.d.ts",
+      "import": "./dist/kit/adapter/handler.js"
+    },
+    "./kit/adapter/serve": {
+      "types": "./dist/kit/adapter/serve.d.ts",
+      "import": "./dist/kit/adapter/serve.js"
+    },
     "./kit/internal/auto": {
       "types": "./dist/kit/internal/auto.d.ts",
       "import": "./dist/kit/internal/auto.js"
@@ -79,7 +91,9 @@
     "@effect/experimental": "^0.58.0",
     "@effect/language-service": "^0.85.1",
     "@effect/platform": "^0.94.0",
+    "@effect/platform-node": "^0.104.0",
     "@sveltejs/kit": "^2.0.0",
+    "@types/node": "^22.19.19",
     "@typescript/native-preview": "^7.0.0-dev.20260602.1",
     "effect": "^3.0.0",
     "svelte": "^5.0.0",
@@ -90,6 +104,7 @@
   "peerDependencies": {
     "@effect/experimental": "^0.58.0",
     "@effect/platform": "^0.94.0",
+    "@effect/platform-node": "^0.104.0",
     "@sveltejs/kit": "^2.0.0",
     "effect": "^3.0.0",
     "svelte": "^5.40.0",
@@ -97,6 +112,9 @@
   },
   "peerDependenciesMeta": {
     "@effect/platform": {
+      "optional": true
+    },
+    "@effect/platform-node": {
       "optional": true
     },
     "@sveltejs/kit": {

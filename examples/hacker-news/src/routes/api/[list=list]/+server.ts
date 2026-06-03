@@ -1,15 +1,16 @@
 import { error, json } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { endpoint } from "@thomasfosterau/effect-svelte/kit/server";
+import { runtime } from "$lib/server/runtime";
 import { isListKind } from "$lib/hn/lists";
 import { HackerNews } from "$lib/hn/service";
 
 /**
- * A JSON API endpoint using the explicit `endpoint` wrapper.
+ * A JSON API endpoint using the app-wide runtime's `endpoint` wrapper:
+ * `HackerNews` is resolved from the shared application layer.
  *
  * Try it: GET /api/top
  */
-export const GET = endpoint((event) =>
+export const GET = runtime.endpoint((event) =>
   Effect.gen(function* () {
     const list = event.params.list as string;
     if (!isListKind(list)) {
@@ -20,5 +21,5 @@ export const GET = endpoint((event) =>
     const hn = yield* HackerNews;
     const stories = yield* hn.list(list, 1);
     return json(stories);
-  }).pipe(Effect.provide(HackerNews.Default)),
+  }),
 );

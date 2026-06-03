@@ -1,8 +1,12 @@
 import type { Load } from "@sveltejs/kit";
-import { Effect, Exit } from "effect";
+import { Effect } from "effect";
 import type * as HttpClient from "@effect/platform/HttpClient";
-import { SvelteKitRuntime } from "./runtime.js";
-import { causeToThrowable } from "./internal/error.js";
+import { makeUniversalRuntime, type UniversalRuntime } from "./app-runtime.js";
+
+// Shared runtime (no application layer) backing the standalone `load` wrapper.
+// Created lazily so importing this module has no side effects.
+let defaultRuntime: UniversalRuntime | undefined;
+const runtime = (): UniversalRuntime => (defaultRuntime ??= makeUniversalRuntime());
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit universal load function.
@@ -10,6 +14,9 @@ import { causeToThrowable } from "./internal/error.js";
  * The effect has access to `HttpClient` on both the server and the client:
  * it is backed by the load event's `fetch`, so relative URLs and SvelteKit's
  * fetch behaviours (deduplication, cookies forwarding) work as expected.
+ *
+ * To give effects access to your own application services, create an
+ * app-wide runtime with `makeUniversalRuntime` and use its `load` instead.
  *
  * @example
  * ```ts
@@ -37,22 +44,11 @@ export function load<
     event: Parameters<Load<Params, InputData, ParentData, OutputData, RouteId>>[0],
   ) => Effect.Effect<OutputData, unknown, HttpClient.HttpClient>,
 ): Load<Params, InputData, ParentData, OutputData, RouteId> {
-  return async (event) => {
-    // On the server the full runtime (HttpClient + SvelteKitRequestEvent) is
-    // available; on the client we provide HttpClient backed by the load
-    // event's fetch.
-    const runtime = (event as { request?: unknown }).request
-      ? SvelteKitRuntime.forRequest(event as never)
-      : SvelteKitRuntime.forFetch(event.fetch);
-
-    const effect = fn(event);
-    const exit = await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>);
-
-    return Exit.match(exit, {
-      onFailure: (cause) => {
-        throw causeToThrowable(cause);
-      },
-      onSuccess: (value) => value,
-    }) as OutputData;
-  };
+  return runtime().load(fn);
 }
+
+/**
+ * App-wide runtime: define your application's (universal) Effect services
+ * once and share them across every `load` invocation.
+ */
+export { makeUniversalRuntime, type UniversalRuntime } from "./app-runtime.js";

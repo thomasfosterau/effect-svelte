@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
-import { Effect } from "effect";
+import { Context, Effect, Layer } from "effect";
 import * as HttpClient from "@effect/platform/HttpClient";
+import { makeServerRuntime, makeUniversalRuntime } from "../src/kit/app-runtime.js";
 import {
   wrapAction,
   wrapActions,
   wrapEndpoint,
   wrapHandle,
+  wrapInit,
   wrapLoad,
   wrapServerLoad,
 } from "../src/kit/internal/auto.js";
@@ -195,5 +197,80 @@ describe("wrapEndpoint", () => {
     const get = wrapEndpoint(() => new Response("plain"));
     const result = await get!(mockEvent());
     expect(await result.text()).toBe("plain");
+  });
+});
+
+describe("runtime module support", () => {
+  class Greeter extends Context.Tag("auto-test/Greeter")<
+    Greeter,
+    { greet: (name: string) => string }
+  >() {}
+
+  const greeterLayer = Layer.succeed(Greeter, { greet: (name) => `hello ${name}` });
+
+  it("wrapServerLoad resolves services from a server runtime module", async () => {
+    const runtimeMod = { runtime: makeServerRuntime(greeterLayer) };
+    const fn = wrapServerLoad(
+      () => Effect.map(Greeter, (g) => ({ message: g.greet("server") })),
+      runtimeMod,
+    );
+    const result = await fn!(mockEvent());
+    expect(result).toEqual({ message: "hello server" });
+  });
+
+  it("wrapServerLoad accepts the runtime as a default export", async () => {
+    const runtimeMod = { default: makeServerRuntime(greeterLayer) };
+    const fn = wrapServerLoad(
+      () => Effect.map(Greeter, (g) => ({ message: g.greet("default") })),
+      runtimeMod,
+    );
+    const result = await fn!(mockEvent());
+    expect(result).toEqual({ message: "hello default" });
+  });
+
+  it("wrapLoad resolves services from a universal runtime module", async () => {
+    const clientEvent = {
+      url: new URL("http://localhost/"),
+      params: {},
+      route: { id: null },
+      fetch,
+      data: {},
+      depends: () => undefined,
+      parent: async () => ({}),
+      setHeaders: () => undefined,
+      untrack: <T>(fn: () => T) => fn(),
+    } as any;
+
+    const runtimeMod = { runtime: makeUniversalRuntime(greeterLayer) };
+    const fn = wrapLoad(
+      () => Effect.map(Greeter, (g) => ({ message: g.greet("universal") })),
+      runtimeMod,
+    );
+    const result = await fn!(clientEvent);
+    expect(result).toEqual({ message: "hello universal" });
+  });
+
+  it("wrapActions passes the runtime module to each action", async () => {
+    const runtimeMod = { runtime: makeServerRuntime(greeterLayer) };
+    const actions = wrapActions(
+      { create: () => Effect.map(Greeter, (g) => ({ created: g.greet("action") })) },
+      runtimeMod,
+    );
+    const result = await actions!.create!(mockEvent());
+    expect(result).toEqual({ created: "hello action" });
+  });
+
+  it("wrapInit runs effects on the app runtime (services, no request)", async () => {
+    const runtimeMod = { runtime: makeServerRuntime(greeterLayer) };
+    let initialised = "";
+    const init = wrapInit(
+      () =>
+        Effect.map(Greeter, (g) => {
+          initialised = g.greet("init");
+        }),
+      runtimeMod,
+    );
+    await init!();
+    expect(initialised).toBe("hello init");
   });
 });

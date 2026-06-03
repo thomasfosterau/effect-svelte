@@ -16,6 +16,9 @@ export default defineConfig({
       "src/kit/server.ts",
       "src/kit/client.ts",
       "src/kit/vite.ts",
+      "src/kit/adapter/index.ts",
+      "src/kit/adapter/handler.ts",
+      "src/kit/adapter/serve.ts",
       "src/kit/internal/auto.ts",
     ],
     format: ["esm"],
@@ -28,7 +31,9 @@ export default defineConfig({
     sourcemap: true,
     deps: {
       // SvelteKit virtual modules are provided by the consumer's app.
-      neverBundle: [/^\$app\//],
+      // Node builtins are only imported by the adapter modules, which run
+      // exclusively in Node (svelte.config.js / the production server).
+      neverBundle: [/^\$app\//, /^node:/],
     },
   },
 

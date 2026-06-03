@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { effectKit } from "../src/kit/vite.js";
+import { effectKit, type EffectKitPluginOptions } from "../src/kit/vite.js";
 
-function runTransform(code: string, id: string) {
-  const plugin = effectKit();
+function runTransform(code: string, id: string, options?: EffectKitPluginOptions) {
+  const plugin = effectKit(options);
   const transform = plugin.transform as any;
   if (typeof transform !== "function") throw new Error("expected transform function");
   const result = transform.call({}, code, id);
@@ -143,5 +143,56 @@ describe("effectKit() vite plugin", () => {
     // handle is NOT a hook on the client — it should be left alone
     expect(result.code).toContain("export const handle = ()");
     expect(result.code).not.toContain("wrapHandle(__effect_kit_orig_handle)");
+  });
+});
+
+describe("effectKit() runtime module options", () => {
+  const serverCode = `export const load = (event) => null;\n`;
+
+  it("injects the serverRuntime module into server route files", () => {
+    const result = runTransform(serverCode, "/app/src/routes/foo/+page.server.ts", {
+      serverRuntime: "$lib/server/runtime",
+    });
+    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/server/runtime";');
+    expect(result.code).toContain(
+      "export const load = wrapServerLoad(__effect_kit_orig_load, __effect_kit_runtime);",
+    );
+  });
+
+  it("injects the serverRuntime module into hooks.server.ts", () => {
+    const result = runTransform(
+      `export const handle = ({ event, resolve }) => resolve(event);\n`,
+      "/app/src/hooks.server.ts",
+      { serverRuntime: "$lib/server/runtime" },
+    );
+    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/server/runtime";');
+    expect(result.code).toContain("wrapHandle(__effect_kit_orig_handle, __effect_kit_runtime)");
+  });
+
+  it("injects the clientRuntime module into universal route files", () => {
+    const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
+      serverRuntime: "$lib/server/runtime",
+      clientRuntime: "$lib/runtime",
+    });
+    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/runtime";');
+    expect(result.code).toContain(
+      "export const load = wrapLoad(__effect_kit_orig_load, __effect_kit_runtime);",
+    );
+    // The server runtime must never leak into universal (client-reachable) files.
+    expect(result.code).not.toContain("$lib/server/runtime");
+  });
+
+  it("does not inject the serverRuntime into universal files when no clientRuntime is set", () => {
+    const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
+      serverRuntime: "$lib/server/runtime",
+    });
+    expect(result.code).not.toContain("__effect_kit_runtime");
+    expect(result.code).toContain("export const load = wrapLoad(__effect_kit_orig_load);");
+  });
+
+  it("does not inject anything when no runtime options are set", () => {
+    const result = runTransform(serverCode, "/app/src/routes/foo/+page.server.ts");
+    expect(result.code).not.toContain("__effect_kit_runtime");
+    expect(result.code).toContain("export const load = wrapServerLoad(__effect_kit_orig_load);");
   });
 });

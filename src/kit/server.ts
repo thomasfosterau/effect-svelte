@@ -1,14 +1,14 @@
 import type { ServerLoad, RequestEvent, Actions, Action, Handle } from "@sveltejs/kit";
 import { Effect, Exit, Cause } from "effect";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
-import type * as HttpClient from "@effect/platform/HttpClient";
-import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
-import { causeToThrowable } from "./internal/error.js";
+import { makeServerRuntime, type ServerRuntime, type SvelteKitServices } from "./app-runtime.js";
 
-/**
- * The services that the SvelteKit runtime provides to every wrapped effect.
- */
-export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
+export type { SvelteKitServices };
+
+// Shared runtime (no application layer) backing the standalone wrappers.
+// Created lazily so importing this module has no side effects.
+let defaultRuntime: ServerRuntime | undefined;
+const runtime = (): ServerRuntime => (defaultRuntime ??= makeServerRuntime());
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit server load function.
@@ -17,6 +17,10 @@ export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
  *
  * SvelteKit control flow (`redirect()`, `error()`) raised inside the effect is
  * passed through to SvelteKit.
+ *
+ * To give effects access to your own application services, create an
+ * app-wide runtime with {@link makeServerRuntime} and use its `serverLoad`
+ * instead.
  *
  * @example
  * ```ts
@@ -43,18 +47,7 @@ export function serverLoad<
     event: RequestEvent<Params, RouteId>,
   ) => Effect.Effect<OutputData, unknown, SvelteKitServices>,
 ): ServerLoad<Params, ParentData, OutputData, RouteId> {
-  return async (event) => {
-    const runtime = SvelteKitRuntime.forRequest(event);
-    const effect = fn(event);
-    const exit = await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>);
-
-    return Exit.match(exit, {
-      onFailure: (cause) => {
-        throw causeToThrowable(cause);
-      },
-      onSuccess: (value) => value,
-    }) as OutputData;
-  };
+  return runtime().serverLoad(fn);
 }
 
 /**
@@ -87,18 +80,7 @@ export function action<
     event: RequestEvent<Params, RouteId>,
   ) => Effect.Effect<OutputData, unknown, SvelteKitServices>,
 ): Action<Params, OutputData, RouteId> {
-  return async (event) => {
-    const runtime = SvelteKitRuntime.forRequest(event);
-    const effect = fn(event);
-    const exit = await runtime.runPromiseExit(effect as Effect.Effect<OutputData, unknown, never>);
-
-    return Exit.match(exit, {
-      onFailure: (cause) => {
-        throw causeToThrowable(cause);
-      },
-      onSuccess: (value) => value,
-    }) as OutputData;
-  };
+  return runtime().action(fn);
 }
 
 /**
@@ -126,13 +108,7 @@ export function actions<
     (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, SvelteKitServices>
   >,
 ): Actions<Params, OutputData, RouteId> {
-  const wrappedActions: Actions<Params, OutputData, RouteId> = {};
-
-  for (const [key, actionFn] of Object.entries(actionsMap)) {
-    wrappedActions[key] = action(actionFn);
-  }
-
-  return wrappedActions;
+  return runtime().actions(actionsMap);
 }
 
 /**
@@ -157,18 +133,7 @@ export function actions<
 export function handle(
   fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, SvelteKitServices>,
 ): Handle {
-  return async ({ event, resolve }) => {
-    const runtime = SvelteKitRuntime.forRequest(event);
-    const effect = fn({ event, resolve });
-    const exit = await runtime.runPromiseExit(effect as Effect.Effect<Response, unknown, never>);
-
-    return Exit.match(exit, {
-      onFailure: (cause) => {
-        throw causeToThrowable(cause);
-      },
-      onSuccess: (value) => value,
-    });
-  };
+  return runtime().handle(fn);
 }
 
 /**
@@ -207,9 +172,7 @@ export function endpoint<
   const { exposeErrors = false } = options ?? {};
 
   return async (event) => {
-    const runtime = SvelteKitRuntime.forRequest(event);
-    const effect = fn(event);
-    const exit = await runtime.runPromiseExit(effect as Effect.Effect<Response, unknown, never>);
+    const exit = await runtime().runPromiseExit(event as RequestEvent, fn(event));
 
     return Exit.match(exit, {
       onFailure: (cause) => {
@@ -234,6 +197,12 @@ export function endpoint<
     });
   };
 }
+
+/**
+ * App-wide runtime: define your application's Effect services once and share
+ * them across every request.
+ */
+export { makeServerRuntime, type ServerRuntime } from "./app-runtime.js";
 
 /**
  * Export the SvelteKit runtime utilities for advanced use cases.

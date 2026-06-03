@@ -9,7 +9,10 @@ import { HackerNews } from "$lib/hn/service";
  *
  * The effectKit() Vite plugin rewrites this export to run through the
  * SvelteKit Effect runtime. The current request is read from the
- * `SvelteKitRequestEvent` service instead of a parameter.
+ * `SvelteKitRequestEvent` service instead of a parameter, and `HackerNews`
+ * is resolved from the app-wide runtime configured with
+ * `effectKit({ serverRuntime: "$lib/server/runtime" })` — no per-route
+ * `Effect.provide` needed.
  *
  * Note: because the export is an Effect rather than a function, SvelteKit's
  * generated $types cannot infer the data shape — +page.svelte types its
@@ -28,4 +31,4 @@ export const load = Effect.gen(function* () {
   const stories = yield* hn.list(list, pageNumber);
 
   return { list, page: pageNumber, stories };
-}).pipe(Effect.provide(HackerNews.Default));
+});

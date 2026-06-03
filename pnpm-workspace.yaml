@@ -4,6 +4,14 @@ ignoredBuiltDependencies:
 onlyBuiltDependencies:
   - esbuild
 
+# @effect/platform-node declares (auto-installed) peer dependencies on the
+# rpc/sql/cluster packages. Pin them to the release line that matches
+# @effect/platform ^0.94.0 so the dependency tree stays version-consistent.
+overrides:
+  "@effect/cluster": "^0.56.1"
+  "@effect/rpc": "^0.73.0"
+  "@effect/sql": "^0.49.0"
+
 packages:
   - "."
   - "examples/*"

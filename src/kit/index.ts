@@ -9,3 +9,4 @@
 // Re-export universal helpers
 export * from "./universal.js";
 export * from "./remote-call.js";
+export type { SvelteKitServices } from "./app-runtime.js";

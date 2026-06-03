@@ -1,13 +1,14 @@
 import { fail } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { actions as effectActions } from "@thomasfosterau/effect-svelte/kit/server";
+import { runtime } from "$lib/server/runtime";
 import { HackerNews } from "$lib/hn/service";
 
 /**
- * Form actions using the explicit `actions` wrapper. Each entry is a
- * function from the request event to an Effect.
+ * Form actions using the app-wide runtime's `actions` wrapper. Each entry is
+ * a function from the request event to an Effect, with the application's
+ * services (HackerNews) resolved from the shared layer.
  */
-export const actions = effectActions({
+export const actions = runtime.actions({
   search: (event) =>
     Effect.gen(function* () {
       const form = yield* Effect.promise(() => event.request.formData());
@@ -23,5 +24,5 @@ export const actions = effectActions({
       const hn = yield* HackerNews;
       const results = yield* hn.search(query, 1);
       return { query, results };
-    }).pipe(Effect.provide(HackerNews.Default)),
+    }),
 });
