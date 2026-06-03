@@ -28,14 +28,14 @@ pnpm run dev
 | `reactiveMutation`                                  | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`, `TodoFooter.svelte` |
 | `useInvalidateKeys`                                 | `TodoApp.svelte` (cross-tab sync via the `storage` event)                     |
 | `AsyncResult` + `isSuccess`/`isFailure`/`isPending` | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`                      |
-| Effect service + layer (`Effect.Service`)           | `src/lib/todo-repository.ts`                                                  |
+| Effect service + layer (`Context.Service`)          | `src/lib/todo-repository.ts`                                                  |
 | Schema-based persistence                            | `src/lib/model.ts`, `src/lib/todo-repository.ts`                              |
 
 ## How it works
 
 - `src/lib/runtime.ts` builds the app runtime with `SvelteRuntime.extend`,
   merging the `TodoRepository` layer with `Reactivity.layer` from
-  `@effect/experimental`.
+  `effect/unstable/reactivity`.
 - `src/App.svelte` calls `provideRuntime(appRuntime)` once at the root.
 - `TodoApp.svelte` declares two `reactiveQuery`s over the repository — the
   visible (filtered) todos and the counts. Both depend on the `"todos"` key.

@@ -1,15 +1,18 @@
-import { Effect, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 import { StoredTodos, type Todo, type TodoFilter, type TodoStats } from "./model";
 
 /** Error raised when todos cannot be read from or written to storage. */
-export class TodoStorageError extends Schema.TaggedError<TodoStorageError>()("TodoStorageError", {
-  reason: Schema.String,
-}) {}
+export class TodoStorageError extends Schema.TaggedErrorClass<TodoStorageError>()(
+  "TodoStorageError",
+  {
+    reason: Schema.String,
+  },
+) {}
 
 export const STORAGE_KEY = "todos-effect-svelte";
 
-const decodeStored = Schema.decodeUnknown(StoredTodos);
-const encodeStored = Schema.encode(StoredTodos);
+const decodeStored = Schema.decodeUnknownEffect(StoredTodos);
+const encodeStored = Schema.encodeEffect(StoredTodos);
 
 /**
  * The todo repository service.
@@ -19,8 +22,8 @@ const encodeStored = Schema.encode(StoredTodos);
  * the UI layer can run them through the hooks of
  * `@thomasfosterau/effect-svelte`.
  */
-export class TodoRepository extends Effect.Service<TodoRepository>()("examples/TodoRepository", {
-  sync: () => {
+export class TodoRepository extends Context.Service<TodoRepository>()("examples/TodoRepository", {
+  make: Effect.sync(() => {
     const readAll: Effect.Effect<ReadonlyArray<Todo>, TodoStorageError> = Effect.gen(function* () {
       const raw = yield* Effect.try({
         try: () => window.localStorage.getItem(STORAGE_KEY),
@@ -111,5 +114,8 @@ export class TodoRepository extends Effect.Service<TodoRepository>()("examples/T
 
       clearCompleted: modify((todos) => todos.filter((todo) => !todo.completed)),
     } as const;
-  },
-}) {}
+  }),
+}) {
+  /** The layer that provides the localStorage-backed todo repository. */
+  static readonly layer = Layer.effect(this, this.make);
+}
