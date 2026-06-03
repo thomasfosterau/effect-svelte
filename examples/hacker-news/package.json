@@ -11,10 +11,9 @@
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@effect/platform": "^0.94.0",
-    "@effect/platform-node": "^0.104.0",
+    "@effect/platform-node": "4.0.0-beta.75",
     "@thomasfosterau/effect-svelte": "workspace:*",
-    "effect": "^3.0.0"
+    "effect": "4.0.0-beta.75"
   },
   "devDependencies": {
     "@sveltejs/kit": "^2.61.0",
