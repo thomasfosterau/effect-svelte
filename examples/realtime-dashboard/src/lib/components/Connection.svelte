@@ -25,7 +25,7 @@
       }),
       (id) => Effect.sync(() => onEvent(`connection ${id} closed`))
     );
-    Effect.runFork(Scope.extend(connection, lifecycleScope));
+    Effect.runFork(Scope.provide(connection, lifecycleScope));
   });
 
   // A slow ping that can be started manually and interrupted mid-flight.

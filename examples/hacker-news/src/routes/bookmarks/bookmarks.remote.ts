@@ -34,14 +34,16 @@ export const addBookmark = RemoteFunction.form(
 );
 
 /** Remote command: remove a bookmark by id. */
-export const removeBookmark = RemoteFunction.command(Schema.toStandardSchemaV1(Schema.String), (id) =>
-  Effect.gen(function* () {
-    const store = yield* Bookmarks;
-    const deleted = yield* store.remove(id);
-    // Single-flight mutation: refresh the bookmarks query inside the command
-    // so its new value ships back in the same response and updates the
-    // client's cached query instance.
-    yield* Effect.promise(() => getBookmarks().refresh());
-    return deleted;
-  }).pipe(withStore),
+export const removeBookmark = RemoteFunction.command(
+  Schema.toStandardSchemaV1(Schema.String),
+  (id) =>
+    Effect.gen(function* () {
+      const store = yield* Bookmarks;
+      const deleted = yield* store.remove(id);
+      // Single-flight mutation: refresh the bookmarks query inside the command
+      // so its new value ships back in the same response and updates the
+      // client's cached query instance.
+      yield* Effect.promise(() => getBookmarks().refresh());
+      return deleted;
+    }).pipe(withStore),
 );

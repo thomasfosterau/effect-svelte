@@ -5,12 +5,9 @@ import { STORIES_PER_PAGE, type ListKind } from "./lists";
 import { Item, StoryPage, User } from "./schema";
 
 /** Error raised when the Hacker News API call fails. */
-export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()(
-  "HackerNewsError",
-  {
-    message: Schema.String,
-  },
-) {}
+export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()("HackerNewsError", {
+  message: Schema.String,
+}) {}
 
 /**
  * Hacker News API client, backed by the Algolia HN API.

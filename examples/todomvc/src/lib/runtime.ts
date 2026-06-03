@@ -13,6 +13,4 @@ import { TodoRepository } from "./todo-repository";
  * It is provided to the component tree once, in `App.svelte`, via
  * `provideRuntime(appRuntime)`.
  */
-export const appRuntime = SvelteRuntime.extend(
-  Layer.merge(TodoRepository.layer, Reactivity.layer),
-);
+export const appRuntime = SvelteRuntime.extend(Layer.merge(TodoRepository.layer, Reactivity.layer));
