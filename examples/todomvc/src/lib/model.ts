@@ -13,7 +13,7 @@ export const Todo = Schema.Struct({
 export type Todo = typeof Todo.Type;
 
 /** The list of todos as stored in localStorage (JSON string <-> Todo[]). */
-export const StoredTodos = Schema.parseJson(Schema.Array(Todo));
+export const StoredTodos = Schema.fromJsonString(Schema.Array(Todo));
 
 /** The TodoMVC footer filters. */
 export type TodoFilter = "all" | "active" | "completed";

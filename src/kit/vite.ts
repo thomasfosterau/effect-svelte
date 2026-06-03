@@ -15,7 +15,7 @@
  * ```ts
  * // +page.server.ts
  * import { Effect } from "effect";
- * import * as HttpClient from "@effect/platform/HttpClient";
+ * import * as HttpClient from "effect/unstable/http/HttpClient";
  *
  * export const load = (event) =>
  *   Effect.gen(function* () {
@@ -35,6 +35,7 @@ import type { Plugin } from "vite";
 
 const INTERNAL_IMPORT = "@thomasfosterau/effect-svelte/kit/internal/auto";
 const ORIG_PREFIX = "__effect_kit_orig_";
+const RUNTIME_IDENT = "__effect_kit_runtime";
 
 export type EffectKitFileKind =
   | "pageServer"
@@ -44,6 +45,14 @@ export type EffectKitFileKind =
   | "server"
   | "hooksServer"
   | "hooksClient";
+
+/** File kinds whose exports only ever run on the server. */
+const serverKinds: ReadonlySet<EffectKitFileKind> = new Set([
+  "pageServer",
+  "layoutServer",
+  "server",
+  "hooksServer",
+]);
 
 const wrapperByKind: Record<EffectKitFileKind, Record<string, string>> = {
   pageServer: { load: "wrapServerLoad", actions: "wrapActions" },
@@ -229,6 +238,30 @@ export interface EffectKitPluginOptions {
    * Defaults to all standard route files.
    */
   include?: ReadonlyArray<EffectKitFileKind>;
+
+  /**
+   * Import specifier of a server-only module whose `runtime` (or default)
+   * export is an app-wide runtime created with `makeServerRuntime`.
+   *
+   * When set, Effects returned from server route files (`+page.server.ts`,
+   * `+layout.server.ts`, `+server.ts`, `hooks.server.ts`) have access to the
+   * services of that runtime's layer.
+   *
+   * @example "$lib/server/runtime"
+   */
+  serverRuntime?: string;
+
+  /**
+   * Import specifier of a universal module whose `runtime` (or default)
+   * export is an app-wide runtime created with `makeUniversalRuntime`.
+   *
+   * When set, Effects returned from universal route files (`+page.ts`,
+   * `+layout.ts`, `hooks.client.ts`) have access to the services of that
+   * runtime's layer. The module must be safe to import in the browser.
+   *
+   * @example "$lib/runtime"
+   */
+  clientRuntime?: string;
 }
 
 /**
@@ -262,9 +295,23 @@ export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
 
       const wrapperImports = Array.from(new Set(found.map((m) => wrappers[m.name]!)));
 
-      const imports = `\nimport { ${wrapperImports.join(", ")} } from ${JSON.stringify(INTERNAL_IMPORT)};\n`;
+      // Server-only files get the server runtime module; universal/client
+      // files get the client runtime module (it must be browser-safe).
+      const runtimeSpecifier = serverKinds.has(kind)
+        ? options.serverRuntime
+        : options.clientRuntime;
+
+      const imports =
+        `\nimport { ${wrapperImports.join(", ")} } from ${JSON.stringify(INTERNAL_IMPORT)};\n` +
+        (runtimeSpecifier
+          ? `import * as ${RUNTIME_IDENT} from ${JSON.stringify(runtimeSpecifier)};\n`
+          : "");
+      const runtimeArg = runtimeSpecifier ? `, ${RUNTIME_IDENT}` : "";
       const exports = found
-        .map((m) => `export const ${m.name} = ${wrappers[m.name]}(${ORIG_PREFIX}${m.name});`)
+        .map(
+          (m) =>
+            `export const ${m.name} = ${wrappers[m.name]}(${ORIG_PREFIX}${m.name}${runtimeArg});`,
+        )
         .join("\n");
 
       s.append(`\n${imports}${exports}\n`);

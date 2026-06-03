@@ -1,5 +1,5 @@
-import { Reactivity } from "@effect/experimental";
 import { Layer } from "effect";
+import { Reactivity } from "effect/unstable/reactivity";
 import { SvelteRuntime } from "@thomasfosterau/effect-svelte";
 import { MarketData } from "./market";
 
@@ -10,4 +10,4 @@ import { MarketData } from "./market";
  * - `Reactivity` — needed by `reactiveMutation` / `reactiveStream`
  *   (used for the portfolio history panel).
  */
-export const appRuntime = SvelteRuntime.extend(Layer.merge(MarketData.Default, Reactivity.layer));
+export const appRuntime = SvelteRuntime.extend(Layer.merge(MarketData.layer, Reactivity.layer));

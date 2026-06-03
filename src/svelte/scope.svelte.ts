@@ -24,8 +24,8 @@ import { untrack } from "svelte";
  * </script>
  * ```
  */
-export function useScope(): { get current(): Scope.Scope.Closeable | null } {
-  let scope = $state<Scope.Scope.Closeable | null>(null);
+export function useScope(): { get current(): Scope.Closeable | null } {
+  let scope = $state<Scope.Closeable | null>(null);
 
   $effect(() => {
     // Create the scope when component mounts
@@ -62,9 +62,7 @@ export function useScope(): { get current(): Scope.Scope.Closeable | null } {
  * </script>
  * ```
  */
-export function useScopeCallback(
-  callback: (scope: Scope.Scope.Closeable) => void | (() => void),
-): void {
+export function useScopeCallback(callback: (scope: Scope.Closeable) => void | (() => void)): void {
   $effect(() => {
     // Create the scope when component mounts
     const scope = Effect.runSync(Scope.make());

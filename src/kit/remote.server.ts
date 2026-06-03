@@ -8,7 +8,7 @@ import type {
   InvalidField,
 } from "@sveltejs/kit";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import * as HttpClient from "@effect/platform/HttpClient";
+import * as HttpClient from "effect/unstable/http/HttpClient";
 import { Effect } from "effect";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 
@@ -38,7 +38,7 @@ type EffectVoidHandler = () => UnknownEffect;
  *
  * This cannot be a simple `typeof value === "function"` check on the handler
  * position: some Standard Schema implementations (such as Effect's
- * `Schema.standardSchemaV1`) return callable class values, which would be
+ * `Schema.toStandardSchemaV1`) return callable class values, which would be
  * mistaken for handler functions.
  */
 const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>

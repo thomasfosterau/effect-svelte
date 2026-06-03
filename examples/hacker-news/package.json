@@ -7,16 +7,15 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "node build/index.js",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@effect/platform": "^0.94.0",
+    "@effect/platform-node": "4.0.0-beta.75",
     "@thomasfosterau/effect-svelte": "workspace:*",
-    "effect": "^3.0.0"
+    "effect": "4.0.0-beta.75"
   },
   "devDependencies": {
-    "@sveltejs/adapter-node": "^5.3.0",
     "@sveltejs/kit": "^2.61.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@types/node": "^22.0.0",

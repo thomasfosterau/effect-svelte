@@ -25,7 +25,7 @@ export {
   type UsePubSubReturn,
 } from "./subscription.svelte.js";
 
-// Layer 4: Effect Reactivity Integration (@effect/experimental)
+// Layer 4: Effect Reactivity Integration (effect/unstable/reactivity)
 export {
   reactiveQuery,
   reactiveStream,

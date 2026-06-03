@@ -1,4 +1,4 @@
-import { Effect, Random, Schedule, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Random, Schedule, Schema, Stream } from "effect";
 
 /** A point-in-time quote for a symbol. */
 export interface Quote {
@@ -10,7 +10,7 @@ export interface Quote {
 }
 
 /** Error raised when looking up a symbol that does not exist. */
-export class SymbolNotFound extends Schema.TaggedError<SymbolNotFound>()("SymbolNotFound", {
+export class SymbolNotFound extends Schema.TaggedErrorClass<SymbolNotFound>()("SymbolNotFound", {
   symbol: Schema.String,
 }) {}
 
@@ -30,11 +30,11 @@ const BASE_PRICES: Record<string, number> = {
  * pure Effect values, so the UI layer can run them through the hooks of
  * `@thomasfosterau/effect-svelte`.
  */
-export class MarketData extends Effect.Service<MarketData>()("examples/MarketData", {
-  sync: () => {
+export class MarketData extends Context.Service<MarketData>()("examples/MarketData", {
+  make: Effect.sync(() => {
     const nextQuote = (symbol: string, price: number): Effect.Effect<Quote> =>
       Effect.gen(function* () {
-        const drift = yield* Random.nextRange(-0.01, 0.01);
+        const drift = yield* Random.nextBetween(-0.01, 0.01);
         return {
           symbol,
           price: price * (1 + drift),
@@ -50,11 +50,8 @@ export class MarketData extends Effect.Service<MarketData>()("examples/MarketDat
       /** An endless stream of quotes for a symbol, one per interval. */
       quotes: (symbol: string) => {
         const base = BASE_PRICES[symbol] ?? 100;
-        return Stream.unfoldEffect(base, (price) =>
-          nextQuote(symbol, price).pipe(
-            Effect.map((quote) => [quote, quote.price] as const),
-            Effect.asSome,
-          ),
+        return Stream.unfold(base, (price) =>
+          nextQuote(symbol, price).pipe(Effect.map((quote) => [quote, quote.price] as const)),
         ).pipe(Stream.schedule(Schedule.spaced("1 second")));
       },
 
@@ -70,5 +67,8 @@ export class MarketData extends Effect.Service<MarketData>()("examples/MarketDat
           return yield* nextQuote(symbol, base);
         }),
     } as const;
-  },
-}) {}
+  }),
+}) {
+  /** The layer providing the simulated market data feed. */
+  static readonly layer = Layer.effect(this, this.make);
+}

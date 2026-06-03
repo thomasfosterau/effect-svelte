@@ -34,7 +34,7 @@ pnpm run dev
 | `reactiveMutation` / `reactiveStream`                               | `Portfolio.svelte` (trade → value history)                       |
 | `getRuntime` (custom hooks)                                         | `lib/use-clock.svelte.ts`                                        |
 | `provideRuntime` / `SvelteRuntime.extend`                           | `App.svelte`, `lib/runtime.ts`                                   |
-| Effect services, `Random`, `Schedule`, `Stream` operators, `Either` | `lib/market.ts`, `lib/stores.ts`, components                     |
+| Effect services, `Random`, `Schedule`, `Stream` operators, `Result` | `lib/market.ts`, `lib/stores.ts`, components                     |
 
 ## How one trade exercises three reactive primitives
 

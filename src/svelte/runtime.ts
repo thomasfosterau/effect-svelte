@@ -49,9 +49,9 @@ export class SvelteRuntime {
    * import { Layer, Context } from 'effect';
    *
    * // Define a custom service
-   * class Analytics extends Context.Tag("Analytics")<Analytics, {
+   * class Analytics extends Context.Service<Analytics, {
    *   track: (event: string) => Effect.Effect<void>
-   * }>() {}
+   * }>()("Analytics") {}
    *
    * // Create an implementation
    * const analyticsLayer = Layer.succeed(Analytics, {

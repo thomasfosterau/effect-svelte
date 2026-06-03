@@ -1,16 +1,18 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { serverLoad } from "@thomasfosterau/effect-svelte/kit/server";
+import { runtime } from "$lib/server/runtime";
 import { HackerNews } from "$lib/hn/service";
 
 /**
- * Server load using the explicit `serverLoad` wrapper.
+ * Server load using the app-wide runtime's `serverLoad` wrapper.
  *
- * Compared to the plugin-rewritten form (see /[list]/[page]), the explicit
- * wrapper returns a real SvelteKit load function, so the generated $types
- * for this route describe the data shape and +page.svelte can use PageProps.
+ * The `HackerNews` service is resolved from the runtime's shared layer
+ * (built once per server process, not per request). Like the standalone
+ * `serverLoad` wrapper, the returned function is a real SvelteKit load, so
+ * the generated $types for this route describe the data shape and
+ * +page.svelte can use PageProps.
  */
-export const load = serverLoad((event) =>
+export const load = runtime.serverLoad((event) =>
   Effect.gen(function* () {
     const hn = yield* HackerNews;
     const item = yield* hn.item(event.params.id as string).pipe(
@@ -18,5 +20,5 @@ export const load = serverLoad((event) =>
       Effect.catchTag("HackerNewsError", () => Effect.sync(() => error(404, "Item not found"))),
     );
     return { item };
-  }).pipe(Effect.provide(HackerNews.Default)),
+  }),
 );

@@ -16,7 +16,7 @@
 
   // The Effect side: debounce keystrokes, normalize, drop blanks and
   // duplicates, then look up a quote for each query. Failures are captured
-  // with Effect.either so a bad symbol doesn't kill the stream.
+  // with Effect.result so a bad symbol doesn't kill the stream.
   const results = useStream(
     searches.stream.pipe(
       Stream.debounce("300 millis"),
@@ -24,7 +24,7 @@
       Stream.filter((value) => value.length > 0),
       Stream.changes,
       Stream.mapEffect((value) =>
-        Effect.either(Effect.flatMap(MarketData, (market) => market.lookup(value)))
+        Effect.result(Effect.flatMap(MarketData, (market) => market.lookup(value)))
       )
     )
   );
@@ -38,15 +38,15 @@
   <input id="search" bind:value={query} placeholder="BTC" autocomplete="off" />
 
   {#if latest}
-    {#if latest._tag === "Right"}
+    {#if latest._tag === "Success"}
       <p>
-        {latest.right.symbol}:
+        {latest.success.symbol}:
         <strong>
-          ${latest.right.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          ${latest.success.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </strong>
       </p>
     {:else}
-      <p class="error">Unknown symbol “{latest.left.symbol}”</p>
+      <p class="error">Unknown symbol “{latest.failure.symbol}”</p>
     {/if}
   {:else}
     <p class="muted">Results appear here, debounced through Effect streams.</p>

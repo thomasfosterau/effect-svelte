@@ -9,10 +9,10 @@ import { Bookmarks } from "$lib/server/bookmarks";
  * svelte.config.js.
  *
  * Effect Schema doubles as the Standard Schema validator for inputs via
- * `Schema.standardSchemaV1`.
+ * `Schema.toStandardSchemaV1`.
  */
 
-const withStore = Effect.provide(Bookmarks.Default);
+const withStore = Effect.provide(Bookmarks.layer);
 
 /** Remote query: returns all bookmarks. */
 export const getBookmarks = RemoteFunction.query(() =>
@@ -21,9 +21,9 @@ export const getBookmarks = RemoteFunction.query(() =>
 
 /** Remote form: add a bookmark from a <form> submission. */
 export const addBookmark = RemoteFunction.form(
-  Schema.standardSchemaV1(
+  Schema.toStandardSchemaV1(
     Schema.Struct({
-      title: Schema.NonEmptyTrimmedString,
+      title: Schema.Trimmed.check(Schema.isNonEmpty()),
       url: Schema.String,
     }),
   ),
@@ -34,14 +34,16 @@ export const addBookmark = RemoteFunction.form(
 );
 
 /** Remote command: remove a bookmark by id. */
-export const removeBookmark = RemoteFunction.command(Schema.standardSchemaV1(Schema.String), (id) =>
-  Effect.gen(function* () {
-    const store = yield* Bookmarks;
-    const deleted = yield* store.remove(id);
-    // Single-flight mutation: refresh the bookmarks query inside the command
-    // so its new value ships back in the same response and updates the
-    // client's cached query instance.
-    yield* Effect.promise(() => getBookmarks().refresh());
-    return deleted;
-  }).pipe(withStore),
+export const removeBookmark = RemoteFunction.command(
+  Schema.toStandardSchemaV1(Schema.String),
+  (id) =>
+    Effect.gen(function* () {
+      const store = yield* Bookmarks;
+      const deleted = yield* store.remove(id);
+      // Single-flight mutation: refresh the bookmarks query inside the command
+      // so its new value ships back in the same response and updates the
+      // client's cached query instance.
+      yield* Effect.promise(() => getBookmarks().refresh());
+      return deleted;
+    }).pipe(withStore),
 );

@@ -1,13 +1,14 @@
-import { Effect, Fiber, FiberId, ManagedRuntime, Runtime } from "effect";
+import { Context, Effect, Fiber, ManagedRuntime } from "effect";
 
 /**
  * A runtime that the Svelte hooks can run effects against.
  *
- * Both plain runtimes (e.g. `Runtime.defaultRuntime`) and managed runtimes
- * (e.g. `SvelteRuntime.defaultRuntime` or the result of `SvelteRuntime.extend`)
+ * Both a plain services context (e.g. `Context.empty()` or
+ * `defaultSvelteRuntime`) and managed runtimes (e.g.
+ * `SvelteRuntime.defaultRuntime` or the result of `SvelteRuntime.extend`)
  * are supported.
  */
-export type RuntimeLike<R> = Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<R, never>;
+export type RuntimeLike<R> = Context.Context<R> | ManagedRuntime.ManagedRuntime<R, never>;
 
 /**
  * Forks an effect on the given runtime, returning the running fiber.
@@ -15,10 +16,8 @@ export type RuntimeLike<R> = Runtime.Runtime<R> | ManagedRuntime.ManagedRuntime<
  */
 export const runFork =
   <R>(runtime: RuntimeLike<R>) =>
-  <A, E>(effect: Effect.Effect<A, E, R>): Fiber.RuntimeFiber<A, E> =>
-    ManagedRuntime.isManagedRuntime(runtime)
-      ? (runtime as ManagedRuntime.ManagedRuntime<R, never>).runFork(effect)
-      : Runtime.runFork(runtime as Runtime.Runtime<R>)(effect);
+  <A, E>(effect: Effect.Effect<A, E, R>): Fiber.Fiber<A, E> =>
+    Context.isContext(runtime) ? Effect.runForkWith(runtime)(effect) : runtime.runFork(effect);
 
 /**
  * Runs an effect synchronously on the given runtime.
@@ -27,9 +26,7 @@ export const runFork =
 export const runSync =
   <R>(runtime: RuntimeLike<R>) =>
   <A, E>(effect: Effect.Effect<A, E, R>): A =>
-    ManagedRuntime.isManagedRuntime(runtime)
-      ? (runtime as ManagedRuntime.ManagedRuntime<R, never>).runSync(effect)
-      : Runtime.runSync(runtime as Runtime.Runtime<R>)(effect);
+    Context.isContext(runtime) ? Effect.runSyncWith(runtime)(effect) : runtime.runSync(effect);
 
 /**
  * Interrupts a fiber in the background without waiting for it to finish.
@@ -37,6 +34,6 @@ export const runSync =
  * Interruption must not be run with `runSync` because interrupting a fiber
  * that is suspended on an async operation cannot complete synchronously.
  */
-export const interruptFiber = <A, E>(fiber: Fiber.RuntimeFiber<A, E>): void => {
-  fiber.unsafeInterruptAsFork(FiberId.none);
+export const interruptFiber = <A, E>(fiber: Fiber.Fiber<A, E>): void => {
+  fiber.interruptUnsafe();
 };

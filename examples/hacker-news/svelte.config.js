@@ -1,4 +1,4 @@
-import adapter from "@sveltejs/adapter-node";
+import adapter from "@thomasfosterau/effect-svelte/kit/adapter";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 
 /** @type {import('@sveltejs/kit').Config} */
@@ -11,6 +11,8 @@ const config = {
     },
   },
   kit: {
+    // The Effect deployment adapter: the production server (node build) runs
+    // on @effect/platform's NodeHttpServer with Effect-managed lifecycle.
     adapter: adapter(),
     experimental: {
       // Required for the RemoteFunction demo on the /bookmarks page.

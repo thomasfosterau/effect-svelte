@@ -1,5 +1,5 @@
-import { Reactivity } from "@effect/experimental";
-import { Effect, Fiber, Exit, Mailbox, Stream } from "effect";
+import { Cause, Effect, Exit, Fiber, Stream } from "effect";
+import { Reactivity } from "effect/unstable/reactivity";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { assignResult } from "./internal/result.js";
@@ -9,7 +9,7 @@ import type { AsyncResult } from "./types.js";
  * Creates a reactive query that automatically re-runs when the specified keys are invalidated.
  * Returns the current result as a Svelte reactive value.
  *
- * Note: Make sure your runtime includes the Reactivity layer from @effect/experimental.
+ * Note: Make sure your runtime includes `Reactivity.layer` from `effect/unstable/reactivity`.
  *
  * @param keys - Reactivity keys that this query depends on
  * @param effectFn - The Effect to run when keys are invalidated
@@ -46,7 +46,7 @@ export function reactiveQuery<A, E, R>(
   // The result is updated by mutating this object in place (never reassigning),
   // so the reference returned to the caller stays reactive.
   const result = $state<Record<string, unknown>>({ _tag: "initial" });
-  let fiber: Fiber.RuntimeFiber<void, never> | null = null;
+  let fiber: Fiber.Fiber<void, never> | null = null;
 
   $effect(() => {
     // Get the current keys (tracks Svelte dependencies)
@@ -61,19 +61,19 @@ export function reactiveQuery<A, E, R>(
     const queryEffect = Effect.scoped(
       Effect.gen(function* () {
         // Create a reactive query with the current keys
-        const mb = yield* Reactivity.query(effect, currentKeys);
+        const queue = yield* Reactivity.query(effect, currentKeys);
 
-        // Subscribe to the mailbox to get updates
-        yield* Stream.runForEach(Mailbox.toStream(mb), (value) =>
+        // Subscribe to the queue to get updates
+        yield* Stream.runForEach(Stream.fromQueue(queue), (value) =>
           Effect.sync(() => {
             assignResult(result, { _tag: "success", value });
           }),
         );
       }),
     ).pipe(
-      Effect.catchAllCause((cause) =>
+      Effect.catchCause((cause) =>
         Effect.sync(() => {
-          if (!Exit.isInterrupted(Exit.failCause(cause))) {
+          if (!Cause.hasInterrupts(cause)) {
             assignResult(result, { _tag: "failure", cause });
           }
         }),
@@ -137,7 +137,7 @@ export function reactiveStream<A, E, R>(
 
   let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: "initial" });
   let values = $state<A[]>([]);
-  let fiber: Fiber.RuntimeFiber<void, E> | null = null;
+  let fiber: Fiber.Fiber<void, E> | null = null;
 
   $effect(() => {
     // Reset state
@@ -172,7 +172,7 @@ export function reactiveStream<A, E, R>(
           if (Exit.isSuccess(exit)) {
             result = { _tag: "success", value: values };
           } else if (Exit.isFailure(exit)) {
-            if (!Exit.isInterrupted(exit)) {
+            if (!Cause.hasInterrupts(exit.cause)) {
               result = { _tag: "failure", cause: exit.cause };
             } else {
               if (values.length > 0) {
@@ -241,7 +241,7 @@ export function reactiveMutation<A, E, R>(
   const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
 
   let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
-  let currentFiber: Fiber.RuntimeFiber<A, E> | null = null;
+  let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   const run = () => {
     // Interrupt any existing fiber
@@ -271,7 +271,7 @@ export function reactiveMutation<A, E, R>(
         if (currentFiber === runningFiber && Exit.isSuccess(exit)) {
           result = { _tag: "success", value: exit.value };
         } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
-          if (!Exit.isInterrupted(exit)) {
+          if (!Cause.hasInterrupts(exit.cause)) {
             result = { _tag: "failure", cause: exit.cause };
           }
         }

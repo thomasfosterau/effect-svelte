@@ -1,4 +1,4 @@
-import { Stream, Fiber, Exit, Effect } from "effect";
+import { Cause, Stream, Fiber, Exit, Effect } from "effect";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import type { AsyncResult } from "./types.js";
@@ -46,7 +46,7 @@ export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamRet
 
   let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: "initial" });
   let values = $state<A[]>([]);
-  let fiber: Fiber.RuntimeFiber<void, E> | null = null;
+  let fiber: Fiber.Fiber<void, E> | null = null;
 
   $effect(() => {
     // Reset state
@@ -80,7 +80,7 @@ export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamRet
             result = { _tag: "success", value: values };
           } else if (Exit.isFailure(exit)) {
             // Distinguish between interruption (normal cleanup) and actual failures
-            if (!Exit.isInterrupted(exit)) {
+            if (!Cause.hasInterrupts(exit.cause)) {
               result = { _tag: "failure", cause: exit.cause };
             } else {
               // Interrupted - keep the current success state with accumulated values

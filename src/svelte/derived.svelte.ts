@@ -1,4 +1,4 @@
-import { Effect, Fiber, Exit } from "effect";
+import { Cause, Effect, Fiber, Exit } from "effect";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { assignResult } from "./internal/result.js";
@@ -41,7 +41,7 @@ export function derived<A, E, R>(fn: () => Effect.Effect<A, E, R>): AsyncResult<
   // The result is updated by mutating this object in place (never reassigning),
   // so the reference returned to the caller stays reactive.
   const result = $state<Record<string, unknown>>({ _tag: "initial" });
-  let currentFiber: Fiber.RuntimeFiber<A, E> | null = null;
+  let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   $effect(() => {
     // Interrupt previous fiber if it exists
@@ -69,7 +69,7 @@ export function derived<A, E, R>(fn: () => Effect.Effect<A, E, R>): AsyncResult<
           assignResult(result, { _tag: "success", value: exit.value });
         } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
           // Only update result if not interrupted (interruption is normal when deps change)
-          if (!Exit.isInterrupted(exit)) {
+          if (!Cause.hasInterrupts(exit.cause)) {
             assignResult(result, { _tag: "failure", cause: exit.cause });
           }
         }

@@ -8,18 +8,32 @@ Effect integrations for Svelte 5 runes and SvelteKit, published as a single pack
 - `@thomasfosterau/effect-svelte/kit/server` - SvelteKit server-only helpers
 - `@thomasfosterau/effect-svelte/kit/client` - SvelteKit client-only helpers
 - `@thomasfosterau/effect-svelte/kit/vite` - The `effectKit()` Vite plugin
+- `@thomasfosterau/effect-svelte/kit/adapter` - The Effect deployment adapter
 
 ## Installation
 
+This package targets **Effect v4 (beta)**. All Effect ecosystem packages share
+a single version number in v4 — keep `effect` and `@effect/platform-node` on
+the same `4.0.0-beta.x` version.
+
 ```bash
-npm install @thomasfosterau/effect-svelte effect svelte
+npm install @thomasfosterau/effect-svelte effect@beta svelte
 ```
 
-If you use the SvelteKit helpers, you also need the (optional) SvelteKit peer
-dependencies:
+If you use the SvelteKit helpers, you also need the (optional) `@sveltejs/kit`
+peer dependency. The HTTP modules that previously lived in `@effect/platform`
+are part of `effect` itself in v4 (under `effect/unstable/http`), so no extra
+package is needed:
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect svelte @sveltejs/kit @effect/platform
+npm install @thomasfosterau/effect-svelte effect@beta svelte @sveltejs/kit
+```
+
+If you use the Effect deployment adapter, you additionally need
+`@effect/platform-node` (the production server runs on it):
+
+```bash
+npm install @effect/platform-node@beta
 ```
 
 ## Usage
@@ -73,10 +87,97 @@ unchanged.
 Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` are never
 touched.
 
+### App-wide runtime (share your services across requests)
+
+Define your application's Effect services once as a `Layer`; the layer is
+built lazily on the first request and shared for the lifetime of the server
+process:
+
+```ts
+// src/lib/server/runtime.ts
+import { makeServerRuntime } from "@thomasfosterau/effect-svelte/kit/server";
+import { Layer } from "effect";
+import { Database } from "./database";
+
+export const runtime = makeServerRuntime(Database.layer);
+```
+
+```ts
+// src/routes/items/+page.server.ts
+import { runtime } from "$lib/server/runtime";
+import { Effect } from "effect";
+import { Database } from "$lib/server/database";
+
+export const load = runtime.serverLoad((event) =>
+  Effect.gen(function* () {
+    const db = yield* Database;
+    return { items: yield* db.listItems() };
+  }),
+);
+```
+
+The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `endpoint`,
+`runPromise`, and `dispose`. For universal `load` functions there is a
+browser-safe counterpart, `makeUniversalRuntime`, in
+`@thomasfosterau/effect-svelte/kit`.
+
+To make the same services available to bare-Effect exports handled by the
+Vite plugin, point the plugin at the runtime module:
+
+```ts
+// vite.config.ts
+effectKit({ serverRuntime: "$lib/server/runtime" });
+```
+
+### Effect deployment adapter
+
+A SvelteKit [adapter](https://svelte.dev/docs/kit/adapters) (like
+`@sveltejs/adapter-node`) whose production server is an Effect HTTP server
+(`effect/unstable/http` + `@effect/platform-node`) — `Config`-based
+configuration, request tracing spans, and graceful shutdown through Effect
+scopes:
+
+```js
+// svelte.config.js
+import adapter from "@thomasfosterau/effect-svelte/kit/adapter";
+
+export default {
+  kit: { adapter: adapter() },
+};
+```
+
+```bash
+vite build
+node build       # PORT, HOST, ORIGIN, PROTOCOL_HEADER, ... read from the env
+```
+
+The build also emits `build/handler.js`, which exports the whole SvelteKit
+app as a composable Effect HTTP app — mount it inside an existing
+`effect/unstable/http` server alongside your other routes:
+
+```ts
+import { handler } from "./build/handler.js";
+import { HttpServer } from "effect/unstable/http";
+import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
+import { Effect, Layer } from "effect";
+import { createServer } from "node:http";
+
+const server = Layer.unwrap(Effect.map(handler, HttpServer.serve)).pipe(
+  Layer.provide(NodeHttpServer.layer(createServer, { port: 3000 })),
+);
+
+NodeRuntime.runMain(Layer.launch(server));
+```
+
+Unlike `adapter-node`, the server output is not bundled: deploy `build/`
+together with `package.json` and production `node_modules` (which must
+include `@thomasfosterau/effect-svelte`, `effect`, and
+`@effect/platform-node`).
+
 ### SvelteKit universal load
 
 ```ts
-import { load } from "@thomasfosterau/effect-svelte/kit";
+import { load, makeUniversalRuntime } from "@thomasfosterau/effect-svelte/kit";
 ```
 
 ### SvelteKit server helpers
@@ -88,6 +189,7 @@ import {
   actions,
   handle,
   endpoint,
+  makeServerRuntime,
 } from "@thomasfosterau/effect-svelte/kit/server";
 ```
 
@@ -103,11 +205,11 @@ The [`examples/`](./examples) directory contains three example apps, modelled
 on widely used demo applications, that together exercise the entire API
 surface:
 
-| Example                                                        | App                                              | Demonstrates                                                                                                 |
-| -------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| [`examples/todomvc`](./examples/todomvc)                       | [TodoMVC](https://todomvc.com) (Svelte 5 + Vite) | `reactiveQuery`, `reactiveMutation`, `useInvalidateKeys`, `AsyncResult`, Effect services with localStorage   |
-| [`examples/hacker-news`](./examples/hacker-news)               | Hacker News reader (SvelteKit)                   | `effectKit()` Vite plugin, `serverLoad`/`load`/`actions`/`endpoint` wrappers, remote functions, `HttpClient` |
-| [`examples/realtime-dashboard`](./examples/realtime-dashboard) | Market dashboard (Svelte 5 + Vite)               | `useStream`, `useSubscriptionRef`, `usePubSub`, `SignalEmitter`, scopes, interruption                        |
+| Example                                                        | App                                              | Demonstrates                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| [`examples/todomvc`](./examples/todomvc)                       | [TodoMVC](https://todomvc.com) (Svelte 5 + Vite) | `reactiveQuery`, `reactiveMutation`, `useInvalidateKeys`, `AsyncResult`, Effect services with localStorage       |
+| [`examples/hacker-news`](./examples/hacker-news)               | Hacker News reader (SvelteKit)                   | `effectKit()` Vite plugin, `makeServerRuntime`, `effectAdapter`, load/action/endpoint wrappers, remote functions |
+| [`examples/realtime-dashboard`](./examples/realtime-dashboard) | Market dashboard (Svelte 5 + Vite)               | `useStream`, `useSubscriptionRef`, `usePubSub`, `SignalEmitter`, scopes, interruption                            |
 
 ```bash
 pnpm install
