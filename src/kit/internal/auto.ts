@@ -21,33 +21,31 @@ import type {
   RequestEvent,
   ServerLoad,
 } from "@sveltejs/kit";
-import { Cause, Effect, Exit } from "effect";
+import { Effect, Exit } from "effect";
 import { SvelteKitRuntime } from "../runtime.js";
-
-class EffectCauseError extends Error {
-  declare cause: Cause.Cause<unknown>;
-
-  constructor(message: string, cause: Cause.Cause<unknown>) {
-    super(message);
-    this.name = "EffectCauseError";
-    this.cause = cause;
-  }
-}
-
-function causeToError(cause: Cause.Cause<unknown>): Error {
-  return new EffectCauseError(Cause.pretty(cause), cause);
-}
+import { causeToThrowable } from "./error.js";
 
 type AnyEffect = Effect.Effect<unknown, unknown, never>;
 
-async function runEffect(effect: AnyEffect, event: RequestEvent | undefined): Promise<unknown> {
-  const exit = event
-    ? await SvelteKitRuntime.forRequest(event).runPromiseExit(effect)
-    : await Effect.runPromiseExit(effect);
+async function runEffect(
+  effect: AnyEffect,
+  event: RequestEvent | undefined,
+  fetchFn?: typeof globalThis.fetch,
+): Promise<unknown> {
+  // Server requests get the full runtime (HttpClient + SvelteKitRequestEvent).
+  // Universal loads running on the client still get HttpClient, backed by the
+  // load event's fetch. Anything else runs without services.
+  const runtime = event
+    ? SvelteKitRuntime.forRequest(event)
+    : fetchFn
+      ? SvelteKitRuntime.forFetch(fetchFn)
+      : undefined;
+
+  const exit = runtime ? await runtime.runPromiseExit(effect) : await Effect.runPromiseExit(effect);
 
   return Exit.match(exit, {
     onFailure: (cause) => {
-      throw causeToError(cause);
+      throw causeToThrowable(cause);
     },
     onSuccess: (value) => value,
   });
@@ -69,18 +67,15 @@ export function wrapLoad<T extends LoadLikeInput>(
   if (value === undefined) return undefined as never;
 
   return (async (event: Parameters<Load>[0]) => {
+    const eventForRuntime = (event as { request?: unknown }).request
+      ? (event as unknown as RequestEvent)
+      : undefined;
     if (isEffectValue(value)) {
-      const eventForRuntime = (event as { request?: unknown }).request
-        ? (event as unknown as RequestEvent)
-        : undefined;
-      return runEffect(value, eventForRuntime);
+      return runEffect(value, eventForRuntime, event.fetch);
     }
     const result = (value as (event: unknown) => unknown)(event);
     if (isEffectValue(result)) {
-      const eventForRuntime = (event as { request?: unknown }).request
-        ? (event as unknown as RequestEvent)
-        : undefined;
-      return runEffect(result, eventForRuntime);
+      return runEffect(result, eventForRuntime, event.fetch);
     }
     return result;
   }) as never;

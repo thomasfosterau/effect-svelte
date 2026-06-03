@@ -1,5 +1,6 @@
-import { Effect, Runtime, Fiber, Exit } from "effect";
+import { Effect, Fiber, Exit } from "effect";
 import { getRuntime } from "./context.svelte.js";
+import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import type { AsyncResult } from "./types.js";
 
 export interface UseEffectOptions {
@@ -34,7 +35,7 @@ export interface UseEffectReturn<A, E> {
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { useEffect } from 'effect-svelte';
+ *   import { useEffect } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *
  *   const fetchData = useEffect(
@@ -53,26 +54,26 @@ export function useEffect<A, E, R>(
   options: UseEffectOptions = {},
 ): UseEffectReturn<A, E> {
   const { immediate = false } = options;
-  const runtime = getRuntime() as Runtime.Runtime<R>;
+  const runtime = getRuntime() as RuntimeLike<R>;
 
   let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
-  let currentFiber = $state<Fiber.RuntimeFiber<A, E> | null>(null);
+  let currentFiber: Fiber.RuntimeFiber<A, E> | null = null;
 
   const run = () => {
     // Interrupt any existing fiber
     if (currentFiber !== null) {
-      Runtime.runSync(runtime)(Fiber.interrupt(currentFiber));
+      interruptFiber(currentFiber);
     }
 
     // Set to pending state
     result = { _tag: "pending" };
 
     // Run the effect and capture the fiber reference
-    const runningFiber = Runtime.runFork(runtime)(effect);
+    const runningFiber = runFork(runtime)(effect);
     currentFiber = runningFiber;
 
     // Handle the result
-    Runtime.runFork(runtime)(
+    runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(runningFiber);
 
@@ -97,8 +98,10 @@ export function useEffect<A, E, R>(
 
   const interrupt = () => {
     if (currentFiber !== null) {
-      Runtime.runSync(runtime)(Fiber.interrupt(currentFiber));
+      interruptFiber(currentFiber);
       currentFiber = null;
+      // Return to the initial state so the effect can be run again cleanly.
+      result = { _tag: "initial" };
     }
   };
 

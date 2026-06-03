@@ -5,6 +5,7 @@
 
 // Layer 0: Runtime Context
 export { provideRuntime, getRuntime } from "./context.svelte.js";
+export type { RuntimeLike } from "./context.svelte.js";
 export { SvelteRuntime, defaultSvelteRuntime } from "./runtime.js";
 
 // Layer 1: Scope Primitive
@@ -17,14 +18,19 @@ export { useStream, type UseStreamReturn } from "./stream.svelte.js";
 // Layer 3: Convenience Hooks
 export { derived } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
-export { useSubscriptionRef, usePubSub, type UsePubSubReturn } from "./subscription.svelte.js";
+export {
+  useSubscriptionRef,
+  usePubSub,
+  type UseSubscriptionRefReturn,
+  type UsePubSubReturn,
+} from "./subscription.svelte.js";
 
 // Layer 4: Effect Reactivity Integration (@effect/experimental)
 export {
   reactiveQuery,
   reactiveStream,
   reactiveMutation,
-  invalidateKeys,
+  useInvalidateKeys,
 } from "./reactivity.svelte.js";
 
 // Svelte-to-Effect Direction

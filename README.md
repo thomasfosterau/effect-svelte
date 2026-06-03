@@ -97,6 +97,28 @@ import {
 import { placeholder } from "@thomasfosterau/effect-svelte/kit/client";
 ```
 
+## Examples
+
+The [`examples/`](./examples) directory contains three example apps, modelled
+on widely used demo applications, that together exercise the entire API
+surface:
+
+| Example                                                        | App                                              | Demonstrates                                                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| [`examples/todomvc`](./examples/todomvc)                       | [TodoMVC](https://todomvc.com) (Svelte 5 + Vite) | `reactiveQuery`, `reactiveMutation`, `useInvalidateKeys`, `AsyncResult`, Effect services with localStorage   |
+| [`examples/hacker-news`](./examples/hacker-news)               | Hacker News reader (SvelteKit)                   | `effectKit()` Vite plugin, `serverLoad`/`load`/`actions`/`endpoint` wrappers, remote functions, `HttpClient` |
+| [`examples/realtime-dashboard`](./examples/realtime-dashboard) | Market dashboard (Svelte 5 + Vite)               | `useStream`, `useSubscriptionRef`, `usePubSub`, `SignalEmitter`, scopes, interruption                        |
+
+```bash
+pnpm install
+pnpm run build          # build the package first
+cd examples/todomvc     # (or hacker-news / realtime-dashboard)
+pnpm run dev
+```
+
+See [`examples/README.md`](./examples/README.md) for the full API-to-example
+coverage map.
+
 ## Development
 
 This repository is managed by [Vite+](https://viteplus.dev). Day-to-day
@@ -126,6 +148,7 @@ All tooling (build, test, lint, format) is configured in a single
 src/           Svelte 5 runes integration (package root export)
 src/kit/       SvelteKit helpers (./kit subpath exports)
 tests/         Vitest test suite
+examples/      Example apps (TodoMVC, Hacker News, real-time dashboard)
 vite.config.ts Vite+ configuration (pack, test, lint, fmt)
 ```
 
