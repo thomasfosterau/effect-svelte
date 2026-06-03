@@ -29,4 +29,26 @@ Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-
 
 Never guess at Effect patterns - check the guide first.
 
+If `effect-solutions` is not installed, run `./scripts/setup-effect-solutions.sh`
+(installs the CLI and clones the Effect reference repository).
+
 <!-- effect-solutions:end -->
+
+## Effect v4
+
+This package targets **Effect v4 (beta)**: a single `effect` package plus
+`@effect/platform-node`, pinned to the same `4.0.0-beta.x` version.
+
+- `@effect/platform` does not exist in v4 — HTTP modules live under
+  `effect/unstable/http/*`, and `FileSystem`/`Path` under `effect/*`.
+- `@effect/experimental` does not exist in v4 — `Reactivity` lives under
+  `effect/unstable/reactivity`.
+- The v3 → v4 migration maps live in
+  `~/.local/share/effect-solutions/effect/migration/` (start with `v3-to-v4.md`).
+
+## Local Effect Source
+
+The Effect v4 repository ([Effect-TS/effect-smol](https://github.com/Effect-TS/effect-smol))
+is cloned to `~/.local/share/effect-solutions/effect` for reference. Use it to
+explore APIs, find usage examples, and understand implementation details when
+the documentation isn't enough.
