@@ -40,7 +40,7 @@ pnpm run dev
 | `redirect()` / `error()` inside Effects       | `src/routes/+page.ts`, `item`, `user`, `api` routes                                                         |
 | `RemoteFunction.query` / `.form` / `.command` | `src/routes/bookmarks/bookmarks.remote.ts`                                                                  |
 | `callQuery` / `callCommand` / `submitForm`    | `src/routes/bookmarks/+page.svelte`                                                                         |
-| `Schema.standardSchemaV1` input validation    | `src/routes/bookmarks/bookmarks.remote.ts`                                                                  |
+| `Schema.toStandardSchemaV1` input validation  | `src/routes/bookmarks/bookmarks.remote.ts`                                                                  |
 | effect-svelte client hooks in SvelteKit       | `src/routes/+layout.svelte` (provideRuntime), `src/routes/bookmarks/+page.svelte` (`useQuery`, `useEffect`) |
 | Effect service + Schema data layer            | `src/lib/hn/service.ts`, `src/lib/hn/schema.ts`                                                             |
 
@@ -70,8 +70,8 @@ Both styles run through the same runtime; they differ in ergonomics:
 ## Production build (Effect adapter)
 
 `svelte.config.js` uses the Effect deployment adapter. `pnpm run build`
-produces a `build/` directory whose server runs on `@effect/platform`'s
-`NodeHttpServer`:
+produces a `build/` directory whose server runs on Effect's
+`NodeHttpServer` (from `effect/unstable/http`):
 
 ```bash
 pnpm run build
@@ -80,7 +80,7 @@ node build            # or: pnpm run preview
 ```
 
 `build/handler.js` also exports the whole app as a composable Effect
-`HttpApp` for mounting inside an existing `@effect/platform` server.
+`HttpApp` for mounting inside an existing Effect HTTP server.
 
 ## Notes
 

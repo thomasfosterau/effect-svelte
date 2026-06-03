@@ -20,5 +20,5 @@ export const load = effectLoad((event) =>
         Effect.catchTag("HackerNewsError", () => Effect.sync(() => error(404, "User not found"))),
       );
     return { user };
-  }).pipe(Effect.provide(HackerNews.Default)),
+  }).pipe(Effect.provide(HackerNews.layer)),
 );

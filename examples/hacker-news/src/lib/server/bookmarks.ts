@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 
 /**
  * A bookmark, kept as a plain struct so it can be serialized by SvelteKit's
@@ -17,8 +17,8 @@ export type Bookmark = typeof Bookmark.Type;
 const store = new Map<string, Bookmark>();
 
 /** In-memory bookmark store, exposed as an Effect service. */
-export class Bookmarks extends Effect.Service<Bookmarks>()("examples/Bookmarks", {
-  sync: () => ({
+export class Bookmarks extends Context.Service<Bookmarks>()("examples/Bookmarks", {
+  make: Effect.sync(() => ({
     all: Effect.sync(() => [...store.values()].sort((a, b) => b.addedAt - a.addedAt)),
 
     add: (input: { readonly title: string; readonly url: string | null }) =>
@@ -34,5 +34,8 @@ export class Bookmarks extends Effect.Service<Bookmarks>()("examples/Bookmarks",
       }),
 
     remove: (id: string) => Effect.sync(() => store.delete(id)),
-  }),
-}) {}
+  })),
+}) {
+  /** Layer that builds the service from its `make` effect. */
+  static readonly layer = Layer.effect(this, this.make);
+}

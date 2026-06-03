@@ -1,13 +1,16 @@
-import * as HttpClient from "@effect/platform/HttpClient";
-import * as HttpClientResponse from "@effect/platform/HttpClientResponse";
-import { Config, Effect, Schema } from "effect";
+import { Config, Context, Effect, Layer, Schema } from "effect";
+import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
 import { STORIES_PER_PAGE, type ListKind } from "./lists";
 import { Item, StoryPage, User } from "./schema";
 
 /** Error raised when the Hacker News API call fails. */
-export class HackerNewsError extends Schema.TaggedError<HackerNewsError>()("HackerNewsError", {
-  message: Schema.String,
-}) {}
+export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()(
+  "HackerNewsError",
+  {
+    message: Schema.String,
+  },
+) {}
 
 /**
  * Hacker News API client, backed by the Algolia HN API.
@@ -20,15 +23,15 @@ export class HackerNewsError extends Schema.TaggedError<HackerNewsError>()("Hack
  * variable (read through Effect's Config system), e.g. to point at a mock
  * server in tests.
  */
-export class HackerNews extends Effect.Service<HackerNews>()("examples/HackerNews", {
-  effect: Effect.gen(function* () {
+export class HackerNews extends Context.Service<HackerNews>()("examples/HackerNews", {
+  make: Effect.gen(function* () {
     const API = yield* Config.string("HN_API_BASE").pipe(
       Config.withDefault("https://hn.algolia.com/api/v1"),
     );
 
     const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk);
 
-    const getJson = <A, I>(url: string, schema: Schema.Schema<A, I>) =>
+    const getJson = <A, I>(url: string, schema: Schema.Codec<A, I>) =>
       client.get(url).pipe(
         Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)),
         Effect.mapError((error) => new HackerNewsError({ message: String(error) })),
@@ -63,4 +66,7 @@ export class HackerNews extends Effect.Service<HackerNews>()("examples/HackerNew
         ),
     } as const;
   }),
-}) {}
+}) {
+  /** Layer that builds the service from its `make` effect. */
+  static readonly layer = Layer.effect(this, this.make);
+}

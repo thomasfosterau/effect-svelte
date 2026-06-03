@@ -38,12 +38,12 @@ export interface Comment {
   readonly children: ReadonlyArray<Comment>;
 }
 
-export const Comment: Schema.Schema<Comment> = Schema.Struct({
+export const Comment: Schema.Codec<Comment> = Schema.Struct({
   id: Schema.Number,
   author: Schema.NullOr(Schema.String),
   text: Schema.NullOr(Schema.String),
   created_at: Schema.String,
-  children: Schema.Array(Schema.suspend((): Schema.Schema<Comment> => Comment)),
+  children: Schema.Array(Schema.suspend((): Schema.Codec<Comment> => Comment)),
 });
 
 /** A full item (story plus comment tree) from the items endpoint. */

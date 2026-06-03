@@ -1,5 +1,5 @@
-import * as FetchHttpClient from "@effect/platform/FetchHttpClient";
 import { Layer } from "effect";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import { makeServerRuntime } from "@thomasfosterau/effect-svelte/kit/server";
 import { HackerNews } from "$lib/hn/service";
 import { Bookmarks } from "$lib/server/bookmarks";
@@ -19,5 +19,5 @@ import { Bookmarks } from "$lib/server/bookmarks";
  * `HackerNews` brings its own `FetchHttpClient` instead.
  */
 export const runtime = makeServerRuntime(
-  Layer.mergeAll(HackerNews.Default, Bookmarks.Default).pipe(Layer.provide(FetchHttpClient.layer)),
+  Layer.mergeAll(HackerNews.layer, Bookmarks.layer).pipe(Layer.provide(FetchHttpClient.layer)),
 );
