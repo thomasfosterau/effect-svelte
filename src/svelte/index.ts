@@ -38,6 +38,7 @@ export {
 
 // Svelte-to-Effect Direction
 export { SignalEmitter } from "./emitter.js";
+export { streamFromStore } from "./store.js";
 
 /**
  * The native Effect `AsyncResult` type and its combinators

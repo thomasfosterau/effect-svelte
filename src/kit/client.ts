@@ -1,13 +1,13 @@
 /**
  * Client-only SvelteKit helpers for Effect integration.
  *
- * Currently, this module is a placeholder for future client-only hooks.
- * Client hooks in SvelteKit (like client-side navigation guards) could be
- * added here in the future.
+ * These run in the browser: Effect wrappers for `$app/navigation`, plus the
+ * universal remote-function call helpers (re-exported for convenience so client
+ * code has a single import).
  */
 
-// Placeholder for future client-only helpers
-// Example: client-side navigation hooks, client-side error boundaries, etc.
+// Effect wrappers for $app/navigation (goto, invalidate, preloadData, ...).
+export * from "./navigation.js";
 
-export const placeholder = "Client-only helpers will be added here";
+// Remote-function call helpers (callQuery, callCommand, liveQueryStream, ...).
 export * from "./remote-call.js";

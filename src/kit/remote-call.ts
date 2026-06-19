@@ -1,11 +1,12 @@
 import type {
   RemoteCommand,
+  RemoteLiveQuery,
   RemotePrerenderFunction,
   RemoteQuery,
   RemoteQueryFunction,
   RemoteQueryOverride,
 } from "@sveltejs/kit";
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 
 function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unknown, never> {
   return Effect.promise(() => Promise.resolve(thunk()));
@@ -105,4 +106,26 @@ export function submitFormWithUpdates(
   ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>
 ): Effect.Effect<void, unknown, never> {
   return Effect.asVoid(fromRemotePromise(() => submit().updates(...queries)));
+}
+
+/**
+ * Consumes a SvelteKit live query (`query.live(...)`) as an Effect `Stream`.
+ *
+ * A `RemoteLiveQuery<T>` is an `AsyncIterable<T>` that yields every update
+ * pushed from the server; this turns it into a `Stream` so live data can drive
+ * Effect pipelines (and, via `useStream`, Svelte runes).
+ *
+ * @example
+ * ```ts
+ * import { liveQueryStream } from '@thomasfosterau/effect-svelte/kit';
+ * import { messages } from './chat.remote';
+ * import { useStream } from '@thomasfosterau/effect-svelte';
+ *
+ * const feed = useStream(liveQueryStream(messages()));
+ * ```
+ */
+export function liveQueryStream<Output>(
+  query: RemoteLiveQuery<Output>,
+): Stream.Stream<Output, unknown> {
+  return Stream.fromAsyncIterable(query, (error) => error);
 }
