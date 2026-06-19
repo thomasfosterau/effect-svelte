@@ -131,6 +131,33 @@ describe("effectKit() vite plugin", () => {
     expect(result.code).toContain("export const ssr = false;");
   });
 
+  it("wraps `reroute` in the universal hooks.ts", () => {
+    const result = runTransform(
+      `export const reroute = (event) => (event.url.pathname === "/old" ? "/new" : undefined);\n`,
+      "/app/src/hooks.ts",
+    );
+    expect(result).not.toBeNull();
+    expect(result.code).toContain("wrapReroute(__effect_kit_orig_reroute)");
+  });
+
+  it("does not touch `transport` (plain data) in hooks.ts", () => {
+    const result = runTransform(
+      `export const transport = { Date: { encode: () => false, decode: (x) => x } };\n`,
+      "/app/src/hooks.ts",
+    );
+    // No function-shaped exports to wrap -> the plugin leaves the file alone.
+    expect(result).toBeNull();
+  });
+
+  it("plain hooks.ts kind does not match hooks.server.ts / hooks.client.ts", () => {
+    const server = runTransform(
+      `export const reroute = (event) => undefined;\n`,
+      "/app/src/hooks.server.ts",
+    );
+    // `reroute` is not a server-hooks target, so hooks.server.ts is untouched.
+    expect(server).toBeNull();
+  });
+
   it("hooks.client.ts wraps handleError and init but not handle", () => {
     const result = runTransform(
       `export const handleError = (e) => null;\n` +

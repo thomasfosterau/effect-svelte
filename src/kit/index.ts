@@ -10,3 +10,9 @@
 export * from "./universal.js";
 export * from "./remote-call.js";
 export type { SvelteKitServices } from "./app-runtime.js";
+
+// Effect Schema ⇄ SvelteKit `transport` hook
+export { transport, transporter } from "./transport.js";
+
+// SvelteKit `$env` ⇄ Effect `Config`
+export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";

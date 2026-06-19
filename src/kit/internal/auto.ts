@@ -24,6 +24,7 @@ import type {
   HandleServerError,
   Load,
   RequestEvent,
+  Reroute,
   ServerLoad,
 } from "@sveltejs/kit";
 import { Effect, Exit } from "effect";
@@ -253,6 +254,29 @@ export function wrapEndpoint<T extends undefined | AnyEffect | ((event: RequestE
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : (event: RequestEvent) => Response | Promise<Response> {
   return wrapServerEvent(value as LoadLikeInput, runtimeMod) as never;
+}
+
+type RerouteEvent = Parameters<Reroute>[0];
+
+/**
+ * Wraps a SvelteKit universal `reroute` hook export. The effect runs on the
+ * universal runtime with an `HttpClient` backed by the event's `fetch`, on both
+ * the server and the client.
+ */
+export function wrapReroute<T extends undefined | AnyEffect | ((event: RerouteEvent) => unknown)>(
+  value: T,
+  runtimeMod?: RuntimeModule,
+): T extends undefined ? undefined : Reroute {
+  if (value === undefined) return undefined as never;
+
+  return ((event: RerouteEvent) => {
+    const result = isEffectValue(value)
+      ? value
+      : (value as (event: RerouteEvent) => unknown)(event);
+    if (!isEffectValue(result)) return result as ReturnType<Reroute>;
+
+    return universalRuntimeOf(runtimeMod).runPromise(event.fetch, result) as ReturnType<Reroute>;
+  }) as never;
 }
 
 /**

@@ -43,6 +43,7 @@ export type EffectKitFileKind =
   | "layoutServer"
   | "layout"
   | "server"
+  | "hooks"
   | "hooksServer"
   | "hooksClient";
 
@@ -79,6 +80,11 @@ const wrapperByKind: Record<EffectKitFileKind, Record<string, string>> = {
     handleError: "wrapHandleError",
     init: "wrapInit",
   },
+  // Universal `src/hooks.ts`: only `reroute` is function-shaped (the `transport`
+  // export is plain data and is intentionally left untouched).
+  hooks: {
+    reroute: "wrapReroute",
+  },
 };
 
 function getFileKind(id: string): EffectKitFileKind | null {
@@ -90,6 +96,9 @@ function getFileKind(id: string): EffectKitFileKind | null {
   if (/\/\+server\.(?:ts|js|mts|mjs)$/.test(path)) return "server";
   if (/\/hooks\.server\.(?:ts|js|mts|mjs)$/.test(path)) return "hooksServer";
   if (/\/hooks\.client\.(?:ts|js|mts|mjs)$/.test(path)) return "hooksClient";
+  // Plain `hooks.ts` is the universal hooks file; checked last so the
+  // `.server.`/`.client.` variants above take precedence.
+  if (/\/hooks\.(?:ts|js|mts|mjs)$/.test(path)) return "hooks";
   return null;
 }
 

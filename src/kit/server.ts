@@ -209,3 +209,10 @@ export { makeServerRuntime, type ServerRuntime } from "./app-runtime.js";
  */
 export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 export { RemoteFunction } from "./remote.server.js";
+
+/**
+ * SvelteKit `$env` ⇄ Effect `Config` (see {@link sveltekitConfig}), and the
+ * Effect Schema ⇄ SvelteKit `transport` hook helpers (see {@link transport}).
+ */
+export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
+export { transport, transporter } from "./transport.js";
