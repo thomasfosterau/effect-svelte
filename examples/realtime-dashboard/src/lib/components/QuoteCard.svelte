@@ -2,7 +2,7 @@
   import { Effect } from "effect";
   // Note: the hook is aliased because a local binding named `derived` would
   // clash with Svelte's $derived rune in this component.
-  import { derived as derivedEffect, match } from "@thomasfosterau/effect-svelte";
+  import { derived as derivedEffect, AsyncResult } from "@thomasfosterau/effect-svelte";
   import { MarketData } from "../market";
 
   let selected = $state("BTC");
@@ -15,14 +15,18 @@
     return Effect.flatMap(MarketData, (market) => market.lookup(symbol));
   });
 
-  // match() folds the AsyncResult into a display string.
+  // Capture `.current` into a $derived local so the match below narrows it.
+  const quoteResult = $derived(quote.current);
+
+  // match() folds the AsyncResult into a display string. Because a refresh
+  // keeps the result a `Success` (with `waiting: true`), the previous price
+  // stays on screen — dimmed via `class:pending` — instead of flashing away.
   const display = $derived(
-    match(quote, {
-      initial: () => "—",
-      pending: () => "fetching…",
-      success: (value) =>
-        `$${value.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
-      failure: () => "lookup failed",
+    AsyncResult.match(quoteResult, {
+      onInitial: () => "—",
+      onFailure: () => "lookup failed",
+      onSuccess: (success) =>
+        `$${success.value.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
     })
   );
 
@@ -37,5 +41,5 @@
       <option {value}>{value}</option>
     {/each}
   </select>
-  <p class="price" class:pending={quote._tag === "pending"}>{display}</p>
+  <p class="price" class:pending={AsyncResult.isWaiting(quoteResult)}>{display}</p>
 </section>

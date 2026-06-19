@@ -45,8 +45,8 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 | `reactiveStream`                                                | realtime-dashboard — `Portfolio.svelte`                                                            |
 | `useInvalidateKeys`                                             | todomvc — `TodoApp.svelte` (cross-tab sync)                                                        |
 | `SignalEmitter`                                                 | realtime-dashboard — `SymbolSearch.svelte`                                                         |
-| `AsyncResult` + `isInitial`/`isPending`/`isSuccess`/`isFailure` | todomvc, hacker-news, realtime-dashboard                                                           |
-| `match`                                                         | realtime-dashboard — `QuoteCard.svelte`                                                            |
+| `AsyncResult` + `isInitial`/`isWaiting`/`isSuccess`/`isFailure` | todomvc, hacker-news, realtime-dashboard                                                           |
+| `AsyncResult.match`                                             | realtime-dashboard — `QuoteCard.svelte`                                                            |
 | `RuntimeLike`                                                   | realtime-dashboard — `lib/use-clock.svelte.ts`                                                     |
 
 ### `@thomasfosterau/effect-svelte/kit`

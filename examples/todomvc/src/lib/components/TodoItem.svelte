@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import { isPending, reactiveMutation } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, reactiveMutation } from "@thomasfosterau/effect-svelte";
   import { TodoRepository } from "../todo-repository";
   import type { Todo } from "../model";
 
@@ -53,7 +53,9 @@
   }
 
   const busy = $derived(
-    isPending(toggle.result) || isPending(destroy.result) || isPending(save.result)
+    AsyncResult.isWaiting(toggle.current) ||
+      AsyncResult.isWaiting(destroy.current) ||
+      AsyncResult.isWaiting(save.current)
   );
 </script>
 

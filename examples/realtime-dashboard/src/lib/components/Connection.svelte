@@ -1,8 +1,7 @@
 <script lang="ts">
   import { Effect, Scope } from "effect";
   import {
-    isPending,
-    isSuccess,
+    AsyncResult,
     useEffect,
     useScope,
     useScopeCallback,
@@ -35,6 +34,9 @@
       return Date.now();
     })
   );
+
+  // Capture `.current` into a $derived local so the guards below narrow it.
+  const pingResult = $derived(ping.current);
 </script>
 
 <div>
@@ -44,16 +46,16 @@
     <button
       class="secondary"
       onclick={() => ping.run()}
-      disabled={isPending(ping.result)}
+      disabled={AsyncResult.isWaiting(pingResult)}
     >
-      {isPending(ping.result) ? "Pinging… (3s)" : "Ping"}
+      {AsyncResult.isWaiting(pingResult) ? "Pinging… (3s)" : "Ping"}
     </button>
-    {#if isPending(ping.result)}
+    {#if AsyncResult.isWaiting(pingResult)}
       <button class="secondary" onclick={() => ping.interrupt()}>Interrupt</button>
     {/if}
   </div>
 
-  {#if isSuccess(ping.result)}
-    <p>Pong at {new Date(ping.result.value).toLocaleTimeString()}</p>
+  {#if AsyncResult.isSuccess(pingResult)}
+    <p>Pong at {new Date(pingResult.value).toLocaleTimeString()}</p>
   {/if}
 </div>

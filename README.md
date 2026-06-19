@@ -40,9 +40,43 @@ npm install @effect/platform-node@beta
 
 ### Svelte runtime and hooks
 
-```ts
-import { provideRuntime, useEffect, derived } from "@thomasfosterau/effect-svelte";
+Provide a runtime once at the root of your app, then run Effects from any
+component. Every result-producing hook exposes the current state through a
+`.current` property (the idiomatic Svelte 5 convention, matching `MediaQuery`
+and `fromStore`), typed as Effect's native
+[`AsyncResult`](https://effect.website) (`effect/unstable/reactivity/AsyncResult`):
+
+```svelte
+<script lang="ts">
+  import { provideRuntime, derived, AsyncResult } from "@thomasfosterau/effect-svelte";
+  import { Effect } from "effect";
+
+  provideRuntime();
+
+  let userId = $state(1);
+  const user = derived(() => fetchUser(userId));
+</script>
+
+<button onclick={() => userId++}>Next</button>
+
+{#if AsyncResult.isSuccess(user.current)}
+  <!-- `waiting` stays true while re-fetching, so the previous user is shown
+       instead of flashing a spinner (stale-while-revalidate) -->
+  <p class:stale={user.current.waiting}>{user.current.value.name}</p>
+{:else if AsyncResult.isFailure(user.current)}
+  <p>Failed to load</p>
+{/if}
 ```
+
+The hooks (`useEffect`, `useQuery`, `derived`, `useStream`, `useSubscriptionRef`,
+`usePubSub`, `reactiveQuery`, `reactiveStream`, `reactiveMutation`) all return a
+handle with `.current` (plus `values`/`latest`/`run`/`refetch` where relevant).
+`AsyncResult` and its combinators (`match`, `isSuccess`, `isWaiting`,
+`getOrElse`, ...) are re-exported from the package root.
+
+To go the other way — Svelte → Effect — `streamFromStore(store)` turns any
+Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
+`$state` into a `Stream`.
 
 ### SvelteKit Vite plugin (recommended)
 
@@ -81,10 +115,12 @@ unchanged.
 | `+layout.ts`        | `load`                                                                 |
 | `+layout.server.ts` | `load`                                                                 |
 | `+server.ts`        | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `fallback` |
+| `hooks.ts`          | `reroute`                                                              |
 | `hooks.server.ts`   | `handle`, `handleFetch`, `handleError`, `init`                         |
 | `hooks.client.ts`   | `handleError`, `init`                                                  |
 
-Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` are never
+Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` — and the
+universal `transport` hook (which is plain data, not a function) — are never
 touched.
 
 ### App-wide runtime (share your services across requests)
@@ -195,8 +231,65 @@ import {
 
 ### SvelteKit client helpers
 
+Effect wrappers for `$app/navigation` (browser-only), plus the remote-function
+call helpers:
+
 ```ts
-import { placeholder } from "@thomasfosterau/effect-svelte/kit/client";
+import {
+  goto,
+  invalidate,
+  invalidateAll,
+  preloadData,
+  // remote-function helpers
+  callQuery,
+  callCommand,
+  liveQueryStream,
+} from "@thomasfosterau/effect-svelte/kit/client";
+```
+
+### `transport` hook from Effect Schema
+
+Move custom types (`Option`, `DateTime`, branded types, `Schema.Class`
+instances, tagged errors, ...) across the server/client boundary — for `load`
+data and remote functions — by building SvelteKit's universal `transport` hook
+from Effect schemas:
+
+```ts
+// src/hooks.ts
+import { transport } from "@thomasfosterau/effect-svelte/kit";
+import { Schema } from "effect";
+
+export const transport = transport({
+  Option: Schema.Option(Schema.Number),
+  Date: Schema.Date,
+});
+```
+
+### `$env` as an Effect `Config` source
+
+Back Effect's `Config` with SvelteKit's environment, so app-layer services read
+configuration from `$env`:
+
+```ts
+// src/lib/server/runtime.ts
+import { env } from "$env/dynamic/private";
+import { makeServerRuntime, sveltekitConfig } from "@thomasfosterau/effect-svelte/kit/server";
+import { Layer } from "effect";
+import { Database } from "./database"; // its layer reads Config.string("DATABASE_URL")
+
+export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
+```
+
+### `reroute` hook as an Effect
+
+```ts
+// src/hooks.ts
+import { reroute } from "@thomasfosterau/effect-svelte/kit";
+import { Effect } from "effect";
+
+export const reroute = reroute((event) =>
+  Effect.succeed(event.url.pathname === "/old" ? "/new" : undefined),
+);
 ```
 
 ## Examples

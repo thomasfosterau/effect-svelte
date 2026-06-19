@@ -27,7 +27,7 @@ pnpm run dev
 | `reactiveQuery` (dynamic + static keys)             | `src/lib/components/TodoApp.svelte`                                           |
 | `reactiveMutation`                                  | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`, `TodoFooter.svelte` |
 | `useInvalidateKeys`                                 | `TodoApp.svelte` (cross-tab sync via the `storage` event)                     |
-| `AsyncResult` + `isSuccess`/`isFailure`/`isPending` | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`                      |
+| `AsyncResult` + `isSuccess`/`isFailure`/`isWaiting` | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`                      |
 | Effect service + layer (`Context.Service`)          | `src/lib/todo-repository.ts`                                                  |
 | Schema-based persistence                            | `src/lib/model.ts`, `src/lib/todo-repository.ts`                              |
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Effect, Stream } from "effect";
-  import { isFailure, useStream } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, useStream } from "@thomasfosterau/effect-svelte";
   import { MarketData } from "../market";
 
   let { symbol }: { symbol: string } = $props();
@@ -41,7 +41,7 @@
         <span style="height: {((quote.price - range.min) / range.span) * 100}%"></span>
       {/each}
     </div>
-  {:else if isFailure(quotes.result)}
+  {:else if AsyncResult.isFailure(quotes.current)}
     <div class="error">feed error</div>
   {:else}
     <div class="muted">connecting…</div>
