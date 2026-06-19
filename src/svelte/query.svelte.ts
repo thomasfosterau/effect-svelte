@@ -1,12 +1,13 @@
-import { Effect } from "effect";
+import type { Effect } from "effect";
+import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { useEffect } from "./effect.svelte.js";
-import type { AsyncResult } from "./types.js";
 
 export interface UseQueryReturn<A, E> {
   /**
-   * The current result state of the query
+   * The current result state of the query. Refetching preserves the previous
+   * value as a waiting `Success` (stale-while-revalidate).
    */
-  readonly result: AsyncResult<A, E>;
+  readonly current: AsyncResult.AsyncResult<A, E>;
 
   /**
    * Re-fetch the data by re-running the effect
@@ -22,7 +23,7 @@ export interface UseQueryReturn<A, E> {
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { useQuery } from 'effect-svelte';
+ *   import { useQuery, AsyncResult } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *
  *   const query = useQuery(
@@ -35,8 +36,8 @@ export interface UseQueryReturn<A, E> {
  *
  * <button onclick={query.refetch}>Refresh</button>
  *
- * {#if query.result._tag === 'success'}
- *   <p>Data: {JSON.stringify(query.result.value)}</p>
+ * {#if AsyncResult.isSuccess(query.current)}
+ *   <p>Data: {JSON.stringify(query.current.value)}</p>
  * {/if}
  * ```
  */
@@ -44,8 +45,8 @@ export function useQuery<A, E, R>(effect: Effect.Effect<A, E, R>): UseQueryRetur
   const effectHook = useEffect(effect, { immediate: true });
 
   return {
-    get result() {
-      return effectHook.result;
+    get current() {
+      return effectHook.current;
     },
     refetch: effectHook.run,
   };

@@ -12,7 +12,7 @@
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { provideRuntime, derived } from '@thomasfosterau/effect-svelte';
+ *   import { provideRuntime, derived, AsyncResult } from '@thomasfosterau/effect-svelte';
  *   import { Context, Effect } from 'effect';
  *
  *   // Provide runtime at app root
@@ -22,9 +22,12 @@
  *   let userId = $state(1);
  *   const user = derived(() => fetchUser(userId));
  * </script>
+ *
+ * {#if AsyncResult.isSuccess(user.current)}
+ *   <p>{user.current.value.name}</p>
+ * {/if}
  * ```
  */
 
-// Export all Svelte helpers from root
+// Export all Svelte helpers (and the re-exported AsyncResult namespace) from root
 export * from "./svelte/index.js";
-export type { AsyncResult } from "./svelte/types.js";

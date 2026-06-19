@@ -1,6 +1,7 @@
-import { SubscriptionRef, PubSub, Stream, Effect, Fiber } from "effect";
+import { PubSub, Stream, SubscriptionRef } from "effect";
 import { getRuntime } from "./context.svelte.js";
-import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
+import { runSync, type RuntimeLike } from "./internal/run.js";
+import { streamState, valueState } from "./internal/subscribe.js";
 
 export interface UseSubscriptionRefReturn<A> {
   /**
@@ -12,6 +13,10 @@ export interface UseSubscriptionRefReturn<A> {
 /**
  * Subscribe to an Effect SubscriptionRef and get reactive updates.
  * Returns an object exposing the current value via the `current` property.
+ *
+ * The initial value is read synchronously; the subscription that keeps it up to
+ * date starts when `current` is first read inside an effect or template, and is
+ * interrupted when the last reader is destroyed.
  *
  * @example
  * ```svelte
@@ -31,37 +36,11 @@ export function useSubscriptionRef<A>(
 ): UseSubscriptionRefReturn<A> {
   const runtime = getRuntime() as RuntimeLike<never>;
 
-  // Get initial value synchronously
-  let value = $state<A>(runSync(runtime)(SubscriptionRef.get(ref)));
-  let fiber: Fiber.Fiber<void, never> | null = null;
-
-  $effect(() => {
-    // Subscribe to changes - emits the current value and all subsequent updates
-    const changesStream = SubscriptionRef.changes(ref);
-
-    const subscription = Stream.runForEach(changesStream, (newValue: A) =>
-      Effect.sync(() => {
-        value = newValue;
-      }),
-    );
-
-    // Run the subscription
-    fiber = runFork(runtime)(subscription);
-
-    // Cleanup: interrupt subscription on unmount
-    return () => {
-      if (fiber !== null) {
-        interruptFiber(fiber);
-        fiber = null;
-      }
-    };
-  });
-
-  return {
-    get current() {
-      return value;
-    },
-  };
+  // Get the initial value synchronously so it is available before (and during
+  // SSR, instead of) the subscription. `SubscriptionRef.changes` re-emits the
+  // current value on subscribe, so no update is missed.
+  const initial = runSync(runtime)(SubscriptionRef.get(ref));
+  return valueState(runtime, initial, () => SubscriptionRef.changes(ref));
 }
 
 export interface UsePubSubReturn<A> {
@@ -78,6 +57,9 @@ export interface UsePubSubReturn<A> {
 
 /**
  * Subscribe to an Effect PubSub and collect messages.
+ *
+ * The subscription starts when `values`/`latest` is first read inside an effect
+ * or template, and is interrupted when the last reader is destroyed.
  *
  * @example
  * ```svelte
@@ -99,42 +81,13 @@ export interface UsePubSubReturn<A> {
  */
 export function usePubSub<A>(pubsub: PubSub.PubSub<A>): UsePubSubReturn<A> {
   const runtime = getRuntime() as RuntimeLike<never>;
-
-  let values = $state<A[]>([]);
-  let fiber: Fiber.Fiber<void, never> | null = null;
-
-  $effect(() => {
-    // Reset values
-    values = [];
-
-    // Subscribe to the PubSub. `Stream.fromPubSub` manages the underlying
-    // subscription within its own scope, cleaned up when the fiber is
-    // interrupted on unmount.
-    const subscriptionEffect = Stream.runForEach(Stream.fromPubSub(pubsub), (value) =>
-      Effect.sync(() => {
-        // Use reassignment for Svelte reactivity
-        values = [...values, value];
-      }),
-    );
-
-    // Run the subscription
-    fiber = runFork(runtime)(subscriptionEffect);
-
-    // Cleanup: interrupt subscription on unmount
-    return () => {
-      if (fiber !== null) {
-        interruptFiber(fiber);
-        fiber = null;
-      }
-    };
-  });
-
+  const state = streamState(runtime, () => Stream.fromPubSub(pubsub));
   return {
     get values() {
-      return values;
+      return state.values;
     },
     get latest() {
-      return values.length > 0 ? values[values.length - 1] : undefined;
+      return state.latest;
     },
   };
 }

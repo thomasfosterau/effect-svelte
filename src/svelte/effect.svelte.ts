@@ -1,7 +1,8 @@
-import { Cause, Effect, Fiber, Exit } from "effect";
+import { Effect, Fiber } from "effect";
+import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
-import type { AsyncResult } from "./types.js";
+import { makeResult } from "./internal/result.svelte.js";
 
 export interface UseEffectOptions {
   /**
@@ -14,9 +15,10 @@ export interface UseEffectOptions {
 
 export interface UseEffectReturn<A, E> {
   /**
-   * The current result state of the effect
+   * The current result state of the effect. Re-running preserves the previous
+   * value as a waiting `Success` (stale-while-revalidate).
    */
-  readonly result: AsyncResult<A, E>;
+  readonly current: AsyncResult.AsyncResult<A, E>;
 
   /**
    * Manually trigger execution of the effect
@@ -35,7 +37,7 @@ export interface UseEffectReturn<A, E> {
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { useEffect } from '@thomasfosterau/effect-svelte';
+ *   import { useEffect, AsyncResult } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *
  *   const fetchData = useEffect(
@@ -44,8 +46,8 @@ export interface UseEffectReturn<A, E> {
  *   );
  * </script>
  *
- * {#if fetchData.result._tag === 'success'}
- *   <p>Result: {fetchData.result.value}</p>
+ * {#if AsyncResult.isSuccess(fetchData.current)}
+ *   <p>Result: {fetchData.current.value}</p>
  * {/if}
  * ```
  */
@@ -56,7 +58,7 @@ export function useEffect<A, E, R>(
   const { immediate = false } = options;
   const runtime = getRuntime() as RuntimeLike<R>;
 
-  let result = $state<AsyncResult<A, E>>({ _tag: "initial" });
+  const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   const run = () => {
@@ -65,31 +67,19 @@ export function useEffect<A, E, R>(
       interruptFiber(currentFiber);
     }
 
-    // Set to pending state
-    result = { _tag: "pending" };
+    // Mark as waiting, preserving the previous value if there is one.
+    state.startWaiting();
 
     // Run the effect and capture the fiber reference
     const runningFiber = runFork(runtime)(effect);
     currentFiber = runningFiber;
 
-    // Handle the result
+    // Settle the result when the fiber completes, unless a newer run replaced it.
     runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(runningFiber);
-
-        // Only update result if this is still the current fiber
-        // (it might have been interrupted by a new run)
-        if (currentFiber === runningFiber && Exit.isSuccess(exit)) {
-          result = { _tag: "success", value: exit.value };
-        } else if (currentFiber === runningFiber && Exit.isFailure(exit)) {
-          // Check if it was interrupted (normal cleanup) vs actual failure
-          if (!Cause.hasInterrupts(exit.cause)) {
-            result = { _tag: "failure", cause: exit.cause };
-          }
-        }
-
-        // Clear fiber reference if this was the current one
         if (currentFiber === runningFiber) {
+          state.settle(exit);
           currentFiber = null;
         }
       }),
@@ -101,7 +91,7 @@ export function useEffect<A, E, R>(
       interruptFiber(currentFiber);
       currentFiber = null;
       // Return to the initial state so the effect can be run again cleanly.
-      result = { _tag: "initial" };
+      state.reset();
     }
   };
 
@@ -118,8 +108,8 @@ export function useEffect<A, E, R>(
   });
 
   return {
-    get result() {
-      return result;
+    get current() {
+      return state.current;
     },
     run,
     interrupt,

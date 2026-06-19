@@ -1,13 +1,16 @@
-import { Cause, Stream, Fiber, Exit, Effect } from "effect";
+import type { Stream } from "effect";
+import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
-import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
-import type { AsyncResult } from "./types.js";
+import type { RuntimeLike } from "./internal/run.js";
+import { streamState } from "./internal/subscribe.js";
 
 export interface UseStreamReturn<A, E> {
   /**
-   * The current result state of the stream
+   * The current result state of the stream. `Initial`/`Success` carry a
+   * `waiting` flag while the stream is still live (stale-while-revalidate), and
+   * settle to a non-waiting `Success`/`Failure` once it completes.
    */
-  readonly result: AsyncResult<ReadonlyArray<A>, E>;
+  readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
 
   /**
    * All values emitted by the stream so far
@@ -22,7 +25,10 @@ export interface UseStreamReturn<A, E> {
 
 /**
  * Subscribe to a Stream and collect emissions.
- * The stream starts on component mount and is interrupted on unmount.
+ *
+ * The subscription starts the first time `current`/`values`/`latest` is read
+ * inside an effect or template, and is interrupted automatically when the last
+ * reader is destroyed (via Svelte's `createSubscriber`).
  *
  * @example
  * ```svelte
@@ -43,76 +49,5 @@ export interface UseStreamReturn<A, E> {
  */
 export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamReturn<A, E> {
   const runtime = getRuntime() as RuntimeLike<R>;
-
-  let result = $state<AsyncResult<ReadonlyArray<A>, E>>({ _tag: "initial" });
-  let values = $state<A[]>([]);
-  let fiber: Fiber.Fiber<void, E> | null = null;
-
-  $effect(() => {
-    // Reset state
-    result = { _tag: "pending" };
-    values = [];
-
-    // Subscribe to the stream
-    const subscription = Stream.runForEach(stream, (value) =>
-      Effect.sync(() => {
-        // Accumulate values with reassignment for Svelte reactivity
-        values = [...values, value];
-
-        // Update result state without creating Chunk on each emission
-        result = { _tag: "success", value: values };
-      }),
-    );
-
-    // Run the subscription as a fiber and capture the reference
-    const runningFiber = runFork(runtime)(subscription);
-    fiber = runningFiber;
-
-    // Wait for completion and handle result
-    runFork(runtime)(
-      Effect.gen(function* () {
-        const exit = yield* Fiber.await(runningFiber);
-
-        // Only update if this is still the current fiber
-        if (fiber === runningFiber) {
-          if (Exit.isSuccess(exit)) {
-            // Stream completed successfully - use current values
-            result = { _tag: "success", value: values };
-          } else if (Exit.isFailure(exit)) {
-            // Distinguish between interruption (normal cleanup) and actual failures
-            if (!Cause.hasInterrupts(exit.cause)) {
-              result = { _tag: "failure", cause: exit.cause };
-            } else {
-              // Interrupted - keep the current success state with accumulated values
-              if (values.length > 0) {
-                result = { _tag: "success", value: values };
-              }
-            }
-          }
-
-          fiber = null;
-        }
-      }),
-    );
-
-    // Cleanup: interrupt the subscription on unmount
-    return () => {
-      if (fiber !== null) {
-        interruptFiber(fiber);
-        fiber = null;
-      }
-    };
-  });
-
-  return {
-    get result() {
-      return result;
-    },
-    get values() {
-      return values;
-    },
-    get latest() {
-      return values.length > 0 ? values[values.length - 1] : undefined;
-    },
-  };
+  return streamState(runtime, () => stream);
 }

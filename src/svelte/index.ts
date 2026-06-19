@@ -16,7 +16,7 @@ export { useEffect, type UseEffectOptions, type UseEffectReturn } from "./effect
 export { useStream, type UseStreamReturn } from "./stream.svelte.js";
 
 // Layer 3: Convenience Hooks
-export { derived } from "./derived.svelte.js";
+export { derived, type DerivedReturn } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
 export {
   useSubscriptionRef,
@@ -31,11 +31,22 @@ export {
   reactiveStream,
   reactiveMutation,
   useInvalidateKeys,
+  type ReactiveQueryReturn,
+  type ReactiveStreamReturn,
+  type ReactiveMutationReturn,
 } from "./reactivity.svelte.js";
 
 // Svelte-to-Effect Direction
 export { SignalEmitter } from "./emitter.js";
 
-// Types and Utilities
-export type { AsyncResult } from "./types.js";
-export { isInitial, isPending, isSuccess, isFailure, match } from "./utils.js";
+/**
+ * The native Effect `AsyncResult` type and its combinators
+ * (`AsyncResult.match`, `AsyncResult.isSuccess`, `AsyncResult.getOrElse`, ...).
+ *
+ * Every result-producing hook in this package exposes an
+ * `AsyncResult.AsyncResult<A, E>` via its `current` property. Re-exported here
+ * so it can be imported alongside the hooks, and so the package stays aligned
+ * with the wider Effect ecosystem (the same type the official atom bindings
+ * use).
+ */
+export * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
