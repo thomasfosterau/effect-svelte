@@ -63,7 +63,7 @@ The rest of this document is the detailed opportunity list, tiered by impact.
 
 ## Where the library is today
 
-Svelte (`src/svelte/`): `provideRuntime`/`getRuntime`, `SvelteRuntime`,
+Svelte (`packages/svelte/src/`): `provideRuntime`/`getRuntime`, `SvelteRuntime`,
 `useScope(Callback)`, `useEffect`, `useStream`, `derived`, `useQuery`,
 `useSubscriptionRef`, `usePubSub`, `reactiveQuery`/`reactiveStream`/
 `reactiveMutation`/`useInvalidateKeys` (built on the older
@@ -91,7 +91,7 @@ not about filling holes in what already exists.
 > hooks** (former item 2 below). Instead it adopts the native `AsyncResult` so
 > its types interoperate with that package, and will document `@effect/atom-svelte`
 > as the primary atom path once it lands. Items 1 and 3 are **implemented** (see
-> `src/svelte/`).
+> `packages/svelte/src/`).
 
 ### 1. Adopt the native `AsyncResult` (`effect/unstable/reactivity/AsyncResult`) — ✅ done
 

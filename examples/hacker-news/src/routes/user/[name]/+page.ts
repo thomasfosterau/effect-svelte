@@ -1,6 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { load as effectLoad } from "@thomasfosterau/effect-svelte/kit";
+import { load as effectLoad } from "@thomasfosterau/effect-sveltekit";
 import { HackerNews } from "$lib/hn/service";
 
 /**

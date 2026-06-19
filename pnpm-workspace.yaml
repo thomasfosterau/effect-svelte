@@ -5,5 +5,5 @@ onlyBuiltDependencies:
   - esbuild
 
 packages:
-  - "."
+  - "packages/*"
   - "examples/*"

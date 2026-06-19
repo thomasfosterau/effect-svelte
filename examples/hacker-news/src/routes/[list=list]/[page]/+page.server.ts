@@ -1,6 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { SvelteKitRequestEvent } from "@thomasfosterau/effect-svelte/kit/server";
+import { SvelteKitRequestEvent } from "@thomasfosterau/effect-sveltekit/server";
 import { isListKind } from "$lib/hn/lists";
 import { HackerNews } from "$lib/hn/service";
 

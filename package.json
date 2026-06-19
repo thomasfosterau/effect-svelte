@@ -1,90 +1,24 @@
 {
-  "name": "@thomasfosterau/effect-svelte",
+  "name": "effect-svelte-monorepo",
   "version": "0.0.0",
+  "private": true,
   "description": "Effect integrations for Svelte 5 runes and SvelteKit",
-  "keywords": [
-    "effect",
-    "functional-programming",
-    "svelte",
-    "sveltekit",
-    "typescript",
-    "vite-plugin"
-  ],
-  "homepage": "https://github.com/thomasfosterau/effect-svelte#readme",
-  "bugs": {
-    "url": "https://github.com/thomasfosterau/effect-svelte/issues"
-  },
   "license": "MIT",
   "author": "Thomas Foster",
   "repository": {
     "type": "git",
     "url": "https://github.com/thomasfosterau/effect-svelte.git"
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./kit": {
-      "types": "./dist/kit/index.d.ts",
-      "import": "./dist/kit/index.js"
-    },
-    "./kit/server": {
-      "types": "./dist/kit/server.d.ts",
-      "import": "./dist/kit/server.js"
-    },
-    "./kit/client": {
-      "types": "./dist/kit/client.d.ts",
-      "import": "./dist/kit/client.js"
-    },
-    "./kit/vite": {
-      "types": "./dist/kit/vite.d.ts",
-      "import": "./dist/kit/vite.js"
-    },
-    "./kit/adapter": {
-      "types": "./dist/kit/adapter/index.d.ts",
-      "import": "./dist/kit/adapter/index.js"
-    },
-    "./kit/adapter/handler": {
-      "types": "./dist/kit/adapter/handler.d.ts",
-      "import": "./dist/kit/adapter/handler.js"
-    },
-    "./kit/adapter/serve": {
-      "types": "./dist/kit/adapter/serve.d.ts",
-      "import": "./dist/kit/adapter/serve.js"
-    },
-    "./kit/internal/auto": {
-      "types": "./dist/kit/internal/auto.d.ts",
-      "import": "./dist/kit/internal/auto.js"
-    }
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "build": "vp pack",
     "check": "vp check",
-    "clean": "rm -rf dist",
+    "test": "vp run -r test",
+    "build": "vp run -r build",
+    "clean": "vp run -r clean",
     "prepare": "effect-language-service patch",
-    "prepublishOnly": "vp run clean && vp pack",
-    "test": "vp test",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "vp pack && changeset publish"
-  },
-  "dependencies": {
-    "@standard-schema/spec": "^1.1.0",
-    "magic-string": "^0.30.0"
+    "release": "vp run -r build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
@@ -98,24 +32,6 @@
     "typescript": "^5.3.3",
     "vite": "^8.0.0",
     "vite-plus": "^0.1.24"
-  },
-  "peerDependencies": {
-    "@effect/platform-node": "^4.0.0-beta.75",
-    "@sveltejs/kit": "^2.0.0",
-    "effect": "^4.0.0-beta.75",
-    "svelte": "^5.40.0",
-    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@effect/platform-node": {
-      "optional": true
-    },
-    "@sveltejs/kit": {
-      "optional": true
-    },
-    "vite": {
-      "optional": true
-    }
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

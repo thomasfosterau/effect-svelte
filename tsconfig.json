@@ -20,12 +20,8 @@
     "noImplicitReturns": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "plugins": [
-      {
-        "name": "@effect/language-service"
-      }
-    ]
+    "plugins": [{ "name": "@effect/language-service" }]
   },
-  "include": ["src/**/*", "tests/**/*", "vite.config.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["vite.config.ts"],
+  "exclude": ["node_modules", "**/dist"]
 }

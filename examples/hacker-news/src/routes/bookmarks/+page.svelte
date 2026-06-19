@@ -5,7 +5,7 @@
     callCommandWithUpdates,
     callQuery,
     submitForm,
-  } from "@thomasfosterau/effect-svelte/kit";
+  } from "@thomasfosterau/effect-sveltekit";
   import { timeAgo } from "$lib/format";
   import { addBookmark, getBookmarks, removeBookmark } from "./bookmarks.remote";
 

@@ -1,32 +1,38 @@
 # effect-svelte
 
-Effect integrations for Svelte 5 runes and SvelteKit, published as a single package:
-`@thomasfosterau/effect-svelte`.
+Effect integrations for Svelte 5 runes and SvelteKit, published as two packages
+from this monorepo:
 
-- `@thomasfosterau/effect-svelte` - Svelte 5 runes integration for Effect
-- `@thomasfosterau/effect-svelte/kit` - SvelteKit helpers (universal)
-- `@thomasfosterau/effect-svelte/kit/server` - SvelteKit server-only helpers
-- `@thomasfosterau/effect-svelte/kit/client` - SvelteKit client-only helpers
-- `@thomasfosterau/effect-svelte/kit/vite` - The `effectKit()` Vite plugin
-- `@thomasfosterau/effect-svelte/kit/adapter` - The Effect deployment adapter
+- **`@thomasfosterau/effect-svelte`** — Svelte 5 runes integration for Effect
+  ([`packages/svelte`](./packages/svelte)).
+- **`@thomasfosterau/effect-sveltekit`** — SvelteKit integration
+  ([`packages/sveltekit`](./packages/sveltekit)), which depends on
+  `@thomasfosterau/effect-svelte`. Subpaths:
+  - `@thomasfosterau/effect-sveltekit` - universal helpers (`load`, remote-function calls)
+  - `@thomasfosterau/effect-sveltekit/server` - server-only helpers
+  - `@thomasfosterau/effect-sveltekit/client` - client-only helpers (`$app/navigation`, remote calls)
+  - `@thomasfosterau/effect-sveltekit/vite` - the `effectKit()` Vite plugin
+  - `@thomasfosterau/effect-sveltekit/adapter` - the Effect deployment adapter
 
 ## Installation
 
-This package targets **Effect v4 (beta)**. All Effect ecosystem packages share
+Both packages target **Effect v4 (beta)**. All Effect ecosystem packages share
 a single version number in v4 — keep `effect` and `@effect/platform-node` on
 the same `4.0.0-beta.x` version.
+
+For a plain Svelte 5 app:
 
 ```bash
 npm install @thomasfosterau/effect-svelte effect@beta svelte
 ```
 
-If you use the SvelteKit helpers, you also need the (optional) `@sveltejs/kit`
-peer dependency. The HTTP modules that previously lived in `@effect/platform`
-are part of `effect` itself in v4 (under `effect/unstable/http`), so no extra
-package is needed:
+For SvelteKit, install the SvelteKit package (it pulls in
+`@thomasfosterau/effect-svelte` for the runes hooks). The HTTP modules that
+previously lived in `@effect/platform` are part of `effect` itself in v4 (under
+`effect/unstable/http`), so no extra package is needed:
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect@beta svelte @sveltejs/kit
+npm install @thomasfosterau/effect-sveltekit effect@beta svelte @sveltejs/kit
 ```
 
 If you use the Effect deployment adapter, you additionally need
@@ -83,7 +89,7 @@ Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
 ```ts
 // vite.config.ts
 import { sveltekit } from "@sveltejs/kit/vite";
-import { effectKit } from "@thomasfosterau/effect-svelte/kit/vite";
+import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
 
 export default {
   plugins: [effectKit(), sveltekit()],
@@ -131,7 +137,7 @@ process:
 
 ```ts
 // src/lib/server/runtime.ts
-import { makeServerRuntime } from "@thomasfosterau/effect-svelte/kit/server";
+import { makeServerRuntime } from "@thomasfosterau/effect-sveltekit/server";
 import { Layer } from "effect";
 import { Database } from "./database";
 
@@ -155,7 +161,7 @@ export const load = runtime.serverLoad((event) =>
 The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `endpoint`,
 `runPromise`, and `dispose`. For universal `load` functions there is a
 browser-safe counterpart, `makeUniversalRuntime`, in
-`@thomasfosterau/effect-svelte/kit`.
+`@thomasfosterau/effect-sveltekit`.
 
 To make the same services available to bare-Effect exports handled by the
 Vite plugin, point the plugin at the runtime module:
@@ -175,7 +181,7 @@ scopes:
 
 ```js
 // svelte.config.js
-import adapter from "@thomasfosterau/effect-svelte/kit/adapter";
+import adapter from "@thomasfosterau/effect-sveltekit/adapter";
 
 export default {
   kit: { adapter: adapter() },
@@ -213,7 +219,7 @@ include `@thomasfosterau/effect-svelte`, `effect`, and
 ### SvelteKit universal load
 
 ```ts
-import { load, makeUniversalRuntime } from "@thomasfosterau/effect-svelte/kit";
+import { load, makeUniversalRuntime } from "@thomasfosterau/effect-sveltekit";
 ```
 
 ### SvelteKit server helpers
@@ -226,7 +232,7 @@ import {
   handle,
   endpoint,
   makeServerRuntime,
-} from "@thomasfosterau/effect-svelte/kit/server";
+} from "@thomasfosterau/effect-sveltekit/server";
 ```
 
 ### SvelteKit client helpers
@@ -244,7 +250,7 @@ import {
   callQuery,
   callCommand,
   liveQueryStream,
-} from "@thomasfosterau/effect-svelte/kit/client";
+} from "@thomasfosterau/effect-sveltekit/client";
 ```
 
 ### `transport` hook from Effect Schema
@@ -256,7 +262,7 @@ from Effect schemas:
 
 ```ts
 // src/hooks.ts
-import { transport } from "@thomasfosterau/effect-svelte/kit";
+import { transport } from "@thomasfosterau/effect-sveltekit";
 import { Schema } from "effect";
 
 export const transport = transport({
@@ -273,7 +279,7 @@ configuration from `$env`:
 ```ts
 // src/lib/server/runtime.ts
 import { env } from "$env/dynamic/private";
-import { makeServerRuntime, sveltekitConfig } from "@thomasfosterau/effect-svelte/kit/server";
+import { makeServerRuntime, sveltekitConfig } from "@thomasfosterau/effect-sveltekit/server";
 import { Layer } from "effect";
 import { Database } from "./database"; // its layer reads Config.string("DATABASE_URL")
 
@@ -284,7 +290,7 @@ export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(svelt
 
 ```ts
 // src/hooks.ts
-import { reroute } from "@thomasfosterau/effect-svelte/kit";
+import { reroute } from "@thomasfosterau/effect-sveltekit";
 import { Effect } from "effect";
 
 export const reroute = reroute((event) =>
@@ -306,7 +312,7 @@ surface:
 
 ```bash
 pnpm install
-pnpm run build          # build the package first
+pnpm run build          # build both packages first (vp run -r build)
 cd examples/todomvc     # (or hacker-news / realtime-dashboard)
 pnpm run dev
 ```
@@ -316,44 +322,44 @@ coverage map.
 
 ## Development
 
-This repository is managed by [Vite+](https://viteplus.dev). Day-to-day
-commands:
+This is a [Vite+](https://viteplus.dev) monorepo (`packages/svelte`,
+`packages/sveltekit`, and the `examples/*` apps). Day-to-day commands, run from
+the repository root:
 
 ```bash
-vp install   # Install dependencies
-vp check     # Format, lint, and type-check
-vp test      # Run the test suite (Vitest)
-vp pack      # Build the library (tsdown)
+vp install        # Install dependencies
+vp check          # Format, lint, and type-check the whole workspace
+vp run -r test    # Run every package's test suite (Vitest)
+vp run -r build   # Build every package (tsdown)
 ```
 
-If you don't have the `vp` global CLI installed, every command is also
-available through the package scripts (`pnpm run check`, `pnpm run test`,
-`pnpm run build`, ...), or install it with:
+If you don't have the `vp` global CLI installed, the same commands are available
+through the root package scripts (`pnpm run check`, `pnpm run test`,
+`pnpm run build`), or install it with:
 
 ```bash
 curl -fsSL https://vite.plus | bash
 ```
 
-All tooling (build, test, lint, format) is configured in a single
-`vite.config.ts` at the repository root.
+Lint and format are configured once at the workspace root (`vite.config.ts`);
+each package has its own `vite.config.ts` for `pack`/`test`.
 
 ### Project layout
 
 ```
-src/           Svelte 5 runes integration (package root export)
-src/kit/       SvelteKit helpers (./kit subpath exports)
-tests/         Vitest test suite
-examples/      Example apps (TodoMVC, Hacker News, real-time dashboard)
-vite.config.ts Vite+ configuration (pack, test, lint, fmt)
+packages/svelte/      @thomasfosterau/effect-svelte (Svelte 5 runes integration)
+packages/sveltekit/   @thomasfosterau/effect-sveltekit (SvelteKit integration)
+examples/             Example apps (TodoMVC, Hacker News, real-time dashboard)
+vite.config.ts        Workspace Vite+ config (run cache, lint, fmt)
 ```
 
 ## Release workflow
 
-Changesets is configured at the repository root.
+Changesets is configured at the repository root and versions both packages.
 
 ```bash
 vp run changeset   # Create a changeset
-vp run version     # Apply pending changesets to the package version
+vp run version     # Apply pending changesets to the package versions
 vp run release     # Build and publish to npm
 ```
 

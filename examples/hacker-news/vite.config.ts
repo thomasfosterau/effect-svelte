@@ -1,5 +1,5 @@
 import { sveltekit } from "@sveltejs/kit/vite";
-import { effectKit } from "@thomasfosterau/effect-svelte/kit/vite";
+import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({

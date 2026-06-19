@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { RemoteFunction } from "@thomasfosterau/effect-svelte/kit/server";
+import { RemoteFunction } from "@thomasfosterau/effect-sveltekit/server";
 import { Bookmarks } from "$lib/server/bookmarks";
 
 /**
