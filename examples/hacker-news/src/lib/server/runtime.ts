@@ -1,6 +1,6 @@
 import { Layer } from "effect";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
-import { makeServerRuntime } from "@thomasfosterau/effect-svelte/kit/server";
+import { makeServerRuntime } from "@thomasfosterau/effect-sveltekit/server";
 import { HackerNews } from "$lib/hn/service";
 import { Bookmarks } from "$lib/server/bookmarks";
 

@@ -1,8 +1,7 @@
 <script lang="ts">
   import { Effect } from "effect";
   import {
-    isFailure,
-    isSuccess,
+    AsyncResult,
     reactiveMutation,
     reactiveQuery,
     useInvalidateKeys,
@@ -43,9 +42,14 @@
     () => Effect.flatMap(TodoRepository, (repo) => repo.stats)
   );
 
+  // Capture each query's `.current` AsyncResult into a $derived local so the
+  // `AsyncResult.isSuccess(...)` guards narrow correctly in the template.
+  const todosResult = $derived(todos.current);
+  const statsResult = $derived(stats.current);
+
   // Toggle-all is a mutation: it runs the effect, then invalidates "todos".
   const toggleAll = reactiveMutation(["todos"], () => {
-    const completeAll = isSuccess(stats) && stats.value.active > 0;
+    const completeAll = AsyncResult.isSuccess(statsResult) && statsResult.value.active > 0;
     return Effect.flatMap(TodoRepository, (repo) => repo.toggleAll(completeAll));
   });
 
@@ -54,7 +58,9 @@
   const invalidate = useInvalidateKeys();
 
   const allCompleted = $derived(
-    isSuccess(stats) && stats.value.total > 0 && stats.value.active === 0
+    AsyncResult.isSuccess(statsResult) &&
+      statsResult.value.total > 0 &&
+      statsResult.value.active === 0
   );
 </script>
 
@@ -68,12 +74,12 @@
 />
 
 <section class="todoapp">
-  <TodoHeader {stats} />
+  <TodoHeader stats={statsResult} />
 
-  {#if isFailure(todos)}
+  {#if AsyncResult.isFailure(todosResult)}
     <p class="error">Failed to load todos. Try clearing this site's storage.</p>
-  {:else if isSuccess(todos)}
-    {#if isSuccess(stats) && stats.value.total > 0}
+  {:else if AsyncResult.isSuccess(todosResult)}
+    {#if AsyncResult.isSuccess(statsResult) && statsResult.value.total > 0}
       <section class="main">
         <input
           id="toggle-all"
@@ -84,13 +90,13 @@
         />
         <label for="toggle-all">Mark all as complete</label>
         <ul class="todo-list">
-          {#each todos.value as todo (todo.id)}
+          {#each todosResult.value as todo (todo.id)}
             <TodoItem {todo} />
           {/each}
         </ul>
       </section>
 
-      <TodoFooter stats={stats.value} {filter} />
+      <TodoFooter stats={statsResult.value} {filter} />
     {/if}
   {/if}
 </section>

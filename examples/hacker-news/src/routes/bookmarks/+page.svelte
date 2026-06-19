@@ -1,17 +1,11 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import {
-    isFailure,
-    isPending,
-    isSuccess,
-    useEffect,
-    useQuery,
-  } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, useEffect, useQuery } from "@thomasfosterau/effect-svelte";
   import {
     callCommandWithUpdates,
     callQuery,
     submitForm,
-  } from "@thomasfosterau/effect-svelte/kit";
+  } from "@thomasfosterau/effect-sveltekit";
   import { timeAgo } from "$lib/format";
   import { addBookmark, getBookmarks, removeBookmark } from "./bookmarks.remote";
 
@@ -19,6 +13,9 @@
   // callQuery wraps the SvelteKit remote query in an Effect; useQuery runs it
   // through the client-side Effect runtime and exposes an AsyncResult.
   const bookmarks = useQuery(callQuery(getBookmarks));
+
+  // Capture `.current` into a $derived local so the guards below narrow it.
+  const bookmarksResult = $derived(bookmarks.current);
 
   // -- Removing ------------------------------------------------------------
   // A single useEffect hook serves every row: the id to remove is read from
@@ -75,16 +72,14 @@
   </button>
 </form>
 
-{#if isPending(bookmarks.result)}
-  <p class="pending">Loading bookmarks…</p>
-{:else if isFailure(bookmarks.result)}
-  <p class="error">Could not load bookmarks.</p>
-{:else if isSuccess(bookmarks.result)}
-  {#if bookmarks.result.value.length === 0}
+<!-- Success-first so the list stays on screen (with `waiting` true) while a
+     refetch is in flight, instead of flashing back to the loading state. -->
+{#if AsyncResult.isSuccess(bookmarksResult)}
+  {#if bookmarksResult.value.length === 0}
     <p>No bookmarks yet. Add one above.</p>
   {:else}
     <ul class="bookmarks">
-      {#each bookmarks.result.value as bookmark (bookmark.id)}
+      {#each bookmarksResult.value as bookmark (bookmark.id)}
         <li>
           {#if bookmark.url}
             <a href={bookmark.url} rel="noreferrer">{bookmark.title}</a>
@@ -94,7 +89,7 @@
           <span class="meta">added {timeAgo(new Date(bookmark.addedAt).toISOString())}</span>
           <button
             class="subtle"
-            disabled={isPending(remove.result)}
+            disabled={AsyncResult.isWaiting(remove.current)}
             onclick={() => removeOne(bookmark.id)}
           >
             remove
@@ -103,4 +98,8 @@
       {/each}
     </ul>
   {/if}
+{:else if AsyncResult.isFailure(bookmarksResult)}
+  <p class="error">Could not load bookmarks.</p>
+{:else}
+  <p class="pending">Loading bookmarks…</p>
 {/if}

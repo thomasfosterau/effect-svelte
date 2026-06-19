@@ -2,7 +2,7 @@
 
 A Hacker News reader (in the spirit of [HNPWA](https://hnpwa.com)) built with
 SvelteKit, Effect, and
-[`@thomasfosterau/effect-svelte/kit`](../../src/kit), backed by
+[`@thomasfosterau/effect-sveltekit`](../../packages/sveltekit), backed by
 the [Algolia Hacker News API](https://hn.algolia.com/api).
 
 Every route fetches data through Effect — via the `effectKit()` Vite plugin,

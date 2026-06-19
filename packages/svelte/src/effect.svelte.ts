@@ -1,0 +1,117 @@
+import { Effect, Fiber } from "effect";
+import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import { getRuntime } from "./context.svelte.js";
+import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
+import { makeResult } from "./internal/result.svelte.js";
+
+export interface UseEffectOptions {
+  /**
+   * If true, the effect will run immediately on mount.
+   * If false, the effect will only run when manually triggered via run().
+   * @default false
+   */
+  immediate?: boolean;
+}
+
+export interface UseEffectReturn<A, E> {
+  /**
+   * The current result state of the effect. Re-running preserves the previous
+   * value as a waiting `Success` (stale-while-revalidate).
+   */
+  readonly current: AsyncResult.AsyncResult<A, E>;
+
+  /**
+   * Manually trigger execution of the effect
+   */
+  run: () => void;
+
+  /**
+   * Interrupt the currently running effect
+   */
+  interrupt: () => void;
+}
+
+/**
+ * Run a single Effect and track its result state.
+ *
+ * @example
+ * ```svelte
+ * <script lang="ts">
+ *   import { useEffect, AsyncResult } from '@thomasfosterau/effect-svelte';
+ *   import { Effect } from 'effect';
+ *
+ *   const fetchData = useEffect(
+ *     Effect.delay(Effect.succeed(42), '1 second'),
+ *     { immediate: true }
+ *   );
+ * </script>
+ *
+ * {#if AsyncResult.isSuccess(fetchData.current)}
+ *   <p>Result: {fetchData.current.value}</p>
+ * {/if}
+ * ```
+ */
+export function useEffect<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  options: UseEffectOptions = {},
+): UseEffectReturn<A, E> {
+  const { immediate = false } = options;
+  const runtime = getRuntime() as RuntimeLike<R>;
+
+  const state = makeResult<A, E>();
+  let currentFiber: Fiber.Fiber<A, E> | null = null;
+
+  const run = () => {
+    // Interrupt any existing fiber
+    if (currentFiber !== null) {
+      interruptFiber(currentFiber);
+    }
+
+    // Mark as waiting, preserving the previous value if there is one.
+    state.startWaiting();
+
+    // Run the effect and capture the fiber reference
+    const runningFiber = runFork(runtime)(effect);
+    currentFiber = runningFiber;
+
+    // Settle the result when the fiber completes, unless a newer run replaced it.
+    runFork(runtime)(
+      Effect.gen(function* () {
+        const exit = yield* Fiber.await(runningFiber);
+        if (currentFiber === runningFiber) {
+          state.settle(exit);
+          currentFiber = null;
+        }
+      }),
+    );
+  };
+
+  const interrupt = () => {
+    if (currentFiber !== null) {
+      interruptFiber(currentFiber);
+      currentFiber = null;
+      // Return to the initial state so the effect can be run again cleanly.
+      state.reset();
+    }
+  };
+
+  // Set up effect lifecycle
+  $effect(() => {
+    if (immediate) {
+      run();
+    }
+
+    // Cleanup: interrupt any running fiber on unmount
+    return () => {
+      interrupt();
+    };
+  });
+
+  return {
+    get current() {
+      return state.current;
+    },
+    run,
+    interrupt,
+  };
+}

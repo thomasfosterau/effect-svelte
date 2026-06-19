@@ -6,7 +6,7 @@ package, modelled on widely used demo applications.
 | Example                                      | App                                                   | Stack           | Focus                                                                               |
 | -------------------------------------------- | ----------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
 | [`todomvc`](./todomvc)                       | [TodoMVC](https://todomvc.com)                        | Svelte 5 + Vite | `@thomasfosterau/effect-svelte` reactivity hooks (queries, mutations, invalidation) |
-| [`hacker-news`](./hacker-news)               | Hacker News reader ([HNPWA](https://hnpwa.com)-style) | SvelteKit       | `@thomasfosterau/effect-svelte/kit` (Vite plugin, wrappers, remote functions)       |
+| [`hacker-news`](./hacker-news)               | Hacker News reader ([HNPWA](https://hnpwa.com)-style) | SvelteKit       | `@thomasfosterau/effect-sveltekit` (Vite plugin, wrappers, remote functions)        |
 | [`realtime-dashboard`](./realtime-dashboard) | Market dashboard                                      | Svelte 5 + Vite | Streams, PubSub, SubscriptionRef, scopes, interruption                              |
 
 ## Running the examples
@@ -45,11 +45,11 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 | `reactiveStream`                                                | realtime-dashboard — `Portfolio.svelte`                                                            |
 | `useInvalidateKeys`                                             | todomvc — `TodoApp.svelte` (cross-tab sync)                                                        |
 | `SignalEmitter`                                                 | realtime-dashboard — `SymbolSearch.svelte`                                                         |
-| `AsyncResult` + `isInitial`/`isPending`/`isSuccess`/`isFailure` | todomvc, hacker-news, realtime-dashboard                                                           |
-| `match`                                                         | realtime-dashboard — `QuoteCard.svelte`                                                            |
+| `AsyncResult` + `isInitial`/`isWaiting`/`isSuccess`/`isFailure` | todomvc, hacker-news, realtime-dashboard                                                           |
+| `AsyncResult.match`                                             | realtime-dashboard — `QuoteCard.svelte`                                                            |
 | `RuntimeLike`                                                   | realtime-dashboard — `lib/use-clock.svelte.ts`                                                     |
 
-### `@thomasfosterau/effect-svelte/kit`
+### `@thomasfosterau/effect-sveltekit`
 
 | Export                                                    | Demonstrated in (all in hacker-news)                     |
 | --------------------------------------------------------- | -------------------------------------------------------- |

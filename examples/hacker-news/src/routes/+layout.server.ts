@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { runWithSvelteKitRuntime } from "@thomasfosterau/effect-svelte/kit/server";
+import { runWithSvelteKitRuntime } from "@thomasfosterau/effect-sveltekit/server";
 import type { LayoutServerLoadEvent } from "./$types";
 
 /**

@@ -7,13 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@standard-schema/spec':
-        specifier: ^1.1.0
-        version: 1.1.0
-      magic-string:
-        specifier: ^0.30.0
-        version: 0.30.21
     devDependencies:
       '@changesets/cli':
         specifier: ^2.27.1
@@ -56,7 +49,10 @@ importers:
         version: 4.0.0-beta.75(effect@4.0.0-beta.75)(ioredis@5.11.0)
       '@thomasfosterau/effect-svelte':
         specifier: workspace:*
-        version: link:../..
+        version: link:../../packages/svelte
+      '@thomasfosterau/effect-sveltekit':
+        specifier: workspace:*
+        version: link:../../packages/sveltekit
       effect:
         specifier: 4.0.0-beta.75
         version: 4.0.0-beta.75
@@ -87,7 +83,7 @@ importers:
     dependencies:
       '@thomasfosterau/effect-svelte':
         specifier: workspace:*
-        version: link:../..
+        version: link:../../packages/svelte
       effect:
         specifier: 4.0.0-beta.75
         version: 4.0.0-beta.75
@@ -112,7 +108,7 @@ importers:
     dependencies:
       '@thomasfosterau/effect-svelte':
         specifier: workspace:*
-        version: link:../..
+        version: link:../../packages/svelte
       effect:
         specifier: 4.0.0-beta.75
         version: 4.0.0-beta.75
@@ -134,6 +130,42 @@ importers:
         version: 5.9.3
       vite:
         specifier: ^8.0.0
+        version: 8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(yaml@2.9.0)
+
+  packages/svelte:
+    dependencies:
+      effect:
+        specifier: ^4.0.0-beta.75
+        version: 4.0.0-beta.75
+      svelte:
+        specifier: ^5.40.0
+        version: 5.56.1
+
+  packages/sveltekit:
+    dependencies:
+      '@effect/platform-node':
+        specifier: ^4.0.0-beta.75
+        version: 4.0.0-beta.75(effect@4.0.0-beta.75)(ioredis@5.11.0)
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@sveltejs/kit':
+        specifier: ^2.0.0
+        version: 2.61.1(@sveltejs/vite-plugin-svelte@7.1.2(svelte@5.56.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(yaml@2.9.0)))(svelte@5.56.1)(typescript@5.9.3)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(yaml@2.9.0))
+      '@thomasfosterau/effect-svelte':
+        specifier: workspace:^
+        version: link:../svelte
+      effect:
+        specifier: ^4.0.0-beta.75
+        version: 4.0.0-beta.75
+      magic-string:
+        specifier: ^0.30.0
+        version: 0.30.21
+      svelte:
+        specifier: ^5.40.0
+        version: 5.56.1
+      vite:
+        specifier: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
         version: 8.0.16(@types/node@22.19.19)(esbuild@0.27.7)(yaml@2.9.0)
 
 packages:

@@ -1,8 +1,7 @@
 <script lang="ts">
   import { Effect, SubscriptionRef } from "effect";
   import {
-    isFailure,
-    isPending,
+    AsyncResult,
     reactiveMutation,
     reactiveStream,
     useSubscriptionRef,
@@ -87,13 +86,13 @@
         <label for="trade-units">Units</label>
         <input id="trade-units" type="number" min="0.1" step="0.1" bind:value={units} />
       </div>
-      <button disabled={isPending(trade.result)}>
-        {isPending(trade.result) ? "Executing…" : "Trade"}
+      <button disabled={AsyncResult.isWaiting(trade.current)}>
+        {AsyncResult.isWaiting(trade.current) ? "Executing…" : "Trade"}
       </button>
     </div>
   </form>
 
-  {#if isFailure(trade.result)}
+  {#if AsyncResult.isFailure(trade.current)}
     <p class="error">Trade failed — insufficient funds.</p>
   {/if}
 

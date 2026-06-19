@@ -1,10 +1,10 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import { reactiveMutation, type AsyncResult } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, reactiveMutation } from "@thomasfosterau/effect-svelte";
   import { TodoRepository, type TodoStorageError } from "../todo-repository";
   import type { TodoStats } from "../model";
 
-  let { stats }: { stats: AsyncResult<TodoStats, TodoStorageError> } = $props();
+  let { stats }: { stats: AsyncResult.AsyncResult<TodoStats, TodoStorageError> } = $props();
 
   let title = $state("");
 
@@ -25,7 +25,7 @@
   // Surfacing the count here keeps the prop wired through the AsyncResult
   // type rather than unwrapping it in the parent.
   const placeholder = $derived(
-    stats._tag === "success" && stats.value.total === 0
+    AsyncResult.isSuccess(stats) && stats.value.total === 0
       ? "What needs to be done?"
       : "What else needs to be done?"
   );

@@ -12,7 +12,7 @@ export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()(
 /**
  * Hacker News API client, backed by the Algolia HN API.
  *
- * The service only requires `HttpClient`, which the effect-svelte/kit
+ * The service only requires `HttpClient`, which the effect-sveltekit
  * runtime provides on the server — and on the client for universal loads —
  * via the SvelteKit `fetch` of the current request/navigation.
  *

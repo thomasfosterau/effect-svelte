@@ -1,0 +1,54 @@
+{
+  "name": "@thomasfosterau/effect-svelte",
+  "version": "0.0.0",
+  "description": "Effect integration for Svelte 5 runes",
+  "keywords": [
+    "effect",
+    "functional-programming",
+    "runes",
+    "svelte",
+    "typescript"
+  ],
+  "homepage": "https://github.com/thomasfosterau/effect-svelte/tree/main/packages/svelte#readme",
+  "bugs": {
+    "url": "https://github.com/thomasfosterau/effect-svelte/issues"
+  },
+  "license": "MIT",
+  "author": "Thomas Foster",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thomasfosterau/effect-svelte.git",
+    "directory": "packages/svelte"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "test": "vp test",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "vp run clean && vp pack"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-beta.75",
+    "svelte": "^5.40.0"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

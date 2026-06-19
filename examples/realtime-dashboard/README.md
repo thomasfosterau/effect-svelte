@@ -30,7 +30,7 @@ pnpm run dev
 | `useEffect` (manual run + interrupt)                                | `Connection.svelte` (interruptible ping)                         |
 | `useScope` / `useScopeCallback`                                     | `Connection.svelte` (acquire/release on mount/unmount)           |
 | `derived`                                                           | `QuoteCard.svelte` (re-runs on selection change)                 |
-| `match` on `AsyncResult`                                            | `QuoteCard.svelte`                                               |
+| `AsyncResult.match`                                                 | `QuoteCard.svelte`                                               |
 | `reactiveMutation` / `reactiveStream`                               | `Portfolio.svelte` (trade → value history)                       |
 | `getRuntime` (custom hooks)                                         | `lib/use-clock.svelte.ts`                                        |
 | `provideRuntime` / `SvelteRuntime.extend`                           | `App.svelte`, `lib/runtime.ts`                                   |
