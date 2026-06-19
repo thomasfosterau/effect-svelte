@@ -250,6 +250,8 @@ import {
   callQuery,
   callCommand,
   liveQueryStream,
+  // a reactive remote resource as an AsyncResult
+  useRemoteQuery,
 } from "@thomasfosterau/effect-sveltekit/client";
 ```
 

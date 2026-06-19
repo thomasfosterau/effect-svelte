@@ -12,8 +12,9 @@ integration for SvelteKit. Depends on `@thomasfosterau/effect-svelte`.
   exports.
 - Remote functions as Effects (`RemoteFunction.query`/`form`/`command`/
   `prerender`/`query.live`), call helpers (`callQuery`, `callCommand`,
-  `submitForm`, ...), and `liveQueryStream` (a `query.live(...)` as an Effect
-  `Stream`).
+  `submitForm`, ...), `liveQueryStream` (a `query.live(...)` as an Effect
+  `Stream`), and `useRemoteQuery` (a reactive remote resource as an
+  `AsyncResult`).
 - `transport` ⇄ Effect Schema: move custom types (`Option`, `DateTime`, branded
   types, `Schema.Class` instances, tagged errors) across the server/client
   boundary.

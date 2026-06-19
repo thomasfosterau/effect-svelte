@@ -11,3 +11,6 @@ export * from "./navigation.js";
 
 // Remote-function call helpers (callQuery, callCommand, liveQueryStream, ...).
 export * from "./remote-call.js";
+
+// Reactive bridge: a remote query/resource as an AsyncResult.
+export { useRemoteQuery } from "./remote-reactive.js";
