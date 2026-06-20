@@ -117,11 +117,11 @@ export function submitFormWithUpdates(
  *
  * @example
  * ```ts
- * import { liveQueryStream } from '@thomasfosterau/effect-sveltekit';
+ * import { Remote } from '@thomasfosterau/effect-sveltekit';
  * import { messages } from './chat.remote';
  * import { useStream } from '@thomasfosterau/effect-svelte';
  *
- * const feed = useStream(liveQueryStream(messages()));
+ * const feed = useStream(Remote.liveQueryStream(messages()));
  * ```
  */
 export function liveQueryStream<Output>(

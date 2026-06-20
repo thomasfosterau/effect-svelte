@@ -1,18 +1,14 @@
 <script lang="ts">
   import { Effect } from "effect";
   import { AsyncResult, useEffect, useQuery } from "@thomasfosterau/effect-svelte";
-  import {
-    callCommandWithUpdates,
-    callQuery,
-    submitForm,
-  } from "@thomasfosterau/effect-sveltekit";
+  import { Remote } from "@thomasfosterau/effect-sveltekit";
   import { timeAgo } from "$lib/format";
   import { addBookmark, getBookmarks, removeBookmark } from "./bookmarks.remote";
 
   // -- Reading -------------------------------------------------------------
   // callQuery wraps the SvelteKit remote query in an Effect; useQuery runs it
   // through the client-side Effect runtime and exposes an AsyncResult.
-  const bookmarks = useQuery(callQuery(getBookmarks));
+  const bookmarks = useQuery(Remote.callQuery(getBookmarks));
 
   // Capture `.current` into a $derived local so the guards below narrow it.
   const bookmarksResult = $derived(bookmarks.current);
@@ -32,7 +28,7 @@
       if (id === null) {
         return Effect.void;
       }
-      return callCommandWithUpdates(removeBookmark, id, getBookmarks()).pipe(
+      return Remote.callCommandWithUpdates(removeBookmark, id, getBookmarks()).pipe(
         // Re-run the query so the list updates.
         Effect.tap(() => Effect.sync(() => bookmarks.refetch()))
       );
@@ -61,7 +57,7 @@
 <form
   class="bookmark-form"
   {...addBookmark.enhance(async ({ submit }) => {
-    await Effect.runPromise(submitForm(submit));
+    await Effect.runPromise(Remote.submitForm(submit));
     bookmarks.refetch();
   })}
 >

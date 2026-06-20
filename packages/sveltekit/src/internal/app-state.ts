@@ -1,7 +1,7 @@
 /**
- * Pure, `$app/*`-free core for the `$app/state` bridge in `../app-state.ts`.
+ * Pure, `$app/*`-free core for the `$app/state` bridge in `../State.ts`.
  *
- * The public `pageStream` can't be unit-tested directly because importing it
+ * The public `page` can't be unit-tested directly because importing it
  * pulls in `$app/navigation` and `$app/state` (SvelteKit virtual modules that
  * only exist inside a build). The snapshotting and the "emit now, then after
  * each navigation" plumbing live here instead, parameterised over the

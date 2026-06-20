@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Effect, Stream } from "effect";
-import { liveQueryStream } from "../src/remote-call.js";
+import { liveQueryStream } from "../src/Remote.js";
 
 describe("liveQueryStream", () => {
   it("consumes a RemoteLiveQuery (AsyncIterable) as a Stream", async () => {

@@ -1,6 +1,6 @@
 /**
  * Pure, `$app/navigation`-free core for the navigation-event bridge in
- * `../navigation-events.ts`.
+ * `../Navigation.ts`.
  *
  * The public helpers can't be unit-tested directly because importing them pulls
  * in `$app/navigation` (a SvelteKit virtual module that only exists inside a

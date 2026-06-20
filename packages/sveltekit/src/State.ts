@@ -16,7 +16,7 @@
  * stable value. Reading at `afterNavigate` time also avoids needing a `.svelte`
  * runes file.
  *
- * Like the navigation-event helpers, `pageStream` registers its callback during
+ * Like the navigation-event helpers, `page` registers its callback during
  * component initialization (where `$app/navigation` requires), so call it at the
  * top level of `<script>`. Client-only.
  *
@@ -28,11 +28,11 @@
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { pageStream } from '@thomasfosterau/effect-sveltekit/client';
+ *   import { State } from '@thomasfosterau/effect-sveltekit/client';
  *   import { Stream, Effect } from 'effect';
  *   import { getRuntime } from '@thomasfosterau/effect-svelte';
  *
- *   const pages = pageStream();
+ *   const pages = State.page();
  *   getRuntime().runFork(
  *     Stream.runForEach(pages, (page) =>
  *       Effect.logInfo(`page: ${page.url.pathname}`),
@@ -48,7 +48,7 @@ import type { Page } from "@sveltejs/kit";
 import type { Stream } from "effect";
 import { type PageSnapshot, pageSnapshotStream } from "./internal/app-state.js";
 
-/** A shallow snapshot of SvelteKit's `page` — see {@link pageStream}. */
+/** A shallow snapshot of SvelteKit's `page` — see {@link page}. */
 export type { PageSnapshot } from "./internal/app-state.js";
 
 /**
@@ -56,7 +56,7 @@ export type { PageSnapshot } from "./internal/app-state.js";
  * immediately and again after every navigation. Call during component
  * initialization.
  */
-export function pageStream(): Stream.Stream<PageSnapshot<Page>> {
+export function page(): Stream.Stream<PageSnapshot<Page>> {
   return pageSnapshotStream<Page>(
     (callback) => {
       kitAfterNavigate(() => {
