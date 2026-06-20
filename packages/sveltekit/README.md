@@ -1,0 +1,66 @@
+# @thomasfosterau/effect-sveltekit
+
+Effect v4-native integration for **SvelteKit**: write `load` functions, form
+actions, endpoints, hooks, and remote functions as Effects; move custom types
+across the server/client boundary with Effect Schema; and deploy on an Effect
+HTTP server.
+
+Part of the [`effect-svelte`](https://github.com/thomasfosterau/effect-svelte)
+monorepo. Depends on
+[`@thomasfosterau/effect-svelte`](https://www.npmjs.com/package/@thomasfosterau/effect-svelte)
+for the Svelte runes hooks.
+
+## Installation
+
+```bash
+npm install @thomasfosterau/effect-sveltekit effect@beta svelte @sveltejs/kit
+# the Effect deployment adapter additionally needs:
+npm install @effect/platform-node@beta
+```
+
+## Entry points
+
+| Import                             | What it provides                                                                                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@thomasfosterau/effect-sveltekit` | universal helpers (`load`, the `Remote` call namespace, `transport`, `sveltekitConfig`, `reroute`)                                                       |
+| `…/server`                         | server wrappers (`serverLoad`, `action`, `actions`, `handle`, `endpoint`), app runtimes (`makeServerRuntime` / `makeUniversalRuntime`), `RemoteFunction` |
+| `…/client`                         | browser-only `Navigation` / `State` / `Remote` namespaces and `useRemoteQuery`                                                                           |
+| `…/vite`                           | the `effectKit()` Vite plugin (auto-wrap bare-Effect route exports)                                                                                      |
+| `…/adapter`                        | the Effect HTTP deployment adapter                                                                                                                       |
+
+## Example
+
+```ts
+// vite.config.ts — return Effects directly from route files
+import { sveltekit } from "@sveltejs/kit/vite";
+import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
+
+export default { plugins: [effectKit(), sveltekit()] };
+```
+
+```ts
+// +page.server.ts
+import { Effect } from "effect";
+export const load = (event) => Effect.succeed({ id: event.params.id });
+```
+
+## What's included
+
+- **Effects as route exports** — explicit wrappers, app-wide runtimes (services
+  built once per process), or the `effectKit()` plugin.
+- **Remote functions** — define with `RemoteFunction.*`, consume via the
+  `Remote` namespace (`Remote.callQuery`, `Remote.liveQueryStream`, …);
+  `useRemoteQuery` bridges a reactive remote resource to an `AsyncResult`.
+- **`transport` ⇄ Effect Schema** and **`$env` ⇄ Effect `Config`**.
+- **Client navigation/state** — the `Navigation` (`goto`/`invalidate`/… plus
+  `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`)
+  namespaces.
+- **Effect deployment adapter** — a production HTTP server on
+  `effect/unstable/http` + `@effect/platform-node`.
+
+See the [monorepo README](https://github.com/thomasfosterau/effect-svelte#readme)
+for the full API and a runnable SvelteKit example.
+
+## License
+
+MIT
