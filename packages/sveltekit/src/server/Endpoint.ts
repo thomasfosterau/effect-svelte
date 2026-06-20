@@ -1,40 +1,36 @@
 /**
- * Expose an Effect HTTP application as a SvelteKit server endpoint
- * (`+server.ts`), the `HttpApp` namespace of
- * `@thomasfosterau/effect-sveltekit/server`.
+ * Create SvelteKit server endpoints (`+server.ts`) backed by Effect — the
+ * `Endpoint` namespace of `@thomasfosterau/effect-sveltekit/server`.
  *
- * Effect models HTTP a few different ways — a declarative
- * [`HttpApi`](https://effect.website), an `HttpRouter`, or a single route
- * effect — and each can be turned into a Web `fetch` handler
- * (`(request: Request) => Promise<Response>`). These helpers wrap such a handler
- * as a SvelteKit endpoint handler (`(event: RequestEvent) => Promise<Response>`)
- * so an Effect HTTP app can back a `+server.ts` route. Mount it on a catch-all
+ * A SvelteKit endpoint is a `RequestHandler` (`(event) => Response`). Effect can
+ * turn an [`HttpApi`](https://effect.website), an `HttpRouter`, or a single
+ * route effect into a Web `fetch` handler; these helpers wrap one as a SvelteKit
+ * endpoint handler so a route can be served by Effect. Mount it on a catch-all
  * route (`[...path]`) and assign it to `fallback` so every method and sub-path
- * reaches the Effect app:
+ * reaches it:
  *
  * @example
  * ```ts
  * // src/routes/api/[...path]/+server.ts
- * import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
+ * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
  * import { api } from "$lib/server/api";
- * import { ApiLive } from "$lib/server/handlers";
+ * import { ApiLive } from "$lib/server/handlers"; // HttpApiBuilder.group(...) + your services
  *
- * // `ApiLive` implements `api`'s groups (HttpApiBuilder.group), with any app
- * // services already provided. `prefix` strips the SvelteKit mount path so the
- * // API's own paths (e.g. "/users") match.
- * export const fallback = HttpApp.fromApi(api, ApiLive, { prefix: "/api" });
+ * // `prefix` strips the SvelteKit mount path so the API's own paths
+ * // (e.g. "/users") match.
+ * export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
  * ```
  *
- * The layer backing an app is built once, lazily, on the first request and
+ * The layer backing an endpoint is built once, lazily, on the first request and
  * shared across subsequent requests (like `makeServerRuntime`). The returned
  * handler carries a `dispose()` that closes the layer's scope — call it on
- * shutdown if your app holds resources.
+ * shutdown if the endpoint holds resources.
  *
  * The Effect handlers receive an Effect-native `HttpServerRequest` (built from
  * `event.request`), not the SvelteKit `RequestEvent`.
  */
 
-import type { RequestEvent } from "@sveltejs/kit";
+import type { RequestHandler } from "@sveltejs/kit";
 import { Layer } from "effect";
 import type { Effect, Scope } from "effect";
 import * as FileSystem from "effect/FileSystem";
@@ -50,24 +46,24 @@ import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
 
 /** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
-export type WebHandler = (request: Request) => Promise<Response>;
+type WebHandler = (request: Request) => Promise<Response>;
 
 /**
- * A SvelteKit endpoint handler backed by an Effect HTTP app. Assign it to a
- * `+server.ts` export (`fallback`, `GET`, ...). Calling `dispose()` closes the
- * scope of the layer backing the app.
+ * A SvelteKit endpoint handler — the built-in
+ * [`RequestHandler`](https://svelte.dev/docs/kit/@sveltejs-kit#RequestHandler) —
+ * backed by an Effect HTTP construct. Assign it to a `+server.ts` export
+ * (`fallback`, `GET`, ...). `dispose()` closes the scope of the layer behind it.
  */
-export interface HttpAppHandler {
-  (event: RequestEvent): Promise<Response>;
-  /** Close the scope of the layer backing the app (runs its finalizers). */
+export type EndpointHandler = RequestHandler & {
+  /** Close the scope of the layer backing the endpoint (runs its finalizers). */
   readonly dispose: () => Promise<void>;
-}
+};
 
-/** Shared options for every `HttpApp.from*` helper. */
-export interface HttpAppOptions {
+/** Shared options for every `Endpoint.from*` helper. */
+export interface EndpointOptions {
   /**
    * A leading path segment to strip from each request before it reaches the
-   * Effect app — the SvelteKit mount point. For an app mounted at
+   * Effect handler — the SvelteKit mount point. For an endpoint mounted at
    * `src/routes/api/[...path]/+server.ts` whose routes are defined relative to
    * the API root, pass `prefix: "/api"` so `/api/users` is dispatched as
    * `/users`. The match respects path boundaries (`/api` does not strip
@@ -100,8 +96,8 @@ const make = (
   webHandler: WebHandler,
   dispose: () => Promise<void>,
   prefix: string | undefined,
-): HttpAppHandler => {
-  const handler = (event: RequestEvent): Promise<Response> =>
+): EndpointHandler => {
+  const handler: RequestHandler = (event) =>
     webHandler(prefix === undefined ? event.request : stripPrefix(event.request, prefix));
   return Object.assign(handler, { dispose });
 };
@@ -112,8 +108,8 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
 );
 
 /**
- * Expose an Effect [`HttpApi`](https://effect.website) as a SvelteKit endpoint
- * handler.
+ * Create a SvelteKit endpoint that serves an Effect
+ * [`HttpApi`](https://effect.website).
  *
  * `layer` implements the API's groups (built with `HttpApiBuilder.group`), with
  * any application services already provided. The platform services an `HttpApi`
@@ -122,23 +118,23 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
  * @example
  * ```ts
  * // src/routes/api/[...path]/+server.ts
- * import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
+ * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
  * import { api } from "$lib/server/api";
  * import { ApiLive } from "$lib/server/handlers";
  *
- * export const fallback = HttpApp.fromApi(api, ApiLive, { prefix: "/api" });
+ * export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
  * ```
  */
 export const fromApi = <Id extends string, Groups extends HttpApiGroup.Any, E>(
   api: HttpApi.HttpApi<Id, Groups>,
   layer: Layer.Layer<HttpApiGroup.ToService<Id, Groups>, E>,
-  options?: HttpAppOptions & {
+  options?: EndpointOptions & {
     /** Serve the OpenAPI spec for the API at this path (e.g. `"/openapi.json"`). */
     readonly openapiPath?: `/${string}`;
     /** Add Effect's request logger middleware. Defaults to `false` (quiet). */
     readonly logger?: boolean;
   },
-): HttpAppHandler => {
+): EndpointHandler => {
   const appLayer = HttpApiBuilder.layer(
     api,
     options?.openapiPath ? { openapiPath: options.openapiPath } : undefined,
@@ -152,22 +148,22 @@ export const fromApi = <Id extends string, Groups extends HttpApiGroup.Any, E>(
 };
 
 /**
- * Expose an Effect `HttpRouter` (provided by `layer`) as a SvelteKit endpoint
- * handler. The router's routes must be self-contained (any services they need
+ * Create a SvelteKit endpoint that serves an Effect `HttpRouter` (provided by
+ * `layer`). The router's routes must be self-contained (any services they need
  * are provided within `layer`).
  *
  * @example
  * ```ts
  * // src/routes/api/[...path]/+server.ts
- * import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
- * import { Effect, Layer } from "effect";
+ * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
+ * import { Effect } from "effect";
  * import { HttpRouter, HttpServerResponse } from "effect/unstable/http";
  *
  * const RouterLive = HttpRouter.use((router) =>
  *   router.add("GET", "/hello", Effect.succeed(HttpServerResponse.text("hi"))),
  * );
  *
- * export const fallback = HttpApp.fromRouter(RouterLive, { prefix: "/api" });
+ * export const fallback = Endpoint.fromRouter(RouterLive, { prefix: "/api" });
  * ```
  */
 export const fromRouter = <
@@ -181,11 +177,11 @@ export const fromRouter = <
     | HttpRouter.Request<"GlobalError", any>,
 >(
   layer: Layer.Layer<A, E, R>,
-  options?: HttpAppOptions & {
+  options?: EndpointOptions & {
     /** Add Effect's request logger middleware. Defaults to `false` (quiet). */
     readonly logger?: boolean;
   },
-): HttpAppHandler => {
+): EndpointHandler => {
   const { handler, dispose } = HttpRouter.toWebHandler(layer, {
     disableLogger: options?.logger !== true,
   });
@@ -193,19 +189,19 @@ export const fromRouter = <
 };
 
 /**
- * Expose a single Effect HTTP route — an effect producing an
- * `HttpServerResponse` for the current `HttpServerRequest` — as a SvelteKit
- * endpoint handler. Pass `options.layer` to provide the route's services; the
- * layer is built once and shared.
+ * Create a SvelteKit endpoint from a single Effect HTTP route — an effect
+ * producing an `HttpServerResponse` for the current `HttpServerRequest`. Pass
+ * `options.layer` to provide the route's services; the layer is built once and
+ * shared.
  *
  * @example
  * ```ts
  * // src/routes/health/+server.ts
- * import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
+ * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
  * import { Effect } from "effect";
  * import { HttpServerResponse } from "effect/unstable/http";
  *
- * export const GET = HttpApp.fromHttpEffect(
+ * export const GET = Endpoint.fromHttpEffect(
  *   Effect.succeed(HttpServerResponse.text("ok")),
  * );
  * ```
@@ -216,11 +212,11 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
     E,
     R | HttpServerRequest.HttpServerRequest | Scope.Scope
   >,
-  options?: HttpAppOptions & {
+  options?: EndpointOptions & {
     /** A layer providing the route's services (`R`), built once and shared. */
     readonly layer?: Layer.Layer<R, ProvidedE>;
   },
-): HttpAppHandler => {
+): EndpointHandler => {
   if (options?.layer) {
     const { handler, dispose } = HttpEffect.toWebHandlerLayer(effect, options.layer);
     return make(handler as WebHandler, dispose, options.prefix);
@@ -234,25 +230,3 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
   );
   return make(handler, noopDispose, options?.prefix);
 };
-
-/**
- * Expose any Web `fetch` handler — for instance the `handler` returned by
- * Effect's own `HttpRouter.toWebHandler` / `HttpEffect.toWebHandler` — as a
- * SvelteKit endpoint handler. The escape hatch the other helpers build on.
- *
- * @example
- * ```ts
- * import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
- * import { HttpRouter } from "effect/unstable/http";
- *
- * const { handler, dispose } = HttpRouter.toWebHandler(RouterLive);
- * export const fallback = HttpApp.fromWebHandler(handler, { dispose, prefix: "/api" });
- * ```
- */
-export const fromWebHandler = (
-  webHandler: WebHandler,
-  options?: HttpAppOptions & {
-    /** Disposer for whatever backs the handler, exposed as `.dispose`. */
-    readonly dispose?: () => Promise<void>;
-  },
-): HttpAppHandler => make(webHandler, options?.dispose ?? noopDispose, options?.prefix);

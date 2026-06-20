@@ -235,36 +235,36 @@ import {
   endpoint,
   // hooks.server.ts hooks as Effects: Hooks.handle / handleFetch / handleError / init
   Hooks,
-  // expose an Effect HttpApi / HttpRouter / route as a +server.ts endpoint
-  HttpApp,
+  // create a +server.ts endpoint from an Effect HttpApi / HttpRouter / route
+  Endpoint,
   makeServerRuntime,
 } from "@thomasfosterau/effect-sveltekit/server";
 ```
 
-### Effect `HttpApi` / HTTP app as a SvelteKit endpoint
+### SvelteKit endpoints backed by Effect
 
-Mount an Effect [`HttpApi`](https://effect.website), an `HttpRouter`, or a single
-route effect on a `+server.ts` route. Effect turns each of these into a Web
-`fetch` handler; the `HttpApp` helpers wrap that as a SvelteKit endpoint. Put it
-on a catch-all route and assign it to `fallback` so every method and sub-path
-reaches the Effect app — `prefix` strips the SvelteKit mount path so the app's
-own paths line up:
+Create a `+server.ts` endpoint from an Effect [`HttpApi`](https://effect.website),
+an `HttpRouter`, or a single route effect. Effect turns each of these into a Web
+`fetch` handler; the `Endpoint` helpers wrap one as a SvelteKit `RequestHandler`.
+Put it on a catch-all route and assign it to `fallback` so every method and
+sub-path reaches it — `prefix` strips the SvelteKit mount path so the route's own
+paths line up:
 
 ```ts
 // src/routes/api/[...path]/+server.ts
-import { HttpApp } from "@thomasfosterau/effect-sveltekit/server";
+import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
 import { api } from "$lib/server/api";
 import { ApiLive } from "$lib/server/handlers"; // HttpApiBuilder.group(...) + your services
 
-export const fallback = HttpApp.fromApi(api, ApiLive, { prefix: "/api" });
+export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
 ```
 
-`HttpApp.fromApi` supplies the platform services an `HttpApi` needs
-(`HttpPlatform`, `FileSystem`, `Path`, `Etag`); `fromRouter`, `fromHttpEffect`,
-and `fromWebHandler` cover hand-built routers, single routes, and any other Web
-handler. The backing layer is built once on the first request and shared; the
-returned handler carries a `dispose()` for shutdown. Handlers receive an
-Effect-native `HttpServerRequest` (built from `event.request`).
+`Endpoint.fromApi` supplies the platform services an `HttpApi` needs
+(`HttpPlatform`, `FileSystem`, `Path`, `Etag`); `Endpoint.fromRouter` and
+`Endpoint.fromHttpEffect` cover hand-built routers and single routes. The backing
+layer is built once on the first request and shared; the returned handler carries
+a `dispose()` for shutdown. Handlers receive an Effect-native `HttpServerRequest`
+(built from `event.request`).
 
 ### SvelteKit client helpers
 

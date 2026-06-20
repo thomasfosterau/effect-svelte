@@ -176,11 +176,11 @@ export function endpoint<
 export * as Hooks from "./server/Hooks.js";
 
 /**
- * Expose an Effect HTTP application (`HttpApi`, `HttpRouter`, or a single route)
- * as a SvelteKit `+server.ts` endpoint: the `HttpApp` namespace exposes
- * `fromApi`, `fromRouter`, `fromHttpEffect`, and `fromWebHandler`.
+ * Create SvelteKit `+server.ts` endpoints backed by Effect: the `Endpoint`
+ * namespace exposes `fromApi` (an `HttpApi`), `fromRouter` (an `HttpRouter`),
+ * and `fromHttpEffect` (a single HTTP route effect).
  */
-export * as HttpApp from "./server/HttpApp.js";
+export * as Endpoint from "./server/Endpoint.js";
 
 /**
  * App-wide runtime: define your application's Effect services once and share
