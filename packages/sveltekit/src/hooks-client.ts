@@ -1,11 +1,25 @@
 /**
- * Effect wrappers for SvelteKit's client-side hooks (`src/hooks.client.ts`).
+ * Effect wrappers for SvelteKit's client-side hooks (`src/hooks.client.ts`),
+ * exposed as the `Hooks` namespace of `@thomasfosterau/effect-sveltekit/client`.
  *
- * These mirror the server hook helpers in `./server.ts`, but run on the
+ * These mirror the server hook helpers in `./hooks-server.ts`, but run on the
  * client: there is no request context, so each effect runs on a bare Effect
  * runtime. For application services, run the effect through your own runtime
  * instead. Kept free of `$app/*` imports so it stays importable (and testable)
  * outside of a SvelteKit app.
+ *
+ * @example
+ * ```ts
+ * // src/hooks.client.ts
+ * import { Hooks } from '@thomasfosterau/effect-sveltekit/client';
+ * import { Effect } from 'effect';
+ *
+ * export const handleError = Hooks.handleError(({ error, event }) =>
+ *   Effect.as(Effect.logError(`navigation to ${event.url.pathname} failed`, error), {
+ *     message: 'Something went wrong',
+ *   })
+ * );
+ * ```
  */
 
 import type { ClientInit, HandleClientError } from "@sveltejs/kit";
@@ -22,7 +36,7 @@ const runBareHook = async <A>(effect: Effect.Effect<A, unknown>): Promise<A> =>
   });
 
 /**
- * Wraps an Effect-based function to work as the SvelteKit client
+ * Wraps an Effect-based function as the SvelteKit client
  * [`handleError`](https://svelte.dev/docs/kit/hooks#Shared-hooks-handleError)
  * hook, which runs when an unexpected error is thrown while navigating in the
  * browser. The effect receives the error and navigation event and produces the
@@ -31,10 +45,10 @@ const runBareHook = async <A>(effect: Effect.Effect<A, unknown>): Promise<A> =>
  * @example
  * ```ts
  * // src/hooks.client.ts
- * import { handleError } from '@thomasfosterau/effect-sveltekit/client';
+ * import { Hooks } from '@thomasfosterau/effect-sveltekit/client';
  * import { Effect } from 'effect';
  *
- * export const handleError = handleError(({ error, event }) =>
+ * export const handleError = Hooks.handleError(({ error, event }) =>
  *   Effect.gen(function* () {
  *     yield* Effect.logError(`navigation to ${event.url.pathname} failed`, error);
  *     return { message: 'Something went wrong' };
@@ -51,7 +65,7 @@ export function handleError(
 }
 
 /**
- * Wraps an Effect to work as the SvelteKit client
+ * Wraps an Effect as the SvelteKit client
  * [`init`](https://svelte.dev/docs/kit/hooks#Shared-hooks-init) hook, which
  * runs once when the app starts in the browser. The effect runs on a bare
  * Effect runtime.
@@ -59,12 +73,10 @@ export function handleError(
  * @example
  * ```ts
  * // src/hooks.client.ts
- * import { init } from '@thomasfosterau/effect-sveltekit/client';
+ * import { Hooks } from '@thomasfosterau/effect-sveltekit/client';
  * import { Effect } from 'effect';
  *
- * export const init = init(
- *   Effect.logInfo('client app started')
- * );
+ * export const init = Hooks.init(Effect.logInfo('client app started'));
  * ```
  */
 export function init(effect: Effect.Effect<void, unknown>): ClientInit {

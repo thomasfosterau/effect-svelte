@@ -2,13 +2,20 @@
 "@thomasfosterau/effect-sveltekit": minor
 ---
 
-Add explicit Effect wrappers for the remaining SvelteKit hooks, so the explicit
-API now covers the same hooks as the `effectKit()` auto-wrap path.
+Group the SvelteKit hook helpers into a `Hooks` namespace, one per hook file,
+and complete the set so every hook can be written as an Effect:
 
-- `/server`: `handleFetch`, `handleError`, and `init` join the existing `handle`
-  helper. They run on the SvelteKit server runtime (per-request `HttpClient` +
-  `RequestEvent`), and the matching `ServerRuntime` methods
-  (`handleFetch`/`handleError`/`init`) make them available with an app-wide
-  layer's services.
-- `/client`: `handleError` and `init` wrap the client-side `hooks.client.ts`
-  hooks, running each Effect on a bare runtime.
+- `@thomasfosterau/effect-sveltekit` → `Hooks.reroute`, `Hooks.transport`,
+  `Hooks.transporter` (universal `hooks.ts`).
+- `@thomasfosterau/effect-sveltekit/server` → `Hooks.handle`,
+  `Hooks.handleFetch`, `Hooks.handleError`, `Hooks.init` (`hooks.server.ts`).
+- `@thomasfosterau/effect-sveltekit/client` → `Hooks.handleError`, `Hooks.init`
+  (`hooks.client.ts`).
+
+`handleFetch`, `handleError`, and `init` are new (previously only the
+`effectKit()` auto-wrap path covered them); the matching `ServerRuntime`
+methods (`handleFetch`/`handleError`/`init`) make them available with an
+app-wide layer's services.
+
+The previously flat `handle`, `reroute`, `transport`, and `transporter` exports
+now live under `Hooks` (e.g. `Hooks.handle`, `Hooks.transport`).

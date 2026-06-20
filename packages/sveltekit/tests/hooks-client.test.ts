@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Effect } from "effect";
-import { handleError, init } from "../src/client-hooks.js";
+import { handleError, init } from "../src/hooks-client.js";
 
 const navigationEvent = (pathname = "/") =>
   ({
@@ -9,7 +9,7 @@ const navigationEvent = (pathname = "/") =>
     route: { id: null },
   }) as any;
 
-describe("client handleError", () => {
+describe("client Hooks.handleError", () => {
   it("runs an effect and returns the App.Error shape", async () => {
     const hook = handleError(({ error, event }) =>
       Effect.succeed({ message: `${(error as Error).message} @ ${event.url.pathname}` }),
@@ -47,7 +47,7 @@ describe("client handleError", () => {
   });
 });
 
-describe("client init", () => {
+describe("client Hooks.init", () => {
   it("runs the effect once", async () => {
     let started = 0;
     const hook = init(
