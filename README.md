@@ -245,18 +245,28 @@ call helpers:
 
 ```ts
 import {
-  goto,
-  invalidate,
-  invalidateAll,
-  preloadData,
-  // remote-function helpers
-  callQuery,
-  callCommand,
-  liveQueryStream,
+  // $app/navigation: promise wrappers (goto, invalidate, ...) and lifecycle
+  // events as Effect Streams (beforeNavigate/afterNavigate/onNavigate)
+  Navigation,
+  // $app/state: the current page as a Stream of snapshots
+  State,
+  // remote-function helpers (callQuery, callCommand, liveQueryStream, ...)
+  Remote,
   // a reactive remote resource as an AsyncResult
   useRemoteQuery,
 } from "@thomasfosterau/effect-sveltekit/client";
+
+// e.g. Navigation.goto('/done'), Navigation.invalidateAll(),
+//      Remote.callQuery(getTodos), State.page()
 ```
+
+`Navigation.beforeNavigate()` / `Navigation.afterNavigate()` bridge
+`$app/navigation`'s callback-registration functions to `Stream`s,
+`Navigation.onNavigate(fn => Effect)` runs an Effect per navigation (forwarding
+any cleanup the Effect yields), and `State.page()` emits a shallow snapshot of
+`$app/state`'s `page` initially and after each navigation. Like the bare
+SvelteKit functions they wrap, these must be called during component
+initialization (at the top of `<script>`).
 
 ### `transport` hook from Effect Schema
 

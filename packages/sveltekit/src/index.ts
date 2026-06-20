@@ -8,7 +8,7 @@
 
 // Re-export universal helpers
 export * from "./universal.js";
-export * from "./remote-call.js";
+export * as Remote from "./Remote.js";
 export type { SvelteKitServices } from "./app-runtime.js";
 
 // Effect Schema ⇄ SvelteKit `transport` hook
