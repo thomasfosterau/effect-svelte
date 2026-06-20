@@ -370,13 +370,21 @@ vite.config.ts        Workspace Vite+ config (run cache, lint, fmt)
 
 ## Release workflow
 
-Changesets is configured at the repository root and versions both packages.
+Releases are automated with [Changesets](https://github.com/changesets/changesets)
+and the **Release** GitHub workflow: changesets that land on `main` produce a
+"Version Packages" PR, and merging it publishes the changed packages to npm. The
+private example apps are excluded from versioning/publishing.
 
 ```bash
-vp run changeset   # Create a changeset
-vp run version     # Apply pending changesets to the package versions
-vp run release     # Build and publish to npm
+vp run changeset          # author a changeset
+vp run changeset status   # preview pending releases
+vp run version            # apply changesets locally (bumps + CHANGELOGs)
+vp run release            # build all packages + changeset publish
 ```
+
+See **[`docs/RELEASING.md`](./docs/RELEASING.md)** for the full runbook,
+including the two one-time repository settings the pipeline requires (enabling
+GitHub Actions to open the release PR, and the `NPM_TOKEN` secret).
 
 ## License
 
