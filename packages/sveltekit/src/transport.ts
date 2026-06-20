@@ -15,10 +15,10 @@
  *
  * ```ts
  * // src/hooks.ts
- * import { transport } from "@thomasfosterau/effect-sveltekit";
+ * import { Hooks } from "@thomasfosterau/effect-sveltekit";
  * import { Schema } from "effect";
  *
- * export const transport = transport({
+ * export const transport = Hooks.transport({
  *   Option: Schema.Option(Schema.Number),
  *   Date: Schema.Date,
  * });

@@ -161,9 +161,9 @@ export const load = runtime.serverLoad((event) =>
 );
 ```
 
-The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `endpoint`,
-`runPromise`, and `dispose`. For universal `load` functions there is a
-browser-safe counterpart, `makeUniversalRuntime`, in
+The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `handleFetch`,
+`handleError`, `init`, `endpoint`, `runPromise`, and `dispose`. For universal
+`load` functions there is a browser-safe counterpart, `makeUniversalRuntime`, in
 `@thomasfosterau/effect-sveltekit`.
 
 To make the same services available to bare-Effect exports handled by the
@@ -232,8 +232,9 @@ import {
   serverLoad,
   action,
   actions,
-  handle,
   endpoint,
+  // hooks.server.ts hooks as Effects: Hooks.handle / handleFetch / handleError / init
+  Hooks,
   makeServerRuntime,
 } from "@thomasfosterau/effect-sveltekit/server";
 ```
@@ -254,6 +255,8 @@ import {
   Remote,
   // a reactive remote resource as an AsyncResult
   useRemoteQuery,
+  // hooks.client.ts hooks as Effects: Hooks.handleError / Hooks.init
+  Hooks,
 } from "@thomasfosterau/effect-sveltekit/client";
 
 // e.g. Navigation.goto('/done'), Navigation.invalidateAll(),
@@ -273,14 +276,14 @@ initialization (at the top of `<script>`).
 Move custom types (`Option`, `DateTime`, branded types, `Schema.Class`
 instances, tagged errors, ...) across the server/client boundary — for `load`
 data and remote functions — by building SvelteKit's universal `transport` hook
-from Effect schemas:
+from Effect schemas (part of the universal `Hooks` namespace):
 
 ```ts
 // src/hooks.ts
-import { transport } from "@thomasfosterau/effect-sveltekit";
+import { Hooks } from "@thomasfosterau/effect-sveltekit";
 import { Schema } from "effect";
 
-export const transport = transport({
+export const transport = Hooks.transport({
   Option: Schema.Option(Schema.Number),
   Date: Schema.Date,
 });
@@ -301,17 +304,68 @@ import { Database } from "./database"; // its layer reads Config.string("DATABAS
 export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
 ```
 
-### `reroute` hook as an Effect
+### SvelteKit hooks as Effects (`Hooks`)
+
+Every SvelteKit hook has an explicit Effect wrapper, grouped into a `Hooks`
+namespace per hook file (mirroring the auto-wrap table above):
+
+| Import path                               | `Hooks` members                                | Runs on                                          |
+| ----------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| `@thomasfosterau/effect-sveltekit`        | `reroute`, `transport`, `transporter`          | universal runtime (`HttpClient` via event fetch) |
+| `@thomasfosterau/effect-sveltekit/server` | `handle`, `handleFetch`, `handleError`, `init` | server runtime (`HttpClient` + `RequestEvent`)   |
+| `@thomasfosterau/effect-sveltekit/client` | `handleError`, `init`                          | a bare Effect runtime                            |
 
 ```ts
 // src/hooks.ts
-import { reroute } from "@thomasfosterau/effect-sveltekit";
+import { Hooks } from "@thomasfosterau/effect-sveltekit";
 import { Effect } from "effect";
 
-export const reroute = reroute((event) =>
+export const reroute = Hooks.reroute((event) =>
   Effect.succeed(event.url.pathname === "/old" ? "/new" : undefined),
 );
 ```
+
+```ts
+// src/hooks.server.ts
+import { Hooks } from "@thomasfosterau/effect-sveltekit/server";
+import { Effect } from "effect";
+
+export const init = Hooks.init(Effect.logInfo("server starting up"));
+
+export const handle = Hooks.handle(({ event, resolve }) =>
+  Effect.gen(function* () {
+    const start = Date.now();
+    const response = yield* Effect.promise(() => resolve(event));
+    yield* Effect.logInfo(`${event.url.pathname} -> ${response.status} (${Date.now() - start}ms)`);
+    return response;
+  }),
+);
+
+export const handleError = Hooks.handleError(({ error, event }) =>
+  Effect.gen(function* () {
+    const id = crypto.randomUUID();
+    yield* Effect.logError(`${event.url.pathname} (${id})`, error);
+    return { message: "Internal Error", id };
+  }),
+);
+```
+
+```ts
+// src/hooks.client.ts
+import { Hooks } from "@thomasfosterau/effect-sveltekit/client";
+import { Effect } from "effect";
+
+export const handleError = Hooks.handleError(({ error }) =>
+  Effect.as(Effect.logError("client navigation failed", error), {
+    message: "Something went wrong",
+  }),
+);
+```
+
+To additionally provide your application's services to the server hooks, use the
+matching methods on an app-wide runtime (`runtime.handle`, `runtime.handleFetch`,
+`runtime.handleError`, `runtime.init`). The same exports also work as bare
+Effects (no explicit wrapper) when the `effectKit()` Vite plugin is enabled.
 
 ## Examples
 

@@ -12,7 +12,17 @@
  * deduplication, relative URLs) keep working as expected.
  */
 
-import type { Action, Actions, Handle, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type {
+  Action,
+  Actions,
+  Handle,
+  HandleFetch,
+  HandleServerError,
+  Load,
+  RequestEvent,
+  ServerInit,
+  ServerLoad,
+} from "@sveltejs/kit";
 import { Effect, Exit, Layer, ManagedRuntime } from "effect";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
@@ -106,6 +116,38 @@ export interface ServerRuntime<R = never, E = never> {
   readonly handle: (
     fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, R | SvelteKitServices>,
   ) => Handle;
+
+  /**
+   * Wraps an Effect-based function as a SvelteKit server `handleFetch` hook,
+   * which intercepts `event.fetch` calls made on the server. The effect runs
+   * with the per-request services on top of the application layer and produces
+   * the `Response` to use.
+   */
+  readonly handleFetch: (
+    fn: (
+      args: Parameters<HandleFetch>[0],
+    ) => Effect.Effect<Response, unknown, R | SvelteKitServices>,
+  ) => HandleFetch;
+
+  /**
+   * Wraps an Effect-based function as a SvelteKit server `handleError` hook.
+   *
+   * The effect receives the error and the request event, and produces the
+   * shape that SvelteKit exposes to the client (your `App.Error`, or nothing).
+   * It runs with the per-request services on top of the application layer.
+   */
+  readonly handleError: (
+    fn: (
+      args: Parameters<HandleServerError>[0],
+    ) => Effect.Effect<Awaited<ReturnType<HandleServerError>>, unknown, R | SvelteKitServices>,
+  ) => HandleServerError;
+
+  /**
+   * Wraps an Effect as a SvelteKit server `init` hook, run once before the
+   * server responds to its first request. There is no request event, so the
+   * effect only has access to the application layer's services.
+   */
+  readonly init: (effect: Effect.Effect<void, unknown, R>) => ServerInit;
 
   /**
    * Wraps an Effect-based function as a SvelteKit `+server.ts` endpoint
@@ -214,6 +256,13 @@ export const makeServerRuntime = <R = never, E = never>(
       return wrapped as never;
     },
     handle: (fn) => (input) => run(input.event, fn(input)),
+    handleFetch: (fn) => (args) => run(args.event, fn(args)),
+    handleError: (fn) => (args) => run(args.event, fn(args)),
+    init: (effect) => async () => {
+      // `init` runs outside of any request, so it executes directly on the
+      // application runtime without the per-request layer.
+      settle(await runtime.runPromiseExit(effect));
+    },
     endpoint: (fn) => (event) => run(event, fn(event)),
     runPromise: run,
     runPromiseExit: runExit,

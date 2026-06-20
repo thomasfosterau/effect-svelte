@@ -1,14 +1,10 @@
-import type { ServerLoad, RequestEvent, Actions, Action, Handle } from "@sveltejs/kit";
+import type { Action, Actions, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import { Effect, Exit, Cause } from "effect";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
-import { makeServerRuntime, type ServerRuntime, type SvelteKitServices } from "./app-runtime.js";
+import type { SvelteKitServices } from "./app-runtime.js";
+import { defaultServerRuntime as runtime } from "./internal/default-runtime.js";
 
 export type { SvelteKitServices };
-
-// Shared runtime (no application layer) backing the standalone wrappers.
-// Created lazily so importing this module has no side effects.
-let defaultRuntime: ServerRuntime | undefined;
-const runtime = (): ServerRuntime => (defaultRuntime ??= makeServerRuntime());
 
 /**
  * Wraps an Effect-based function to work as a SvelteKit server load function.
@@ -112,31 +108,6 @@ export function actions<
 }
 
 /**
- * Wraps an Effect-based function to work as a SvelteKit hook.
- * The effect has access to platform services via the SvelteKit runtime.
- *
- * @example
- * ```ts
- * import { handle as effectHandle } from '@thomasfosterau/effect-sveltekit/server';
- * import { Effect } from 'effect';
- *
- * export const handle = effectHandle(({ event, resolve }) =>
- *   Effect.gen(function* () {
- *     // Add custom logic before resolve
- *     const response = yield* Effect.promise(() => resolve(event));
- *     // Add custom logic after resolve
- *     return response;
- *   })
- * );
- * ```
- */
-export function handle(
-  fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, SvelteKitServices>,
-): Handle {
-  return runtime().handle(fn);
-}
-
-/**
  * Wraps an Effect-based function to work as a SvelteKit API endpoint handler.
  * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
  * via the SvelteKit runtime.
@@ -199,6 +170,12 @@ export function endpoint<
 }
 
 /**
+ * Effect wrappers for the server-side hooks (`hooks.server.ts`): the `Hooks`
+ * namespace exposes `handle`, `handleFetch`, `handleError`, and `init`.
+ */
+export * as Hooks from "./server/Hooks.js";
+
+/**
  * App-wide runtime: define your application's Effect services once and share
  * them across every request.
  */
@@ -211,8 +188,8 @@ export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from
 export { RemoteFunction } from "./remote.server.js";
 
 /**
- * SvelteKit `$env` ⇄ Effect `Config` (see {@link sveltekitConfig}), and the
- * Effect Schema ⇄ SvelteKit `transport` hook helpers (see {@link transport}).
+ * SvelteKit `$env` ⇄ Effect `Config` (see {@link sveltekitConfig}). The
+ * Effect Schema ⇄ SvelteKit `transport` hook lives on the universal `Hooks`
+ * namespace (`Hooks.transport`) in `@thomasfosterau/effect-sveltekit`.
  */
 export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
-export { transport, transporter } from "./transport.js";
