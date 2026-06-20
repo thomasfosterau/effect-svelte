@@ -463,9 +463,10 @@ vp run version            # apply changesets locally (bumps + CHANGELOGs)
 vp run release            # build all packages + changeset publish
 ```
 
-See **[`docs/RELEASING.md`](./docs/RELEASING.md)** for the full runbook,
-including the two one-time repository settings the pipeline requires (enabling
-GitHub Actions to open the release PR, and the `NPM_TOKEN` secret).
+Publishing uses npm **Trusted Publishing (OIDC)** — no long-lived token. See
+**[`docs/RELEASING.md`](./docs/RELEASING.md)** for the full runbook, including
+the one-time setup (enabling GitHub Actions to open the release PR, and adding a
+trusted publisher for each package on npm).
 
 ## License
 

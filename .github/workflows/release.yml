@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
+      # npm Trusted Publishing (OIDC) requires npm >= 11.5. Upgrade so
+      # `changeset publish` authenticates to npm via the `id-token` below
+      # instead of a long-lived NPM_TOKEN.
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
@@ -36,4 +42,6 @@ jobs:
           publish: vp run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No NPM_TOKEN: publishing authenticates via OIDC trusted publishing
+          # (the `id-token: write` permission above + a trusted publisher
+          # configured for each package on npmjs.com). See docs/RELEASING.md.

@@ -12,8 +12,10 @@ The private example apps under `examples/` are listed in
 
 ## One-time repository setup (required)
 
-The Release workflow needs two settings that live in GitHub, **not** in the
-repo — a release cannot complete until both are in place:
+Publishing uses **npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+via OIDC** — no long-lived `NPM_TOKEN`. The workflow already has
+`permissions: id-token: write` and upgrades npm to a version that supports OIDC
+(>= 11.5); two things still need configuring outside the repo:
 
 1. **Allow the Action to open the release PR.**
    _Settings → Actions → General → Workflow permissions →_ enable
@@ -23,11 +25,27 @@ repo — a release cannot complete until both are in place:
    with `GitHub Actions is not permitted to create or approve pull requests`,
    so no "Version Packages" PR is opened.
 
-2. **Add an npm token.**
-   _Settings → Secrets and variables → Actions →_ add a secret named
-   **`NPM_TOKEN`** — an npm **automation** (or granular) token with publish
-   access to the `@thomasfosterau` scope. The workflow's publish step
-   (`changeset publish`) fails without it.
+2. **Configure a trusted publisher for each package on npmjs.com.**
+   For **both** `@thomasfosterau/effect-svelte` and
+   `@thomasfosterau/effect-sveltekit`, go to the package's
+   _Settings → Trusted Publisher_ and add a GitHub Actions publisher:
+   - Organization or user: `thomasfosterau`
+   - Repository: `effect-svelte`
+   - Workflow filename: `release.yml`
+   - Environment: _(leave blank — the workflow doesn't use one)_
+
+   Both packages point at the same workflow file. No npm token is stored
+   anywhere; the workflow exchanges a short-lived GitHub OIDC token for npm
+   publish access at publish time, and provenance is attached automatically.
+
+   > **First publish of a brand-new package.** npm only lets you add a trusted
+   > publisher to a package that **already exists**, so the very first publish
+   > of each new package (the initial `0.1.0` here) can't use OIDC. Bootstrap it
+   > once — e.g. publish locally with a short-lived [granular access
+   > token](https://docs.npmjs.com/creating-and-viewing-access-tokens)
+   > (`vp run -r build && cd packages/<pkg> && npm publish --access public`) —
+   > then add the trusted publisher and let OIDC handle every release after.
+   > (Tracked upstream in [npm/cli#8544](https://github.com/npm/cli/issues/8544).)
 
 ## How a release happens
 
@@ -45,7 +63,8 @@ repo — a release cannot complete until both are in place:
 3. **Publish (automatic on merge).** Merging the "Version Packages" PR triggers
    the workflow's publish step, `vp run release`
    (`vp run -r build && changeset publish`), which builds every package and
-   publishes the ones whose versions changed to npm.
+   publishes the ones whose versions changed to npm — authenticating via OIDC,
+   no token required.
 
 ## Manual fallback
 
