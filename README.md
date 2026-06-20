@@ -54,13 +54,13 @@ and `fromStore`), typed as Effect's native
 
 ```svelte
 <script lang="ts">
-  import { provideRuntime, derived, AsyncResult } from "@thomasfosterau/effect-svelte";
+  import { provideRuntime, useDerived, AsyncResult } from "@thomasfosterau/effect-svelte";
   import { Effect } from "effect";
 
   provideRuntime();
 
   let userId = $state(1);
-  const user = derived(() => fetchUser(userId));
+  const user = useDerived(() => fetchUser(userId));
 </script>
 
 <button onclick={() => userId++}>Next</button>
@@ -74,7 +74,7 @@ and `fromStore`), typed as Effect's native
 {/if}
 ```
 
-The hooks (`useEffect`, `useQuery`, `derived`, `useStream`, `useSubscriptionRef`,
+The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`,
 `usePubSub`, `reactiveQuery`, `reactiveStream`, `reactiveMutation`) all return a
 handle with `.current` (plus `values`/`latest`/`run`/`refetch` where relevant).
 `AsyncResult` and its combinators (`match`, `isSuccess`, `isWaiting`,

@@ -1,16 +1,14 @@
 <script lang="ts">
   import { Effect } from "effect";
-  // Note: the hook is aliased because a local binding named `derived` would
-  // clash with Svelte's $derived rune in this component.
-  import { derived as derivedEffect, AsyncResult } from "@thomasfosterau/effect-svelte";
+  import { useDerived, AsyncResult } from "@thomasfosterau/effect-svelte";
   import { MarketData } from "../market";
 
   let selected = $state("BTC");
 
-  // derived() re-runs the lookup effect whenever `selected` changes — the
+  // useDerived() re-runs the lookup effect whenever `selected` changes — the
   // thunk reads it synchronously, so Svelte tracks it as a dependency and
   // interrupts the in-flight lookup when it changes.
-  const quote = derivedEffect(() => {
+  const quote = useDerived(() => {
     const symbol = selected;
     return Effect.flatMap(MarketData, (market) => market.lookup(symbol));
   });
@@ -34,7 +32,7 @@
 </script>
 
 <section class="panel">
-  <h2>Spot quote — derived + match</h2>
+  <h2>Spot quote — useDerived + match</h2>
   <label for="quote-symbol">Symbol</label>
   <select id="quote-symbol" bind:value={selected}>
     {#each symbols as value (value)}
