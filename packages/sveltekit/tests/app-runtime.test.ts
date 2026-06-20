@@ -208,6 +208,96 @@ describe("makeServerRuntime", () => {
   });
 });
 
+describe("per-request runtime", () => {
+  it("handle installs a per-request runtime that serverLoad shares", async () => {
+    const runtime = makeServerRuntime(greeterLayer);
+    const load = runtime.serverLoad(() =>
+      Effect.gen(function* () {
+        const greeter = yield* Greeter;
+        const requestEvent = yield* SvelteKitRequestEvent;
+        const client = yield* HttpClient.HttpClient;
+        return {
+          message: greeter.greet(requestEvent.url.pathname),
+          hasClient: client !== undefined,
+        };
+      }),
+    );
+    const handle = runtime.handle(({ event, resolve }) =>
+      Effect.promise(async () => resolve(event)),
+    );
+
+    const event = mockEvent();
+    expect(runtime.requestRuntime(event)).toBeUndefined();
+
+    let installedDuringResolve = false;
+    const response = await handle({
+      event,
+      resolve: async (resolveEvent: any) => {
+        installedDuringResolve = runtime.requestRuntime(resolveEvent) !== undefined;
+        const data = await load(resolveEvent);
+        return new Response(JSON.stringify(data));
+      },
+    } as any);
+
+    expect(installedDuringResolve).toBe(true);
+    expect(await response.json()).toEqual({ message: "hello /", hasClient: true });
+  });
+
+  it("requestRuntime runs effects with app and request services", async () => {
+    const runtime = makeServerRuntime(greeterLayer);
+    const handle = runtime.handle(({ event, resolve }) =>
+      Effect.gen(function* () {
+        const rt = runtime.requestRuntime(event)!;
+        const greeting = yield* Effect.promise(() =>
+          rt.runPromise(
+            Effect.map(Effect.zip(Greeter, SvelteKitRequestEvent), ([greeter, ev]) =>
+              greeter.greet(ev.url.pathname),
+            ),
+          ),
+        );
+        return yield* Effect.promise(async () => resolve(event)).pipe(
+          Effect.as(new Response(greeting)),
+        );
+      }),
+    );
+
+    const response = await handle({
+      event: mockEvent(),
+      resolve: async () => new Response(),
+    } as any);
+    expect(await response.text()).toBe("hello /");
+  });
+
+  it("a different runtime's wrappers fall back instead of using the wrong layer", async () => {
+    const runtimeA = makeServerRuntime(greeterLayer);
+
+    class Other extends Context.Service<Other, { who: () => string }>()("test/Other") {}
+    const runtimeB = makeServerRuntime(Layer.succeed(Other, { who: () => "B" }));
+    const loadB = runtimeB.serverLoad(() => Effect.map(Other, (o) => ({ who: o.who() })));
+
+    const handleA = runtimeA.handle(({ event, resolve }) =>
+      Effect.promise(async () => resolve(event)),
+    );
+
+    const event = mockEvent();
+    let resultB: unknown;
+    let runtimeBInstalled = true;
+    await handleA({
+      event,
+      resolve: async (resolveEvent: any) => {
+        // locals carries runtime A's per-request runtime, not B's.
+        runtimeBInstalled = runtimeB.requestRuntime(resolveEvent) !== undefined;
+        resultB = await loadB(resolveEvent);
+        return new Response();
+      },
+    } as any);
+
+    // B's load must run on B's layer (Other), not A's — so it falls back.
+    expect(runtimeBInstalled).toBe(false);
+    expect(resultB).toEqual({ who: "B" });
+  });
+});
+
 describe("makeUniversalRuntime", () => {
   const clientEvent = () =>
     ({

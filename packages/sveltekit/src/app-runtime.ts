@@ -23,7 +23,7 @@ import type {
   ServerInit,
   ServerLoad,
 } from "@sveltejs/kit";
-import { Effect, Exit, Layer, ManagedRuntime } from "effect";
+import { Context, Effect, type Fiber, Exit, Layer, ManagedRuntime, Scope } from "effect";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
@@ -34,6 +34,57 @@ import { causeToThrowable } from "./internal/error.js";
  * the application's own layer.
  */
 export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
+
+/**
+ * A per-request Effect runtime: the application layer's services plus the
+ * per-request {@link SvelteKitServices} (an `HttpClient` backed by the request's
+ * `fetch`, and the {@link SvelteKitRequestEvent}), with the request services
+ * built once for the request and shared.
+ *
+ * A {@link ServerRuntime}'s `handle` hook creates one per request and stores it
+ * on `event.locals` (`App.Locals`). Every other wrapper for the same runtime
+ * (`serverLoad`, `action`, `endpoint`, ...) then runs on it, so a request's
+ * effects share one `HttpClient` and one request scope. Retrieve it from an
+ * event with `ServerRuntime.requestRuntime` to run your own effects.
+ */
+export interface RequestRuntime<R = never> {
+  /** Run an effect for this request, returning its `Exit`. */
+  readonly runPromiseExit: <A>(
+    effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
+  ) => Promise<Exit.Exit<A, unknown>>;
+  /** Run an effect for this request, throwing on failure (passing SvelteKit control flow through). */
+  readonly runPromise: <A>(effect: Effect.Effect<A, unknown, R | SvelteKitServices>) => Promise<A>;
+  /** Fork an effect for this request, returning the running fiber. */
+  readonly runFork: <A>(
+    effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
+  ) => Fiber.Fiber<A, unknown>;
+}
+
+/**
+ * Symbol under which a {@link ServerRuntime}'s `handle` stores the per-request
+ * {@link RequestRuntime} on `event.locals`. `Symbol.for` so the key is stable
+ * across module instances.
+ */
+const RequestRuntimeKey: unique symbol = Symbol.for(
+  "@thomasfosterau/effect-sveltekit/requestRuntime",
+);
+
+/**
+ * The locals entry: the per-request runtime tagged with the `ServerRuntime`
+ * that created it, so a different runtime's wrappers ignore it (and fall back
+ * to building request services themselves) rather than running on the wrong
+ * application layer.
+ */
+interface RequestRuntimeEntry {
+  readonly owner: object;
+  readonly runtime: RequestRuntime<any>;
+}
+
+/** Read the per-request runtime entry an event carries, if any. */
+const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefined =>
+  (event.locals as Record<PropertyKey, unknown> | undefined)?.[RequestRuntimeKey] as
+    | RequestRuntimeEntry
+    | undefined;
 
 /** Layer with the per-request services for a server-side request. */
 const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> =>
@@ -150,6 +201,24 @@ export interface ServerRuntime<R = never, E = never> {
   readonly init: (effect: Effect.Effect<void, unknown, R>) => ServerInit;
 
   /**
+   * The per-request {@link RequestRuntime} this runtime's `handle` stored on the
+   * event, or `undefined` when `handle` was not used for the request. Use it to
+   * run your own effects on the same per-request runtime (shared `HttpClient`
+   * and request scope) that `serverLoad` / `action` / `endpoint` use.
+   *
+   * @example
+   * ```ts
+   * // anywhere with the request event, e.g. another `handle` in the sequence
+   * const rt = runtime.requestRuntime(event);
+   * await rt?.runPromise(Effect.gen(function* () {
+   *   const user = yield* Auth.currentUser;
+   *   event.locals.user = user;
+   * }));
+   * ```
+   */
+  readonly requestRuntime: (event: RequestEvent) => RequestRuntime<R> | undefined;
+
+  /**
    * Wraps an Effect-based function as a SvelteKit `+server.ts` endpoint
    * handler (`GET`, `POST`, ...).
    */
@@ -229,10 +298,38 @@ export const makeServerRuntime = <R = never, E = never>(
 ): ServerRuntime<R, E> => {
   const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
 
+  // Identity token tagging the per-request runtimes this runtime creates, so a
+  // different runtime's wrappers don't run on the wrong application layer.
+  const owner = {};
+
+  /** A {@link RequestRuntime} that provides the prebuilt request services. */
+  const makeRequestRuntime = (
+    requestServices: Context.Context<SvelteKitServices>,
+  ): RequestRuntime<R> => {
+    const provide = <A>(effect: Effect.Effect<A, unknown, R | SvelteKitServices>) =>
+      Effect.provideContext(effect, requestServices) as Effect.Effect<A, unknown, R>;
+    return {
+      runPromiseExit: (effect) =>
+        runtime.runPromiseExit(provide(effect)) as Promise<Exit.Exit<any, unknown>>,
+      runPromise: (effect) => runtime.runPromiseExit(provide(effect)).then(settle),
+      runFork: (effect) => runtime.runFork(provide(effect)) as Fiber.Fiber<any, unknown>,
+    };
+  };
+
+  /** The per-request runtime for this runtime carried by the event, if any. */
+  const requestRuntimeOf = (event: RequestEvent): RequestRuntime<R> | undefined => {
+    const entry = requestRuntimeEntry(event);
+    return entry?.owner === owner ? (entry.runtime as RequestRuntime<R>) : undefined;
+  };
+
   const runExit = <A>(
     event: RequestEvent,
     effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
   ): Promise<Exit.Exit<A, unknown>> => {
+    // Reuse the per-request runtime `handle` installed, if any; otherwise build
+    // the per-request services for this single call.
+    const requestRuntime = requestRuntimeOf(event);
+    if (requestRuntime !== undefined) return requestRuntime.runPromiseExit(effect);
     const provided = Effect.provide(effect, requestLayer(event)) as Effect.Effect<A, unknown, R>;
     return runtime.runPromiseExit(provided) as Promise<Exit.Exit<A, unknown>>;
   };
@@ -243,6 +340,28 @@ export const makeServerRuntime = <R = never, E = never>(
   ): Promise<A> => runExit(event, effect).then(settle);
 
   const action: ServerRuntime<R, E>["action"] = (fn) => (event) => run(event, fn(event));
+
+  /**
+   * The `handle` hook: build a per-request runtime, store it on `event.locals`
+   * so every other wrapper (and the user's own code) runs on it, run the user's
+   * effect, then close the request scope.
+   */
+  const handle: ServerRuntime<R, E>["handle"] = (fn) => async (input) => {
+    const { event } = input;
+    const scope = Scope.makeUnsafe();
+    const requestServices = (await runtime.runPromise(
+      Layer.buildWithScope(requestLayer(event), scope),
+    )) as Context.Context<SvelteKitServices>;
+
+    const entry: RequestRuntimeEntry = { owner, runtime: makeRequestRuntime(requestServices) };
+    (event.locals as Record<PropertyKey, unknown>)[RequestRuntimeKey] = entry;
+
+    try {
+      return await (entry.runtime as RequestRuntime<R>).runPromise(fn(input));
+    } finally {
+      await runtime.runPromise(Scope.close(scope, Exit.void));
+    }
+  };
 
   return {
     runtime,
@@ -255,7 +374,7 @@ export const makeServerRuntime = <R = never, E = never>(
       }
       return wrapped as never;
     },
-    handle: (fn) => (input) => run(input.event, fn(input)),
+    handle,
     handleFetch: (fn) => (args) => run(args.event, fn(args)),
     handleError: (fn) => (args) => run(args.event, fn(args)),
     init: (effect) => async () => {
@@ -263,6 +382,7 @@ export const makeServerRuntime = <R = never, E = never>(
       // application runtime without the per-request layer.
       settle(await runtime.runPromiseExit(effect));
     },
+    requestRuntime: requestRuntimeOf,
     endpoint: (fn) => (event) => run(event, fn(event)),
     runPromise: run,
     runPromiseExit: runExit,

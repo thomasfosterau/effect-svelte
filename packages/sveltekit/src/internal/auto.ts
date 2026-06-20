@@ -184,13 +184,17 @@ export function wrapHandle<
 >(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : Handle {
   if (value === undefined) return undefined as never;
 
-  const handle: Handle = async ({ event, resolve }) => {
+  const handle: Handle = (input) => {
     const result = isEffectValue(value)
       ? value
-      : (value as (args: Parameters<Handle>[0]) => unknown)({ event, resolve });
+      : (value as (args: Parameters<Handle>[0]) => unknown)(input);
     if (!isEffectValue(result)) return result as Response | Promise<Response>;
 
-    return serverRuntimeOf(runtimeMod).runPromise(event, result) as Promise<Response>;
+    // Route through `handle` so the per-request runtime is installed on
+    // `event.locals` for the rest of the request, like the explicit wrapper.
+    return serverRuntimeOf(runtimeMod).handle(
+      () => result as Effect.Effect<Response, unknown, never>,
+    )(input) as Promise<Response>;
   };
   return handle as never;
 }
