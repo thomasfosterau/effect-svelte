@@ -54,13 +54,13 @@ and `fromStore`), typed as Effect's native
 
 ```svelte
 <script lang="ts">
-  import { provideRuntime, derived, AsyncResult } from "@thomasfosterau/effect-svelte";
+  import { provideRuntime, useDerived, AsyncResult } from "@thomasfosterau/effect-svelte";
   import { Effect } from "effect";
 
   provideRuntime();
 
   let userId = $state(1);
-  const user = derived(() => fetchUser(userId));
+  const user = useDerived(() => fetchUser(userId));
 </script>
 
 <button onclick={() => userId++}>Next</button>
@@ -74,15 +74,18 @@ and `fromStore`), typed as Effect's native
 {/if}
 ```
 
-The hooks (`useEffect`, `useQuery`, `derived`, `useStream`, `useSubscriptionRef`,
+The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`,
 `usePubSub`, `reactiveQuery`, `reactiveStream`, `reactiveMutation`) all return a
 handle with `.current` (plus `values`/`latest`/`run`/`refetch` where relevant).
 `AsyncResult` and its combinators (`match`, `isSuccess`, `isWaiting`,
 `getOrElse`, ...) are re-exported from the package root.
 
-To go the other way — Svelte → Effect — `streamFromStore(store)` turns any
+To go the other way — Svelte → Effect — `Store.toStream(store)` turns any
 Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
-`$state` into a `Stream`.
+`$state` into a `Stream`. The `Store` namespace also exposes the reverse
+direction (`Store.fromStream`, `Store.fromSubscriptionRef`, `Store.fromPubSub`,
+`Store.fromQueue`, `Store.fromRef`) for surfacing Effect sources as Svelte
+stores.
 
 ### SvelteKit Vite plugin (recommended)
 

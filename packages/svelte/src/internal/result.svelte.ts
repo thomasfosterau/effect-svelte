@@ -3,7 +3,7 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 
 /**
  * A reactive holder for an {@link AsyncResult.AsyncResult}, used by the hooks
- * that drive a result from a fiber's lifecycle (`useEffect`, `derived`,
+ * that drive a result from a fiber's lifecycle (`useEffect`, `useDerived`,
  * `reactiveQuery`, ...).
  *
  * The value lives in a `$state` field, so reassigning it through the methods

@@ -64,7 +64,7 @@ The rest of this document is the detailed opportunity list, tiered by impact.
 ## Where the library is today
 
 Svelte (`packages/svelte/src/`): `provideRuntime`/`getRuntime`, `SvelteRuntime`,
-`useScope(Callback)`, `useEffect`, `useStream`, `derived`, `useQuery`,
+`useScope(Callback)`, `useEffect`, `useStream`, `useDerived`, `useQuery`,
 `useSubscriptionRef`, `usePubSub`, `reactiveQuery`/`reactiveStream`/
 `reactiveMutation`/`useInvalidateKeys` (built on the older
 `unstable/reactivity/Reactivity`), `SignalEmitter`, and a bespoke
@@ -117,7 +117,7 @@ Why it matters:
 
 Migration: re-export the native module (`export * as AsyncResult from
 "effect/unstable/reactivity/AsyncResult"`), keep thin `match`/guard wrappers for
-ergonomics, and have `useEffect`/`derived`/`useStream` produce the native shape.
+ergonomics, and have `useEffect`/`useDerived`/`useStream` produce the native shape.
 The current bespoke `match(result, {initial, pending, success, failure})` becomes
 `AsyncResult.match` / `matchWithWaiting`. This is a breaking change — best done
 **before** 0.1.0 while there are no external consumers.
@@ -297,11 +297,10 @@ state, plus `Stream`s of page changes. Low effort, rounds out the story.
 
 ## Pre-publication hygiene (independent of features)
 
-- **Naming consistency.** Mixed `useX` (React-ish) vs `derived`/`reactiveX`. Pick
-  one convention before 0.1.0 (suggest: keep `useX` for hooks that take an
-  argument and return a handle; reserve bare names like `derived` only where
-  they shadow a Svelte concept intentionally — or rename to `useDerived` to
-  avoid confusion with `svelte`'s `derived` store).
+- **Naming consistency.** Mixed `useX` (React-ish) vs `useDerived`/`reactiveX`.
+  Pick one convention before 0.1.0 (suggest: keep `useX` for hooks that take an
+  argument and return a handle). The `derived` hook was renamed to `useDerived`
+  to avoid confusion with Svelte's `derived` store and `$derived` rune.
 - **`AsyncResult` export collision.** The bespoke `AsyncResult` is exported from
   the root; if we adopt the native one, decide whether to re-export or alias to
   avoid two incompatible `AsyncResult`s in the wild.

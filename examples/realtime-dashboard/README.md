@@ -29,7 +29,7 @@ pnpm run dev
 | `SignalEmitter` (Svelte → Effect)                                   | `SymbolSearch.svelte` (debounced lookups)                        |
 | `useEffect` (manual run + interrupt)                                | `Connection.svelte` (interruptible ping)                         |
 | `useScope` / `useScopeCallback`                                     | `Connection.svelte` (acquire/release on mount/unmount)           |
-| `derived`                                                           | `QuoteCard.svelte` (re-runs on selection change)                 |
+| `useDerived`                                                        | `QuoteCard.svelte` (re-runs on selection change)                 |
 | `AsyncResult.match`                                                 | `QuoteCard.svelte`                                               |
 | `reactiveMutation` / `reactiveStream`                               | `Portfolio.svelte` (trade → value history)                       |
 | `getRuntime` (custom hooks)                                         | `lib/use-clock.svelte.ts`                                        |
