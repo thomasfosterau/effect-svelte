@@ -16,7 +16,7 @@ export { useEffect, type UseEffectOptions, type UseEffectReturn } from "./effect
 export { useStream, type UseStreamReturn } from "./stream.svelte.js";
 
 // Layer 3: Convenience Hooks
-export { derived, type DerivedReturn } from "./derived.svelte.js";
+export { useDerived, type DerivedReturn } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
 export {
   useSubscriptionRef,

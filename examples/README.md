@@ -36,7 +36,7 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 | `useEffect`                                                     | realtime-dashboard — `Connection.svelte` (run/interrupt); hacker-news — `bookmarks/+page.svelte`   |
 | `useQuery`                                                      | hacker-news — `bookmarks/+page.svelte`                                                             |
 | `useStream`                                                     | realtime-dashboard — `PriceTicker.svelte`, `SymbolSearch.svelte`                                   |
-| `derived`                                                       | realtime-dashboard — `QuoteCard.svelte`                                                            |
+| `useDerived`                                                    | realtime-dashboard — `QuoteCard.svelte`                                                            |
 | `useSubscriptionRef`                                            | realtime-dashboard — `Portfolio.svelte`                                                            |
 | `usePubSub`                                                     | realtime-dashboard — `TradeFeed.svelte`                                                            |
 | `useScope` / `useScopeCallback`                                 | realtime-dashboard — `Connection.svelte`                                                           |

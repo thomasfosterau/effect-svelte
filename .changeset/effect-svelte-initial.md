@@ -10,7 +10,7 @@ integration for Svelte 5 runes.
 - Reactive hooks that expose Effect's native
   `AsyncResult` (`effect/unstable/reactivity/AsyncResult`) via a `.current`
   accessor, with stale-while-revalidate `waiting` semantics: `useEffect`,
-  `useQuery`, `derived`, `useStream`, `useSubscriptionRef`, `usePubSub`, and the
+  `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`, `usePubSub`, and the
   keyed-reactivity hooks `reactiveQuery` / `reactiveStream` / `reactiveMutation`
   / `useInvalidateKeys`. The subscription hooks are built on Svelte's
   `createSubscriber`.

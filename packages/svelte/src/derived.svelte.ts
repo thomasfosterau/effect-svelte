@@ -20,12 +20,12 @@ export interface DerivedReturn<A, E> {
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { derived, AsyncResult } from '@thomasfosterau/effect-svelte';
+ *   import { useDerived, AsyncResult } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *
  *   let userId = $state(1);
  *
- *   const user = derived(() =>
+ *   const user = useDerived(() =>
  *     Effect.gen(function* () {
  *       const response = yield* fetchUser(userId);
  *       return response;
@@ -40,7 +40,7 @@ export interface DerivedReturn<A, E> {
  * {/if}
  * ```
  */
-export function derived<A, E, R>(fn: () => Effect.Effect<A, E, R>): DerivedReturn<A, E> {
+export function useDerived<A, E, R>(fn: () => Effect.Effect<A, E, R>): DerivedReturn<A, E> {
   const runtime = getRuntime() as RuntimeLike<R>;
 
   const state = makeResult<A, E>();
