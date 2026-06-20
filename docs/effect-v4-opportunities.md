@@ -70,7 +70,7 @@ Svelte (`packages/svelte/src/`): `provideRuntime`/`getRuntime`, `SvelteRuntime`,
 `unstable/reactivity/Reactivity`), `SignalEmitter`, and a bespoke
 `AsyncResult` (`initial | pending | success | failure`).
 
-SvelteKit (`src/kit/`): universal `load` + `makeUniversalRuntime`; server
+SvelteKit (`packages/sveltekit/src/`): universal `load` + `makeUniversalRuntime`; server
 `serverLoad`/`action`/`actions`/`handle`/`endpoint` + `makeServerRuntime`;
 `SvelteKitRuntime`/`SvelteKitRequestEvent`; remote functions
 (`query`/`queryBatch`/`queryLive`/`form`/`command`/`prerender`) and
@@ -242,10 +242,11 @@ only. `reroute` is a natural Effect wrapper (it's a pure-ish async function);
 `reroute()` wrapper + plugin coverage so the "write your hooks as Effects" story
 is complete.
 
-### 7. `$app/navigation` as Effects and Streams
+### 7. `$app/navigation` as Effects and Streams — ✅ done
 
 `goto`, `invalidate`, `invalidateAll`, `refreshAll`, `preloadData`,
-`preloadCode` are `Promise`-returning — wrap as `Effect` (client-only subpath):
+`preloadCode` are `Promise`-returning — wrapped as `Effect` under the
+`Navigation` namespace (client-only subpath):
 
 ```ts
 goto(url, opts): Effect<void>          // Effect.promise wrappers
@@ -254,44 +255,41 @@ preloadData(href): Effect<{type; …}>
 ```
 
 `beforeNavigate` / `onNavigate` / `afterNavigate` are subscription callbacks —
-expose them as `Stream`s (or as atoms) so navigation can drive Effect pipelines:
-
-```ts
-beforeNavigateStream: Stream<BeforeNavigate>
-onNavigate(fn: (nav) => Effect<void>)   // run cleanup-returning effect
-```
-
-These belong in `kit/client` (browser-only). Pairs well with a `navigating`
-atom/getter derived from `$app/state`.
+expose them as `Stream`s so navigation can drive Effect pipelines. **✅ shipped**
+in `@thomasfosterau/effect-sveltekit/client` under the `Navigation` namespace:
+`Navigation.beforeNavigate()` / `Navigation.afterNavigate()` return `Stream`s,
+and `Navigation.onNavigate(fn)` runs a (cleanup-returning) Effect per
+navigation (the promise-returning `goto`/`invalidate`/… Effect wrappers live in
+the same namespace).
 
 ### 8. `$app/state` (`page`, `navigating`, `updated`) bridges
 
 `$app/state` replaced `$app/stores` with rune-based values. They're already
-reactive, so the value-add is **Effect-side access**: a `CurrentPage` service /
-atom so server and client effects can read the current `page`/`navigating`
-state, plus `Stream`s of page changes. Low effort, rounds out the story.
+reactive, so the value-add is **Effect-side access**: `Stream`s of page changes.
+**✅ partially shipped** — `State.page()` (in `…/client`) emits a snapshot of the
+current `page` initially and after each navigation. A richer `CurrentPage`
+service and `navigating`/`updated` streams remain future work (tracked in
+issue #20's follow-ups), likely composing with `@effect/atom-svelte` (#23).
 
 ---
 
 ## Tier 3 — smaller, ecosystem-niceties
 
-- **`fromStore`/`toStore` interop** (`svelte/store`): `toStore(effectGetter)` to
-  expose Effect-backed reactive values to store-based libraries, and
-  `streamFromStore(store): Stream` / `subscriptionRefFromStore`. Cheap, helps
-  adoption in mixed codebases.
+- **Store interop** (`svelte/store`). **✅ shipped** as the `Store` namespace in
+  `@thomasfosterau/effect-svelte`: `Store.toStream(store)` for Svelte → Effect,
+  and `Store.fromStream` / `Store.fromSubscriptionRef` / `Store.fromPubSub` /
+  `Store.fromQueue` / `Store.fromRef` for surfacing Effect sources as Svelte
+  readable stores.
 - **`SvelteMap`/`SvelteSet`/`SvelteDate`** mention in docs as the reactive
   collections to use alongside Effect data — no code needed, but a
-  `MediaQuery`→`Stream` example is a nice cookbook entry.
-- **Remote `RemoteQuery`/`RemoteLiveQuery` reactive bridge.** Today
-  `remote-call.ts` only turns the _promise call_ into an Effect. The returned
-  `RemoteQuery<T>` is itself reactive (`.current`/`.loading`/`.error`/`.ready`),
-  and `RemoteLiveQuery<T>` is an `AsyncIterable<T>`. Offer:
-  `useRemoteQuery(q): AsyncResult<T,E>` (createSubscriber over the resource) and
-  `liveQueryStream(q): Stream<T>` (`Stream.fromAsyncIterable`). This makes the
-  remote-functions integration two-directional and properly reactive.
-- **`SignalEmitter` → align with atoms.** Once atoms exist, the Svelte→Effect
-  direction is "write into a writable atom"; keep `SignalEmitter` but document
-  the atom path as primary.
+  `MediaQuery`→`Stream` example is a nice cookbook entry. (Still open.)
+- **Remote `RemoteQuery`/`RemoteLiveQuery` reactive bridge.** **✅ shipped**:
+  `useRemoteQuery(q)` exposes a reactive remote resource as an
+  `AsyncResult` via its `.current`, and `Remote.liveQueryStream(q)` turns a
+  `query.live(...)` (`AsyncIterable`) into a `Stream`.
+- **`SignalEmitter` → align with atoms.** Once `@effect/atom-svelte` lands, the
+  Svelte→Effect direction is "write into a writable atom"; keep `SignalEmitter`
+  but document the atom path as primary. (Still open — see #23.)
 
 ---
 
@@ -301,20 +299,21 @@ state, plus `Stream`s of page changes. Low effort, rounds out the story.
   Pick one convention before 0.1.0 (suggest: keep `useX` for hooks that take an
   argument and return a handle). The `derived` hook was renamed to `useDerived`
   to avoid confusion with Svelte's `derived` store and `$derived` rune.
-- **`AsyncResult` export collision.** The bespoke `AsyncResult` is exported from
-  the root; if we adopt the native one, decide whether to re-export or alias to
-  avoid two incompatible `AsyncResult`s in the wild.
-- **`client.ts` placeholder.** `kit/client` still exports
-  `placeholder = "…"`. Fill it (navigation effects, remote-query bridge) or drop
-  the stray export before publishing.
+- **`AsyncResult` export collision.** ✅ Resolved: the bespoke type was removed
+  and the native `effect/unstable/reactivity/AsyncResult` is re-exported as the
+  `AsyncResult` namespace.
+- **`client.ts` placeholder.** ✅ Resolved: `…/client` now exports the
+  `Navigation` / `State` / `Remote` namespaces, `useRemoteQuery`, etc.
 - **Effect Schema for remote validators.** Document that
   `Schema.toStandardSchemaV1(schema)` plugs straight into the remote
   `query`/`form`/`command` schema slot (the code already detects `~standard`),
   so users get Effect-Schema-validated remote functions today.
-- **README "idiomatic" examples.** Lead with an atom example and a
-  stale-while-revalidate `AsyncResult` example; these are the differentiators.
-- **Changesets.** Several unreleased changesets exist; consolidate into a single
-  0.1.0 entry describing the v4-native surface.
+- **README "idiomatic" examples.** ✅ The README leads with a
+  stale-while-revalidate `AsyncResult` example (the atom example is deferred to
+  the upstream `@effect/atom-svelte` package).
+- **Changesets.** ✅ Consolidated into one initial-release entry per package
+  (`@thomasfosterau/effect-svelte`, `@thomasfosterau/effect-sveltekit`), with
+  the private example apps ignored so a release bumps only the two packages.
 
 ---
 
@@ -326,10 +325,12 @@ state, plus `Stream`s of page changes. Low effort, rounds out the story.
 2. ~~Atom binding~~ — **dropped**; superseded by the official
    `@effect/atom-svelte` package. Adopting the native `AsyncResult` in (1) is
    what keeps this library interoperable with it.
-3. **SvelteKit completeness:** `transport`⇄Schema, `$env`⇄Config, `reroute`
-   wrapper + plugin coverage, `$app/navigation` effects/streams, remote-query
-   reactive bridge.
-4. **Polish:** `$app/state` bridges, store interop, cookbook docs.
+3. **SvelteKit completeness** — ✅ done: `transport`⇄Schema, `$env`⇄Config,
+   `reroute` wrapper + plugin coverage, `$app/navigation` effects/streams, and
+   the remote-query reactive bridge.
+4. **Polish** — ✅ mostly done: the `Store` namespace interop and the `State.page`
+   stream shipped; the `SvelteMap`/`SvelteSet` cookbook and a richer `$app/state`
+   service remain open (and may compose with `@effect/atom-svelte`).
 
-Items in (1) are breaking and cheap, so they landed first. (3) is mostly
-additive and is being implemented incrementally; (4) is polish.
+Items in (1) are breaking and cheap, so they landed first; (2) is deferred to
+the upstream atom package; (3) and most of (4) shipped across the 0.1.0 PRs.

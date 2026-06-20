@@ -51,28 +51,35 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 
 ### `@thomasfosterau/effect-sveltekit`
 
-| Export                                                    | Demonstrated in (all in hacker-news)                     |
-| --------------------------------------------------------- | -------------------------------------------------------- |
-| `effectKit()` Vite plugin                                 | `vite.config.ts`                                         |
-| Plugin: `serverRuntime` option (app-wide services)        | `vite.config.ts` + `src/lib/server/runtime.ts`           |
-| Plugin: bare-Effect `load`                                | `src/routes/[list=list]/[page]/+page.server.ts`          |
-| Plugin: Effect-returning `handle`                         | `src/hooks.server.ts`                                    |
-| Plugin: plain-function pass-through                       | `src/routes/+page.ts`                                    |
-| `makeServerRuntime` (app-wide runtime)                    | `src/lib/server/runtime.ts`                              |
-| App runtime `serverLoad`                                  | `src/routes/item/[id]/+page.server.ts`                   |
-| App runtime `actions`                                     | `src/routes/search/+page.server.ts`                      |
-| App runtime `endpoint`                                    | `src/routes/api/[list=list]/+server.ts`                  |
-| `load` (universal wrapper)                                | `src/routes/user/[name]/+page.ts`                        |
-| `serverLoad` / `actions` / `endpoint` (standalone)        | available; the app-runtime forms are shown instead       |
-| `handle` (explicit wrapper)                               | available; the plugin form is shown in `hooks.server.ts` |
-| `effectAdapter` (Effect deployment adapter)               | `svelte.config.js` (`node build` to run it)              |
-| `SvelteKitRuntime` (`forRequest`/`forFetch`/`extend`)     | used by every wrapper; see `+layout.server.ts`           |
-| `runWithSvelteKitRuntime`                                 | `src/routes/+layout.server.ts`                           |
-| `SvelteKitRequestEvent`                                   | `src/routes/[list=list]/[page]/+page.server.ts`          |
-| `RemoteFunction.query` / `.form` / `.command`             | `src/routes/bookmarks/bookmarks.remote.ts`               |
-| `RemoteFunction.prerender` / `query.batch` / `query.live` | not demonstrated (same call shape as `query`)            |
-| `callQuery` / `callCommandWithUpdates` / `submitForm`     | `src/routes/bookmarks/+page.svelte`                      |
-| `callCommand` / `callPrerender` / `submitFormWithUpdates` | not demonstrated (same call shapes as the above)         |
+| Export                                                                         | Demonstrated in (all in hacker-news)                     |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `effectKit()` Vite plugin                                                      | `vite.config.ts`                                         |
+| Plugin: `serverRuntime` option (app-wide services)                             | `vite.config.ts` + `src/lib/server/runtime.ts`           |
+| Plugin: bare-Effect `load`                                                     | `src/routes/[list=list]/[page]/+page.server.ts`          |
+| Plugin: Effect-returning `handle`                                              | `src/hooks.server.ts`                                    |
+| Plugin: plain-function pass-through                                            | `src/routes/+page.ts`                                    |
+| `makeServerRuntime` (app-wide runtime)                                         | `src/lib/server/runtime.ts`                              |
+| App runtime `serverLoad`                                                       | `src/routes/item/[id]/+page.server.ts`                   |
+| App runtime `actions`                                                          | `src/routes/search/+page.server.ts`                      |
+| App runtime `endpoint`                                                         | `src/routes/api/[list=list]/+server.ts`                  |
+| `load` (universal wrapper)                                                     | `src/routes/user/[name]/+page.ts`                        |
+| `serverLoad` / `actions` / `endpoint` (standalone)                             | available; the app-runtime forms are shown instead       |
+| `handle` (explicit wrapper)                                                    | available; the plugin form is shown in `hooks.server.ts` |
+| `effectAdapter` (Effect deployment adapter)                                    | `svelte.config.js` (`node build` to run it)              |
+| `SvelteKitRuntime` (`forRequest`/`forFetch`/`extend`)                          | used by every wrapper; see `+layout.server.ts`           |
+| `runWithSvelteKitRuntime`                                                      | `src/routes/+layout.server.ts`                           |
+| `SvelteKitRequestEvent`                                                        | `src/routes/[list=list]/[page]/+page.server.ts`          |
+| `RemoteFunction.query` / `.form` / `.command`                                  | `src/routes/bookmarks/bookmarks.remote.ts`               |
+| `RemoteFunction.prerender` / `query.batch` / `query.live`                      | not demonstrated (same call shape as `query`)            |
+| `Remote.callQuery` / `Remote.callCommandWithUpdates` / `Remote.submitForm`     | `src/routes/bookmarks/+page.svelte`                      |
+| `Remote.callCommand` / `Remote.callPrerender` / `Remote.submitFormWithUpdates` | not demonstrated (same call shapes as the above)         |
+
+**Also available (not exercised by the examples):** the svelte `Store` namespace
+(`Store.toStream` / `Store.fromStream` / `Store.fromSubscriptionRef` /
+`Store.fromPubSub` / `Store.fromQueue` / `Store.fromRef`); and, from
+`@thomasfosterau/effect-sveltekit/client`, the `Navigation` namespace's
+`beforeNavigate` / `afterNavigate` / `onNavigate`, `State.page`, and
+`useRemoteQuery`.
 
 ## Notes
 
