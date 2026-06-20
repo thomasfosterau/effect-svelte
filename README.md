@@ -161,9 +161,9 @@ export const load = runtime.serverLoad((event) =>
 );
 ```
 
-The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `endpoint`,
-`runPromise`, and `dispose`. For universal `load` functions there is a
-browser-safe counterpart, `makeUniversalRuntime`, in
+The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `handleFetch`,
+`handleError`, `init`, `endpoint`, `runPromise`, and `dispose`. For universal
+`load` functions there is a browser-safe counterpart, `makeUniversalRuntime`, in
 `@thomasfosterau/effect-sveltekit`.
 
 To make the same services available to bare-Effect exports handled by the
@@ -232,7 +232,11 @@ import {
   serverLoad,
   action,
   actions,
+  // hooks.server.ts hooks as Effects
   handle,
+  handleFetch,
+  handleError,
+  init,
   endpoint,
   makeServerRuntime,
 } from "@thomasfosterau/effect-sveltekit/server";
@@ -254,6 +258,9 @@ import {
   Remote,
   // a reactive remote resource as an AsyncResult
   useRemoteQuery,
+  // hooks.client.ts hooks as Effects
+  handleError,
+  init,
 } from "@thomasfosterau/effect-sveltekit/client";
 
 // e.g. Navigation.goto('/done'), Navigation.invalidateAll(),
@@ -312,6 +319,55 @@ export const reroute = reroute((event) =>
   Effect.succeed(event.url.pathname === "/old" ? "/new" : undefined),
 );
 ```
+
+### Server & client hooks as Effects
+
+Every SvelteKit hook has an explicit Effect wrapper, mirroring the auto-wrap
+table above. The server hooks (`handle`, `handleFetch`, `handleError`, `init`)
+come from `/server` and run on the SvelteKit server runtime (per-request
+`HttpClient` + `RequestEvent`, plus your app-wide runtime's services); the
+client hooks (`handleError`, `init`) come from `/client` and run on a bare
+Effect runtime:
+
+```ts
+// src/hooks.server.ts
+import { handle, handleError, init } from "@thomasfosterau/effect-sveltekit/server";
+import { Effect } from "effect";
+
+export const init = init(Effect.logInfo("server starting up"));
+
+export const handle = handle(({ event, resolve }) =>
+  Effect.gen(function* () {
+    const start = Date.now();
+    const response = yield* Effect.promise(() => resolve(event));
+    yield* Effect.logInfo(`${event.url.pathname} -> ${response.status} (${Date.now() - start}ms)`);
+    return response;
+  }),
+);
+
+export const handleError = handleError(({ error, event }) =>
+  Effect.gen(function* () {
+    const id = crypto.randomUUID();
+    yield* Effect.logError(`${event.url.pathname} (${id})`, error);
+    return { message: "Internal Error", id };
+  }),
+);
+```
+
+```ts
+// src/hooks.client.ts
+import { handleError } from "@thomasfosterau/effect-sveltekit/client";
+import { Effect } from "effect";
+
+export const handleError = handleError(({ error }) =>
+  Effect.as(Effect.logError("client navigation failed", error), {
+    message: "Something went wrong",
+  }),
+);
+```
+
+The same exports work as bare Effects (no explicit wrapper) when the
+`effectKit()` Vite plugin is enabled.
 
 ## Examples
 

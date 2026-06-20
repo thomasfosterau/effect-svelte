@@ -102,6 +102,45 @@ describe("makeServerRuntime", () => {
     expect(response).toBe(resolved);
   });
 
+  it("supports handleFetch, handleError, and init hooks", async () => {
+    const runtime = makeServerRuntime(greeterLayer);
+
+    const handleFetch = runtime.handleFetch(({ request }) =>
+      Effect.gen(function* () {
+        const greeter = yield* Greeter;
+        const requestEvent = yield* SvelteKitRequestEvent;
+        const target = new URL(request.url).pathname;
+        return new Response(`${greeter.greet("fetch")} ${requestEvent.url.pathname} ${target}`);
+      }),
+    );
+    const fetchResponse = await handleFetch({
+      event: mockEvent(),
+      request: new Request("http://localhost/api"),
+      fetch,
+    });
+    expect(await fetchResponse.text()).toBe("hello fetch / /api");
+
+    const handleError = runtime.handleError(({ error }) =>
+      Effect.map(Greeter, (g) => ({ message: g.greet(String((error as Error).message)) })),
+    );
+    const appError = await handleError({
+      error: new Error("boom"),
+      event: mockEvent(),
+      status: 500,
+      message: "Internal Error",
+    });
+    expect(appError).toEqual({ message: "hello boom" });
+
+    let initialised = "";
+    const init = runtime.init(
+      Effect.map(Greeter, (g) => {
+        initialised = g.greet("init");
+      }),
+    );
+    await init();
+    expect(initialised).toBe("hello init");
+  });
+
   it("passes redirect() through to SvelteKit", async () => {
     const runtime = makeServerRuntime(greeterLayer);
     const load = runtime.serverLoad(() =>

@@ -1,4 +1,13 @@
-import type { ServerLoad, RequestEvent, Actions, Action, Handle } from "@sveltejs/kit";
+import type {
+  Action,
+  Actions,
+  Handle,
+  HandleFetch,
+  HandleServerError,
+  RequestEvent,
+  ServerInit,
+  ServerLoad,
+} from "@sveltejs/kit";
 import { Effect, Exit, Cause } from "effect";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import { makeServerRuntime, type ServerRuntime, type SvelteKitServices } from "./app-runtime.js";
@@ -134,6 +143,85 @@ export function handle(
   fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, SvelteKitServices>,
 ): Handle {
   return runtime().handle(fn);
+}
+
+/**
+ * Wraps an Effect-based function to work as the SvelteKit
+ * [`handleFetch`](https://svelte.dev/docs/kit/hooks#Server-hooks-handleFetch)
+ * hook, which intercepts `event.fetch` calls made on the server (in `load`,
+ * actions, endpoints, ...). The effect has access to platform services via the
+ * SvelteKit runtime and produces the `Response` to use.
+ *
+ * @example
+ * ```ts
+ * // src/hooks.server.ts
+ * import { handleFetch } from '@thomasfosterau/effect-sveltekit/server';
+ * import { Effect } from 'effect';
+ *
+ * export const handleFetch = handleFetch(({ request, fetch }) =>
+ *   Effect.gen(function* () {
+ *     // Redirect internal API calls to the upstream service.
+ *     const url = request.url.replace('https://api.internal', 'http://localhost:9999');
+ *     return yield* Effect.promise(() => fetch(new Request(url, request)));
+ *   })
+ * );
+ * ```
+ */
+export function handleFetch(
+  fn: (args: Parameters<HandleFetch>[0]) => Effect.Effect<Response, unknown, SvelteKitServices>,
+): HandleFetch {
+  return runtime().handleFetch(fn);
+}
+
+/**
+ * Wraps an Effect-based function to work as the SvelteKit server
+ * [`handleError`](https://svelte.dev/docs/kit/hooks#Shared-hooks-handleError)
+ * hook, which runs when an unexpected error is thrown while responding to a
+ * request. The effect receives the error and request event and produces the
+ * shape exposed to the client (your `App.Error`, or nothing).
+ *
+ * @example
+ * ```ts
+ * // src/hooks.server.ts
+ * import { handleError } from '@thomasfosterau/effect-sveltekit/server';
+ * import { Effect } from 'effect';
+ *
+ * export const handleError = handleError(({ error, event }) =>
+ *   Effect.gen(function* () {
+ *     const id = crypto.randomUUID();
+ *     yield* Effect.logError(`${event.url.pathname} (${id})`, error);
+ *     return { message: 'Internal Error', id };
+ *   })
+ * );
+ * ```
+ */
+export function handleError(
+  fn: (
+    args: Parameters<HandleServerError>[0],
+  ) => Effect.Effect<Awaited<ReturnType<HandleServerError>>, unknown, SvelteKitServices>,
+): HandleServerError {
+  return runtime().handleError(fn);
+}
+
+/**
+ * Wraps an Effect to work as the SvelteKit server
+ * [`init`](https://svelte.dev/docs/kit/hooks#Shared-hooks-init) hook, which
+ * runs once before the server responds to its first request. There is no
+ * request event available, so the effect runs without per-request services.
+ *
+ * @example
+ * ```ts
+ * // src/hooks.server.ts
+ * import { init } from '@thomasfosterau/effect-sveltekit/server';
+ * import { Effect } from 'effect';
+ *
+ * export const init = init(
+ *   Effect.logInfo('server starting up')
+ * );
+ * ```
+ */
+export function init(effect: Effect.Effect<void, unknown>): ServerInit {
+  return runtime().init(effect);
 }
 
 /**
