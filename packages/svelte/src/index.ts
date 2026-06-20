@@ -38,10 +38,23 @@ export {
 
 // Svelte-to-Effect Direction
 export { SignalEmitter } from "./emitter.js";
-export { streamFromStore } from "./store.js";
 
-// Effect-to-Svelte Store Direction
-export { subscriptionRefToStore, streamToStore } from "./store.js";
+/**
+ * Svelte [store](https://svelte.dev/docs/svelte/stores) interop, both
+ * directions. `Store.toStream` turns a Svelte readable store into an Effect
+ * `Stream`; the `Store.from*` helpers (`fromStream`, `fromSubscriptionRef`,
+ * `fromPubSub`, `fromQueue`, `fromRef`) expose an Effect source as a Svelte
+ * readable store.
+ *
+ * @example
+ * ```ts
+ * import { Store } from '@thomasfosterau/effect-svelte';
+ *
+ * const stream = Store.toStream(someStore);
+ * const store = Store.fromSubscriptionRef(ref, runtime);
+ * ```
+ */
+export * as Store from "./Store.js";
 
 /**
  * The native Effect `AsyncResult` type and its combinators

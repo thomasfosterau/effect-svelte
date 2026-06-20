@@ -14,5 +14,8 @@ integration for Svelte 5 runes.
   keyed-reactivity hooks `reactiveQuery` / `reactiveStream` / `reactiveMutation`
   / `useInvalidateKeys`. The subscription hooks are built on Svelte's
   `createSubscriber`.
-- Svelte → Effect bridges: `streamFromStore` (a Svelte readable store as a
-  `Stream`) and `SignalEmitter`.
+- Svelte store interop via the `Store` namespace: `Store.toStream` (a Svelte
+  readable store as a `Stream`) for the Svelte → Effect direction, and
+  `Store.fromStream` / `Store.fromSubscriptionRef` / `Store.fromPubSub` /
+  `Store.fromQueue` / `Store.fromRef` for surfacing Effect sources as Svelte
+  readable stores. `SignalEmitter` bridges reactive `$state` into a `Stream`.
