@@ -12,6 +12,9 @@ export * from "./navigation.js";
 // $app/navigation lifecycle events (beforeNavigate/afterNavigate/onNavigate) as Effect Streams.
 export * from "./navigation-events.js";
 
+// Effect bridge for $app/state: the current page as a Stream of snapshots.
+export * from "./app-state.js";
+
 // Remote-function call helpers (callQuery, callCommand, liveQueryStream, ...).
 export * from "./remote-call.js";
 
