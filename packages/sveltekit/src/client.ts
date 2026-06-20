@@ -9,6 +9,9 @@
 // Effect wrappers for $app/navigation (goto, invalidate, preloadData, ...).
 export * from "./navigation.js";
 
+// $app/navigation lifecycle events (beforeNavigate/afterNavigate/onNavigate) as Effect Streams.
+export * from "./navigation-events.js";
+
 // Remote-function call helpers (callQuery, callCommand, liveQueryStream, ...).
 export * from "./remote-call.js";
 
