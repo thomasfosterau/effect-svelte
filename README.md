@@ -246,6 +246,12 @@ import {
   invalidate,
   invalidateAll,
   preloadData,
+  // $app/navigation lifecycle events as Effect Streams (register at init)
+  beforeNavigateStream,
+  afterNavigateStream,
+  onNavigate,
+  // $app/state: the current page as a Stream of snapshots (register at init)
+  pageStream,
   // remote-function helpers
   callQuery,
   callCommand,
@@ -254,6 +260,13 @@ import {
   useRemoteQuery,
 } from "@thomasfosterau/effect-sveltekit/client";
 ```
+
+`beforeNavigateStream()` / `afterNavigateStream()` bridge `$app/navigation`'s
+callback-registration functions to `Stream`s, `onNavigate(fn => Effect)` runs an
+Effect per navigation (forwarding any cleanup the Effect yields), and
+`pageStream()` emits a shallow snapshot of `$app/state`'s `page` initially and
+after each navigation. Like the bare SvelteKit functions they wrap, these must
+be called during component initialization (at the top of `<script>`).
 
 ### `transport` hook from Effect Schema
 
