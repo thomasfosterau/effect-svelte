@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Effect } from "effect";
-import { handleError, init } from "../src/hooks-client.js";
+import { handleError, init } from "../src/client/Hooks.js";
 
 const navigationEvent = (pathname = "/") =>
   ({

@@ -13,7 +13,7 @@ export type { SvelteKitServices } from "./app-runtime.js";
 
 // Effect wrappers for the universal hooks (`hooks.ts`): the `Hooks` namespace
 // exposes `reroute` and the Effect Schema ⇄ `transport` helpers.
-export * as Hooks from "./hooks-universal.js";
+export * as Hooks from "./Hooks.js";
 
 // SvelteKit `$env` ⇄ Effect `Config`
 export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";

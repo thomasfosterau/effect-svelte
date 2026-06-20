@@ -26,8 +26,8 @@
 
 import type { Handle, HandleFetch, HandleServerError, ServerInit } from "@sveltejs/kit";
 import { Effect } from "effect";
-import type { SvelteKitServices } from "./app-runtime.js";
-import { defaultServerRuntime } from "./internal/default-runtime.js";
+import type { SvelteKitServices } from "../app-runtime.js";
+import { defaultServerRuntime } from "../internal/default-runtime.js";
 
 /**
  * Wraps an Effect-based function as a SvelteKit

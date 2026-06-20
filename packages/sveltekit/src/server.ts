@@ -173,7 +173,7 @@ export function endpoint<
  * Effect wrappers for the server-side hooks (`hooks.server.ts`): the `Hooks`
  * namespace exposes `handle`, `handleFetch`, `handleError`, and `init`.
  */
-export * as Hooks from "./hooks-server.js";
+export * as Hooks from "./server/Hooks.js";
 
 /**
  * App-wide runtime: define your application's Effect services once and share

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Effect } from "effect";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import { reroute, transport, transporter } from "../src/hooks-universal.js";
+import { reroute, transport, transporter } from "../src/Hooks.js";
 
 const rerouteEvent = (pathname: string) => ({
   url: new URL(`http://localhost${pathname}`),

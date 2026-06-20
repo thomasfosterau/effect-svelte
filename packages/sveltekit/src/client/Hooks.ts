@@ -2,7 +2,7 @@
  * Effect wrappers for SvelteKit's client-side hooks (`src/hooks.client.ts`),
  * exposed as the `Hooks` namespace of `@thomasfosterau/effect-sveltekit/client`.
  *
- * These mirror the server hook helpers in `./hooks-server.ts`, but run on the
+ * These mirror the server hook helpers in `../server/Hooks.ts`, but run on the
  * client: there is no request context, so each effect runs on a bare Effect
  * runtime. For application services, run the effect through your own runtime
  * instead. Kept free of `$app/*` imports so it stays importable (and testable)
@@ -24,7 +24,7 @@
 
 import type { ClientInit, HandleClientError } from "@sveltejs/kit";
 import { Effect, Exit } from "effect";
-import { causeToThrowable } from "./internal/error.js";
+import { causeToThrowable } from "../internal/error.js";
 
 /** Run a bare Effect (no request context) and settle it the way a hook expects. */
 const runBareHook = async <A>(effect: Effect.Effect<A, unknown>): Promise<A> =>

@@ -21,4 +21,4 @@ export * as Remote from "./Remote.js";
 export { useRemoteQuery } from "./remote-reactive.js";
 
 // Effect wrappers for the client-side hooks (`hooks.client.ts`).
-export * as Hooks from "./hooks-client.js";
+export * as Hooks from "./client/Hooks.js";
