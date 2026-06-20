@@ -186,7 +186,7 @@ export * as Endpoint from "./server/Endpoint.js";
  * App-wide runtime: define your application's Effect services once and share
  * them across every request.
  */
-export { makeServerRuntime, type ServerRuntime } from "./app-runtime.js";
+export { makeServerRuntime, type ServerRuntime, type RequestRuntime } from "./app-runtime.js";
 
 /**
  * Export the SvelteKit runtime utilities for advanced use cases.

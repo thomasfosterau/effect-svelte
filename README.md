@@ -162,9 +162,9 @@ export const load = runtime.serverLoad((event) =>
 ```
 
 The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `handleFetch`,
-`handleError`, `init`, `endpoint`, `runPromise`, and `dispose`. For universal
-`load` functions there is a browser-safe counterpart, `makeUniversalRuntime`, in
-`@thomasfosterau/effect-sveltekit`.
+`handleError`, `init`, `endpoint`, `requestRuntime`, `runPromise`, and `dispose`.
+For universal `load` functions there is a browser-safe counterpart,
+`makeUniversalRuntime`, in `@thomasfosterau/effect-sveltekit`.
 
 To make the same services available to bare-Effect exports handled by the
 Vite plugin, point the plugin at the runtime module:
@@ -173,6 +173,41 @@ Vite plugin, point the plugin at the runtime module:
 // vite.config.ts
 effectKit({ serverRuntime: "$lib/server/runtime" });
 ```
+
+#### One runtime per request
+
+Wire the runtime's `handle` hook (or the auto-wrapped `handle` from the Vite
+plugin) in `src/hooks.server.ts`. It creates a **per-request runtime** — the
+application layer's services plus the request's `HttpClient`/`SvelteKitRequestEvent`,
+built once and sharing a single request scope — and stores it on `event.locals`:
+
+```ts
+// src/hooks.server.ts
+import { runtime } from "$lib/server/runtime";
+import { Effect } from "effect";
+
+export const handle = runtime.handle(({ event, resolve }) => Effect.promise(() => resolve(event)));
+```
+
+With `handle` wired, every other wrapper for that runtime (`serverLoad`,
+`action`, `endpoint`, ...) runs each request's effects on the same per-request
+runtime — one `HttpClient`, one request scope — instead of rebuilding the request
+services per call. Reach the runtime yourself with `runtime.requestRuntime(event)`
+(for example from another hook in a `sequence`, to populate `event.locals`):
+
+```ts
+// e.g. authenticate once per request
+export const handle = runtime.handle(({ event, resolve }) =>
+  Effect.gen(function* () {
+    const rt = runtime.requestRuntime(event)!;
+    event.locals.user = yield* Effect.promise(() => rt.runPromise(Auth.currentUser));
+    return yield* Effect.promise(() => resolve(event));
+  }),
+);
+```
+
+Wrappers from a _different_ runtime, or requests without `handle` wired, fall
+back to building the request services per call, so this is backward compatible.
 
 ### Effect deployment adapter
 
