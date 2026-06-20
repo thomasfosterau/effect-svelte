@@ -176,6 +176,13 @@ export function endpoint<
 export * as Hooks from "./server/Hooks.js";
 
 /**
+ * Create SvelteKit `+server.ts` endpoints backed by Effect: the `Endpoint`
+ * namespace exposes `fromApi` (an `HttpApi`), `fromRouter` (an `HttpRouter`),
+ * and `fromHttpEffect` (a single HTTP route effect).
+ */
+export * as Endpoint from "./server/Endpoint.js";
+
+/**
  * App-wide runtime: define your application's Effect services once and share
  * them across every request.
  */
