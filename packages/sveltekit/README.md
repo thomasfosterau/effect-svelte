@@ -20,13 +20,13 @@ npm install @effect/platform-node@beta
 
 ## Entry points
 
-| Import                             | What it provides                                                                                                                                         |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@thomasfosterau/effect-sveltekit` | universal helpers (`load`, the `Remote` call namespace, `transport`, `sveltekitConfig`, `reroute`)                                                       |
-| `…/server`                         | server wrappers (`serverLoad`, `action`, `actions`, `handle`, `endpoint`), app runtimes (`makeServerRuntime` / `makeUniversalRuntime`), `RemoteFunction` |
-| `…/client`                         | browser-only `Navigation` / `State` / `Remote` namespaces and `useRemoteQuery`                                                                           |
-| `…/vite`                           | the `effectKit()` Vite plugin (auto-wrap bare-Effect route exports)                                                                                      |
-| `…/adapter`                        | the Effect HTTP deployment adapter                                                                                                                       |
+| Import                             | What it provides                                                                                                                                                                                                                 |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@thomasfosterau/effect-sveltekit` | universal helpers (`load`, the `Remote` call namespace, `transport`, `sveltekitConfig`, `reroute`)                                                                                                                               |
+| `…/server`                         | server wrappers (`serverLoad`, `action`, `actions`, `handle`, `endpoint`), app runtimes (`makeServerRuntime` / `makeUniversalRuntime`), the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `RemoteFunction` |
+| `…/client`                         | browser-only `Navigation` / `State` / `Remote` namespaces and `useRemoteQuery`                                                                                                                                                   |
+| `…/vite`                           | the `effectKit()` Vite plugin (auto-wrap bare-Effect route exports)                                                                                                                                                              |
+| `…/adapter`                        | the Effect HTTP deployment adapter                                                                                                                                                                                               |
 
 ## Example
 
@@ -48,6 +48,20 @@ export const load = (event) => Effect.succeed({ id: event.params.id });
 
 - **Effects as route exports** — explicit wrappers, app-wide runtimes (services
   built once per process), or the `effectKit()` plugin.
+- **Bring-your-own per-request runtime** — `makeRuntimeAdapter(provider, opts)`
+  binds the server wrappers to a `RequestRuntime` provider, so the handler
+  effect's services are your own application catalogue (not `SvelteKitServices`).
+  Adopt a runtime the consumer stashed on `event.locals`
+  (`RequestRuntime.fromLocals`, resolved per call so a mid-request rebuild is
+  honoured), let the package build + dispose one per request
+  (`RequestRuntime.fromLayerPerRequest`, with `afterResponse` to route disposal
+  through Cloudflare Workers' `ctx.waitUntil`), or reuse the build-once model
+  (`fromManagedRuntime` / `fromLayer`). `RemoteFunction.withRuntime(provider)`
+  gives remote functions the same seam.
+- **Pluggable boundary error translation** — pass `translateError` to
+  `makeRuntimeAdapter`, `makeServerRuntime`, or `RemoteFunction.withRuntime` to
+  map a failed `Cause` to SvelteKit control flow (`error(404)`, `redirect()`,
+  remote-form `invalid()`) instead of a generic 500.
 - **Remote functions** — define with `RemoteFunction.*`, consume via the
   `Remote` namespace (`Remote.callQuery`, `Remote.liveQueryStream`, …);
   `useRemoteQuery` bridges a reactive remote resource to an `AsyncResult`.

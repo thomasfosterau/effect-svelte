@@ -9,18 +9,53 @@ import type {
 } from "@sveltejs/kit";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
+import { causeToThrowable } from "./internal/error.js";
+import type { ErrorTranslator, RequestRuntimeProvider } from "./request-runtime.js";
 
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
 
-function runRemoteEffect<A, E, R extends SvelteKitEffectEnv>(
-  effect: Effect.Effect<A, E, R>,
-): Promise<A> {
+/** Settle a remote handler's `Exit`: return the value or throw via the translator. */
+const defaultTranslate: ErrorTranslator = (cause) => {
+  throw causeToThrowable(cause);
+};
+
+/**
+ * Runs a remote handler's effect for the current request and settles its exit.
+ * A `Runner` decides *how* to obtain the per-request execution context and how
+ * to translate failures at the boundary.
+ */
+type Runner = <A>(effect: Effect.Effect<A, unknown, any>) => Promise<A>;
+
+/** The default runner: a fresh SvelteKit per-request runtime, passthrough translation. */
+const runRemoteEffect: Runner = (effect) => {
   const event = AppServer.getRequestEvent();
   const runtime = SvelteKitRuntime.forRequest(event);
-  return runtime.runPromise(effect);
-}
+  return runtime
+    .runPromiseExit(effect)
+    .then((exit) => (Exit.isSuccess(exit) ? exit.value : defaultTranslate(exit.cause)));
+};
+
+/** Build a runner from a {@link RequestRuntimeProvider} and an optional translator. */
+const runnerFromProvider = (
+  provider: RequestRuntimeProvider<any, any>,
+  translate: ErrorTranslator,
+): Runner => {
+  return (effect) => {
+    const event = AppServer.getRequestEvent();
+    return provider
+      .run(event)
+      .runPromiseExit(effect)
+      .then((exit) => {
+        try {
+          return Exit.isSuccess(exit) ? exit.value : translate(exit.cause);
+        } finally {
+          provider.disposeAfterResponse?.(event);
+        }
+      });
+  };
+};
 
 function unavailable(name: string): never {
   throw new Error(
@@ -28,10 +63,12 @@ function unavailable(name: string): never {
   );
 }
 
-type UnknownEffect = Effect.Effect<unknown, unknown, SvelteKitEffectEnv>;
-type EffectHandler = (arg: unknown) => UnknownEffect;
-type EffectFormHandler = (data: unknown, issue: unknown) => UnknownEffect;
-type EffectVoidHandler = () => UnknownEffect;
+type EffectHandler<Env> = (arg: unknown) => Effect.Effect<unknown, unknown, Env>;
+type EffectFormHandler<Env> = (
+  data: unknown,
+  issue: unknown,
+) => Effect.Effect<unknown, unknown, Env>;
+type EffectVoidHandler<Env> = () => Effect.Effect<unknown, unknown, Env>;
 
 /**
  * Detects a Standard Schema validator via its `~standard` marker property.
@@ -47,64 +84,61 @@ const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>
   "~standard" in value;
 
 /** True when the argument is the no-validation handler overload. */
-const isBareHandler = (value: unknown): value is EffectVoidHandler =>
+const isBareHandler = <Env>(value: unknown): value is EffectVoidHandler<Env> =>
   typeof value === "function" && !isStandardSchema(value);
 
-export function query<Output>(
-  fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<void, Output>;
-export function query<Input, Output>(
-  validate: "unchecked",
-  fn: (arg: Input) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<Input, Output>;
-export function query<Schema extends StandardSchemaV1, Output>(
-  schema: Schema,
-  fn: (
-    arg: StandardSchemaV1.InferOutput<Schema>,
-  ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
-export function query(
-  arg1: unknown,
-  arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, SvelteKitEffectEnv>,
-): any {
-  if (isBareHandler(arg1)) {
-    const handler = arg1;
-    return AppServer.query(() => runRemoteEffect(handler()));
-  }
-
-  if (!arg2) {
-    throw new Error("query requires a handler function when a schema is provided");
-  }
-
-  return AppServer.query(arg1 as "unchecked", (arg: unknown) => runRemoteEffect(arg2(arg)));
+/** The public shape of the `query` helper, parameterised by its handler env. */
+export interface QueryFn<Env> {
+  <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteQueryFunction<void, Output>;
+  <Input, Output>(
+    validate: "unchecked",
+    fn: (arg: Input) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteQueryFunction<Input, Output>;
+  <Schema extends StandardSchemaV1, Output>(
+    schema: Schema,
+    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
 }
 
-export function queryBatch<Input, Output>(
-  validate: "unchecked",
-  fn: (
-    args: Input[],
-  ) => Effect.Effect<(arg: Input, idx: number) => Output, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<Input, Output>;
-export function queryBatch<Schema extends StandardSchemaV1, Output>(
-  schema: Schema,
-  fn: (
-    args: StandardSchemaV1.InferOutput<Schema>[],
-  ) => Effect.Effect<
-    (arg: StandardSchemaV1.InferOutput<Schema>, idx: number) => Output,
-    unknown,
-    SvelteKitEffectEnv
-  >,
-): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
-export function queryBatch(
-  validate: unknown,
-  fn: (
-    args: unknown[],
-  ) => Effect.Effect<(arg: unknown, idx: number) => unknown, unknown, SvelteKitEffectEnv>,
-): any {
-  return AppServer.query.batch(validate as "unchecked", (args: unknown[]) =>
-    runRemoteEffect(fn(args)),
-  );
+const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
+  ((arg1: unknown, arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, Env>): any => {
+    if (isBareHandler<Env>(arg1)) {
+      const handler = arg1;
+      return AppServer.query(() => run(handler()));
+    }
+
+    if (!arg2) {
+      throw new Error("query requires a handler function when a schema is provided");
+    }
+
+    return AppServer.query(arg1 as "unchecked", (arg: unknown) => run(arg2(arg)));
+  }) as QueryFn<Env>;
+
+export interface QueryBatchFn<Env> {
+  <Input, Output>(
+    validate: "unchecked",
+    fn: (args: Input[]) => Effect.Effect<(arg: Input, idx: number) => Output, unknown, Env>,
+  ): RemoteQueryFunction<Input, Output>;
+  <Schema extends StandardSchemaV1, Output>(
+    schema: Schema,
+    fn: (
+      args: StandardSchemaV1.InferOutput<Schema>[],
+    ) => Effect.Effect<
+      (arg: StandardSchemaV1.InferOutput<Schema>, idx: number) => Output,
+      unknown,
+      Env
+    >,
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
 }
+
+const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> =>
+  ((
+    validate: unknown,
+    fn: (args: unknown[]) => Effect.Effect<(arg: unknown, idx: number) => unknown, unknown, Env>,
+  ): any =>
+    AppServer.query.batch(validate as "unchecked", (args: unknown[]) =>
+      run(fn(args)),
+    )) as QueryBatchFn<Env>;
 
 type QueryLiveFactory = (
   validate: unknown,
@@ -142,176 +176,225 @@ function getRequested(): (...args: unknown[]) => unknown {
   return requestedFn;
 }
 
-export function queryLive<Input, Output>(
-  validate: "unchecked",
-  fn: (arg: Input) => Effect.Effect<AsyncIterable<Output>, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<Input, Output>;
-export function queryLive<Schema extends StandardSchemaV1, Output>(
-  schema: Schema,
-  fn: (
-    arg: StandardSchemaV1.InferOutput<Schema>,
-  ) => Effect.Effect<AsyncIterable<Output>, unknown, SvelteKitEffectEnv>,
-): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
-export function queryLive(
-  validate: unknown,
-  fn: (arg: unknown) => Effect.Effect<AsyncIterable<unknown>, unknown, SvelteKitEffectEnv>,
-): any {
-  const live = getQueryLive();
-  return live(validate, (arg) => runRemoteEffect(fn(arg)));
+export interface QueryLiveFn<Env> {
+  <Input, Output>(
+    validate: "unchecked",
+    fn: (arg: Input) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
+  ): RemoteQueryFunction<Input, Output>;
+  <Schema extends StandardSchemaV1, Output>(
+    schema: Schema,
+    fn: (
+      arg: StandardSchemaV1.InferOutput<Schema>,
+    ) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
 }
 
-export function form<Output>(
-  fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteForm<void, Output>;
-export function form<Input extends RemoteFormInput, Output>(
-  validate: "unchecked",
-  fn: (
-    data: Input,
-    issue: InvalidField<Input>,
-  ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteForm<Input, Output>;
-export function form<Schema extends StandardSchemaV1<RemoteFormInput, Record<string, any>>, Output>(
-  validate: Schema,
-  fn: (
-    data: StandardSchemaV1.InferOutput<Schema>,
-    issue: InvalidField<StandardSchemaV1.InferInput<Schema>>,
-  ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteForm<StandardSchemaV1.InferInput<Schema>, Output>;
-export function form(arg1: unknown, arg2?: unknown): any {
-  if (isBareHandler(arg1)) {
-    const handler = arg1;
-    return AppServer.form(() => runRemoteEffect(handler()));
-  }
+const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
+  ((
+    validate: unknown,
+    fn: (arg: unknown) => Effect.Effect<AsyncIterable<unknown>, unknown, Env>,
+  ): any => {
+    const live = getQueryLive();
+    return live(validate, (arg) => run(fn(arg)));
+  }) as QueryLiveFn<Env>;
 
-  if (!arg2) {
-    throw new Error("form requires a handler function when a schema is provided");
-  }
-
-  return AppServer.form(arg1 as "unchecked", (data: unknown, issue: unknown) =>
-    runRemoteEffect((arg2 as EffectFormHandler)(data, issue)),
-  );
+export interface FormFn<Env> {
+  <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteForm<void, Output>;
+  <Input extends RemoteFormInput, Output>(
+    validate: "unchecked",
+    fn: (data: Input, issue: InvalidField<Input>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteForm<Input, Output>;
+  <Schema extends StandardSchemaV1<RemoteFormInput, Record<string, any>>, Output>(
+    validate: Schema,
+    fn: (
+      data: StandardSchemaV1.InferOutput<Schema>,
+      issue: InvalidField<StandardSchemaV1.InferInput<Schema>>,
+    ) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteForm<StandardSchemaV1.InferInput<Schema>, Output>;
 }
 
-export function command<Output>(
-  fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteCommand<void, Output>;
-export function command<Input, Output>(
-  validate: "unchecked",
-  fn: (arg: Input) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteCommand<Input, Output>;
-export function command<Schema extends StandardSchemaV1, Output>(
-  validate: Schema,
-  fn: (
-    arg: StandardSchemaV1.InferOutput<Schema>,
-  ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-): RemoteCommand<StandardSchemaV1.InferInput<Schema>, Output>;
-export function command(
-  arg1: unknown,
-  arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, SvelteKitEffectEnv>,
-): any {
-  if (isBareHandler(arg1)) {
-    const handler = arg1;
-    return AppServer.command(() => runRemoteEffect(handler()));
-  }
+const makeForm = <Env>(run: Runner): FormFn<Env> =>
+  ((arg1: unknown, arg2?: unknown): any => {
+    if (isBareHandler<Env>(arg1)) {
+      const handler = arg1;
+      return AppServer.form(() => run(handler()));
+    }
 
-  if (!arg2) {
-    throw new Error("command requires a handler function when a schema is provided");
-  }
+    if (!arg2) {
+      throw new Error("form requires a handler function when a schema is provided");
+    }
 
-  return AppServer.command(arg1 as "unchecked", (arg: unknown) => runRemoteEffect(arg2(arg)));
-}
-
-export function prerender<Output>(
-  fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  options?: {
-    inputs?: () => Promise<void[]> | void[];
-    dynamic?: boolean;
-  },
-): RemotePrerenderFunction<void, Output>;
-export function prerender<Input, Output>(
-  validate: "unchecked",
-  fn: (arg: Input) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  options?: {
-    inputs?: () => Promise<Input[]> | Input[];
-    dynamic?: boolean;
-  },
-): RemotePrerenderFunction<Input, Output>;
-export function prerender<Schema extends StandardSchemaV1, Output>(
-  schema: Schema,
-  fn: (
-    arg: StandardSchemaV1.InferOutput<Schema>,
-  ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  options?: {
-    inputs?: () =>
-      | Promise<StandardSchemaV1.InferInput<Schema>[]>
-      | StandardSchemaV1.InferInput<Schema>[];
-    dynamic?: boolean;
-  },
-): RemotePrerenderFunction<StandardSchemaV1.InferInput<Schema>, Output>;
-export function prerender(
-  arg1: unknown,
-  arg2?:
-    | ((arg: unknown) => Effect.Effect<unknown, unknown, SvelteKitEffectEnv>)
-    | {
-        inputs?: () => Promise<unknown[]> | unknown[];
-        dynamic?: boolean;
-      },
-  arg3?: {
-    inputs?: () => Promise<unknown[]> | unknown[];
-    dynamic?: boolean;
-  },
-): any {
-  if (isBareHandler(arg1)) {
-    const handler = arg1;
-    return AppServer.prerender(
-      () => runRemoteEffect(handler()),
-      arg2 as { inputs?: () => Promise<void[]> | void[]; dynamic?: boolean } | undefined,
+    return AppServer.form(arg1 as "unchecked", (data: unknown, issue: unknown) =>
+      run((arg2 as EffectFormHandler<Env>)(data, issue)),
     );
-  }
+  }) as FormFn<Env>;
 
-  if (typeof arg2 !== "function") {
-    throw new Error("prerender requires a handler function when a schema is provided");
-  }
-
-  return AppServer.prerender(
-    arg1 as "unchecked",
-    (arg: unknown) => runRemoteEffect((arg2 as EffectHandler)(arg)),
-    arg3,
-  );
+export interface CommandFn<Env> {
+  <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteCommand<void, Output>;
+  <Input, Output>(
+    validate: "unchecked",
+    fn: (arg: Input) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteCommand<Input, Output>;
+  <Schema extends StandardSchemaV1, Output>(
+    validate: Schema,
+    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteCommand<StandardSchemaV1.InferInput<Schema>, Output>;
 }
+
+const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
+  ((arg1: unknown, arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, Env>): any => {
+    if (isBareHandler<Env>(arg1)) {
+      const handler = arg1;
+      return AppServer.command(() => run(handler()));
+    }
+
+    if (!arg2) {
+      throw new Error("command requires a handler function when a schema is provided");
+    }
+
+    return AppServer.command(arg1 as "unchecked", (arg: unknown) => run(arg2(arg)));
+  }) as CommandFn<Env>;
+
+export interface PrerenderFn<Env> {
+  <Output>(
+    fn: () => Effect.Effect<Output, unknown, Env>,
+    options?: {
+      inputs?: () => Promise<void[]> | void[];
+      dynamic?: boolean;
+    },
+  ): RemotePrerenderFunction<void, Output>;
+  <Input, Output>(
+    validate: "unchecked",
+    fn: (arg: Input) => Effect.Effect<Output, unknown, Env>,
+    options?: {
+      inputs?: () => Promise<Input[]> | Input[];
+      dynamic?: boolean;
+    },
+  ): RemotePrerenderFunction<Input, Output>;
+  <Schema extends StandardSchemaV1, Output>(
+    schema: Schema,
+    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
+    options?: {
+      inputs?: () =>
+        | Promise<StandardSchemaV1.InferInput<Schema>[]>
+        | StandardSchemaV1.InferInput<Schema>[];
+      dynamic?: boolean;
+    },
+  ): RemotePrerenderFunction<StandardSchemaV1.InferInput<Schema>, Output>;
+}
+
+const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
+  ((
+    arg1: unknown,
+    arg2?:
+      | ((arg: unknown) => Effect.Effect<unknown, unknown, Env>)
+      | {
+          inputs?: () => Promise<unknown[]> | unknown[];
+          dynamic?: boolean;
+        },
+    arg3?: {
+      inputs?: () => Promise<unknown[]> | unknown[];
+      dynamic?: boolean;
+    },
+  ): any => {
+    if (isBareHandler<Env>(arg1)) {
+      const handler = arg1;
+      return AppServer.prerender(
+        () => run(handler()),
+        arg2 as { inputs?: () => Promise<void[]> | void[]; dynamic?: boolean } | undefined,
+      );
+    }
+
+    if (typeof arg2 !== "function") {
+      throw new Error("prerender requires a handler function when a schema is provided");
+    }
+
+    return AppServer.prerender(
+      arg1 as "unchecked",
+      (arg: unknown) => run((arg2 as EffectHandler<Env>)(arg)),
+      arg3,
+    );
+  }) as PrerenderFn<Env>;
 
 export function requested<Result = unknown>(...args: unknown[]): Result {
   const requestedFn = getRequested();
   return requestedFn(...args) as Result;
 }
 
-type QueryNamespace = {
-  <Output>(
-    fn: () => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  ): RemoteQueryFunction<void, Output>;
-  <Input, Output>(
-    validate: "unchecked",
-    fn: (arg: Input) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  ): RemoteQueryFunction<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    schema: Schema,
-    fn: (
-      arg: StandardSchemaV1.InferOutput<Schema>,
-    ) => Effect.Effect<Output, unknown, SvelteKitEffectEnv>,
-  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
-  batch: typeof queryBatch;
-  live: typeof queryLive;
+/** A `query` with its `batch` / `live` helpers attached. */
+export type QueryNamespace<Env> = QueryFn<Env> & {
+  batch: QueryBatchFn<Env>;
+  live: QueryLiveFn<Env>;
 };
 
-const queryWithHelpers = Object.assign(query, {
-  batch: queryBatch,
-  live: queryLive,
-}) as QueryNamespace;
+const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
+  Object.assign(makeQuery<Env>(run), {
+    batch: makeQueryBatch<Env>(run),
+    live: makeQueryLive<Env>(run),
+  }) as QueryNamespace<Env>;
+
+// ── Standalone exports (default SvelteKit per-request runtime) ──────────────
+
+export const query: QueryNamespace<SvelteKitEffectEnv> = makeQueryNamespace(runRemoteEffect);
+export const queryBatch: QueryBatchFn<SvelteKitEffectEnv> = query.batch;
+export const queryLive: QueryLiveFn<SvelteKitEffectEnv> = query.live;
+export const form: FormFn<SvelteKitEffectEnv> = makeForm(runRemoteEffect);
+export const command: CommandFn<SvelteKitEffectEnv> = makeCommand(runRemoteEffect);
+export const prerender: PrerenderFn<SvelteKitEffectEnv> = makePrerender(runRemoteEffect);
+
+/** The set of remote-function helpers bound to a particular runner. */
+export interface RemoteFunctions<Env> {
+  readonly query: QueryNamespace<Env>;
+  readonly form: FormFn<Env>;
+  readonly command: CommandFn<Env>;
+  readonly prerender: PrerenderFn<Env>;
+}
+
+/**
+ * Bind the remote-function helpers to a {@link RequestRuntimeProvider} (and an
+ * optional boundary error translator), so their handlers run on the provider's
+ * services `Env` — your own application catalogue — instead of the fixed
+ * {@link SvelteKitServices}. The Standard-Schema / `"unchecked"` validation
+ * argument and the native return types (`RemoteQueryFunction`, `RemoteForm`,
+ * ...) are exactly as the standalone helpers.
+ *
+ * For remote forms, the translator receives the failure of the handler effect
+ * and may call SvelteKit's `invalid()` to produce field-level errors rather
+ * than a 500.
+ *
+ * @example
+ * ```ts
+ * const { query, form, command } = RemoteFunction.withRuntime(
+ *   RequestRuntime.fromLocals((event) => event.locals.runtime),
+ *   { translateError: toSvelteKit },
+ * );
+ *
+ * export const items = query(() =>
+ *   Effect.gen(function* () {
+ *     const db = yield* Database;
+ *     return yield* db.list();
+ *   }),
+ * );
+ * ```
+ */
+export function withRuntime<R>(
+  provider: RequestRuntimeProvider<R, any>,
+  opts?: { translateError?: ErrorTranslator },
+): RemoteFunctions<R> {
+  const run = runnerFromProvider(provider, opts?.translateError ?? defaultTranslate);
+  return {
+    query: makeQueryNamespace<R>(run),
+    form: makeForm<R>(run),
+    command: makeCommand<R>(run),
+    prerender: makePrerender<R>(run),
+  };
+}
 
 export const RemoteFunction = {
-  query: queryWithHelpers,
+  query,
   form,
   command,
   prerender,
   requested,
+  withRuntime,
 };

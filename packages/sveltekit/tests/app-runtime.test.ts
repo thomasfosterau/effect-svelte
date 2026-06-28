@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
-import { Context, Effect, Layer } from "effect";
+import { Cause, Context, Effect, Layer } from "effect";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
@@ -177,6 +177,26 @@ describe("makeServerRuntime", () => {
     const runtime = makeServerRuntime(greeterLayer);
     const load = runtime.serverLoad(() => Effect.fail("boom"));
     await expect(load(mockEvent())).rejects.toThrow();
+  });
+
+  it("translateError maps a domain failure to SvelteKit control flow", async () => {
+    class NotFound {
+      readonly _tag = "NotFound";
+    }
+    const runtime = makeServerRuntime(greeterLayer, {
+      translateError: (cause) => {
+        if (Cause.squash(cause) instanceof NotFound) error(404, "missing");
+        throw new Error("unexpected");
+      },
+    });
+    const load = runtime.serverLoad(() => Effect.fail(new NotFound()));
+    try {
+      await load(mockEvent());
+      throw new Error("expected an HttpError");
+    } catch (thrown) {
+      expect(isHttpError(thrown)).toBe(true);
+      expect((thrown as { status: number }).status).toBe(404);
+    }
   });
 
   it("dispose() runs the layer's finalizers", async () => {
