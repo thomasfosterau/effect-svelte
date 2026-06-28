@@ -31,8 +31,8 @@
  */
 
 import type { RequestHandler } from "@sveltejs/kit";
-import { Layer } from "effect";
-import type { Effect, Scope } from "effect";
+import { Context, Effect, Layer } from "effect";
+import type { Scope } from "effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Etag from "effect/unstable/http/Etag";
@@ -47,6 +47,33 @@ import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
 
 /** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
 type WebHandler = (request: Request) => Promise<Response>;
+
+/** A Web handler that also accepts a per-request service context. */
+type WebHandlerWithContext = (
+  request: Request,
+  context?: Context.Context<never>,
+) => Promise<Response>;
+
+/**
+ * Resolve a request-scoped service context, if a resolver was given. The
+ * resolver may return a `Context` directly or an `Effect` producing one (run
+ * with no requirements), so a consumer can read the request to build
+ * session-aware services per dispatch.
+ */
+export type RequestContext<RequestServices> = (
+  request: Request,
+) =>
+  | Context.Context<RequestServices>
+  | Effect.Effect<Context.Context<RequestServices>, never, never>;
+
+const resolveRequestContext = async <RequestServices>(
+  request: Request,
+  context: RequestContext<RequestServices> | undefined,
+): Promise<Context.Context<RequestServices> | undefined> => {
+  if (context === undefined) return undefined;
+  const result = context(request);
+  return Effect.isEffect(result) ? Effect.runPromise(result) : result;
+};
 
 /**
  * A SvelteKit endpoint handler — the built-in
@@ -92,13 +119,21 @@ const stripPrefix = (request: Request, prefix: string): Request => {
 };
 
 /** Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler. */
-const make = (
-  webHandler: WebHandler,
+const make = <RequestServices = never>(
+  webHandler: WebHandler | WebHandlerWithContext,
   dispose: () => Promise<void>,
   prefix: string | undefined,
+  context?: RequestContext<RequestServices>,
 ): EndpointHandler => {
-  const handler: RequestHandler = (event) =>
-    webHandler(prefix === undefined ? event.request : stripPrefix(event.request, prefix));
+  const handler: RequestHandler = async (event) => {
+    const request = prefix === undefined ? event.request : stripPrefix(event.request, prefix);
+    if (context === undefined) return (webHandler as WebHandler)(request);
+    const ctx = await resolveRequestContext(request, context);
+    return (webHandler as WebHandlerWithContext)(
+      request,
+      ctx as Context.Context<never> | undefined,
+    );
+  };
   return Object.assign(handler, { dispose });
 };
 
@@ -125,14 +160,38 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
  * export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
  * ```
  */
-export const fromApi = <Id extends string, Groups extends HttpApiGroup.Any, E>(
+export const fromApi = <
+  Id extends string,
+  Groups extends HttpApiGroup.Any,
+  E,
+  LayerRequires = never,
+  RequestServices = never,
+>(
   api: HttpApi.HttpApi<Id, Groups>,
-  layer: Layer.Layer<HttpApiGroup.ToService<Id, Groups>, E>,
+  layer: Layer.Layer<HttpApiGroup.ToService<Id, Groups>, E, LayerRequires>,
   options?: EndpointOptions & {
     /** Serve the OpenAPI spec for the API at this path (e.g. `"/openapi.json"`). */
     readonly openapiPath?: `/${string}`;
     /** Add Effect's request logger middleware. Defaults to `false` (quiet). */
     readonly logger?: boolean;
+    /**
+     * Provide the request-scoped services the API groups require, per request.
+     * The build-once platform layer (`HttpPlatform` / `FileSystem` / `Path` /
+     * `Etag`) stays shared; only this slice is resolved and merged for each
+     * dispatch — so a session-aware, request-pooled API can run on Workers
+     * without rebuilding its platform layer.
+     *
+     * The resolver may return a `Context` or an `Effect` producing one. Leave
+     * the matching services unprovided in `layer` and supply them here:
+     *
+     * ```ts
+     * Endpoint.fromApi(api, ApiLive, {
+     *   prefix: "/api",
+     *   context: (request) => Context.make(CurrentUser, userFor(request)),
+     * });
+     * ```
+     */
+    readonly context?: RequestContext<RequestServices>;
   },
 ): EndpointHandler => {
   const appLayer = HttpApiBuilder.layer(
@@ -140,11 +199,18 @@ export const fromApi = <Id extends string, Groups extends HttpApiGroup.Any, E>(
     options?.openapiPath ? { openapiPath: options.openapiPath } : undefined,
   ).pipe(Layer.provide(layer), Layer.provide(apiPlatform));
 
+  // The request-scoped services are supplied per dispatch via the web handler's
+  // context argument, so they are hidden from the build-once layer here.
   const { handler, dispose } = HttpRouter.toWebHandler(
-    appLayer as Layer.Layer<never, E, HttpRouter.HttpRouter>,
+    appLayer as unknown as Layer.Layer<never, E, HttpRouter.HttpRouter>,
     { disableLogger: options?.logger !== true },
   );
-  return make(handler, dispose, options?.prefix);
+  return make<RequestServices>(
+    handler as WebHandlerWithContext,
+    dispose,
+    options?.prefix,
+    options?.context,
+  );
 };
 
 /**
@@ -175,17 +241,29 @@ export const fromRouter = <
     | HttpRouter.Request<"GlobalRequires", any>
     | HttpRouter.Request<"Error", any>
     | HttpRouter.Request<"GlobalError", any>,
+  RequestServices = never,
 >(
   layer: Layer.Layer<A, E, R>,
   options?: EndpointOptions & {
     /** Add Effect's request logger middleware. Defaults to `false` (quiet). */
     readonly logger?: boolean;
+    /**
+     * Provide the request-scoped services the router's routes require, per
+     * request (the routes' `HttpRouter.Request<"Requires", ...>` services). The
+     * resolver may return a `Context` or an `Effect` producing one.
+     */
+    readonly context?: RequestContext<RequestServices>;
   },
 ): EndpointHandler => {
   const { handler, dispose } = HttpRouter.toWebHandler(layer, {
     disableLogger: options?.logger !== true,
   });
-  return make(handler as WebHandler, dispose, options?.prefix);
+  return make<RequestServices>(
+    handler as WebHandlerWithContext,
+    dispose,
+    options?.prefix,
+    options?.context,
+  );
 };
 
 /**

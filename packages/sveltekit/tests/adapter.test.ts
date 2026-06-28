@@ -116,6 +116,34 @@ describe("effectAdapter", () => {
     rmSync(out, { recursive: true, force: true });
   });
 
+  it("generates a Cloudflare Workers fetch entry for target: 'fetch'", async () => {
+    const out = makeOutDir();
+    const adapter = effectAdapter({ out, precompress: false, target: "fetch", envPrefix: "CF_" });
+
+    await adapter.adapt(mockBuilder([]));
+
+    // handler.js (the HttpApp) is still written for both targets.
+    expect(existsSync(join(out, "handler.js"))).toBe(true);
+
+    const entry = readFileSync(join(out, "index.js"), "utf8");
+    expect(entry).toContain(
+      'import { makeHandlerWith, AssetSource, toWebHandler } from "@thomasfosterau/effect-sveltekit/adapter/handler"',
+    );
+    expect(entry).toContain("AssetSource.cloudflareAssets(env.ASSETS)");
+    expect(entry).toContain("export default {");
+    expect(entry).toContain("fetch(request, env, ctx)");
+    expect(entry).toContain('envPrefix: "CF_"');
+    // The Node serve entry is not used for the fetch target.
+    expect(entry).not.toContain("/adapter/serve");
+
+    rmSync(out, { recursive: true, force: true });
+  });
+
+  it("reports read() as unsupported for the fetch target", () => {
+    const adapter = effectAdapter({ target: "fetch" });
+    expect(adapter.supports?.read?.({ config: {}, route: { id: "/" } })).toBe(false);
+  });
+
   it("compresses assets when precompress is enabled (the default)", async () => {
     const out = makeOutDir();
     const calls: BuilderCall[] = [];

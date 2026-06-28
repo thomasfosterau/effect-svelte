@@ -186,13 +186,41 @@ export * as Endpoint from "./server/Endpoint.js";
  * App-wide runtime: define your application's Effect services once and share
  * them across every request.
  */
-export { makeServerRuntime, type ServerRuntime, type RequestRuntime } from "./app-runtime.js";
+export {
+  makeServerRuntime,
+  type ServerRuntime,
+  type ServerRuntimeOptions,
+  type RequestRuntime as ScopedRequestRuntime,
+} from "./app-runtime.js";
 
 /**
  * Export the SvelteKit runtime utilities for advanced use cases.
  */
 export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 export { RemoteFunction } from "./remote.server.js";
+
+/**
+ * A general, Effect-idiomatic seam for *how the per-request execution context is
+ * obtained*. {@link RequestRuntime} constructs a {@link RequestRuntimeProvider}
+ * (from a consumer-owned runtime on `event.locals`, a package-built
+ * per-request runtime, a build-once `ManagedRuntime`, or a `Layer`), and
+ * {@link makeRuntimeAdapter} binds the `serverLoad` / `action` / `actions` /
+ * `endpoint` wrappers to it — so the handler effect's services `R` are your own
+ * application catalogue, not the fixed {@link SvelteKitServices}. A
+ * {@link RuntimeAdapterOptions.translateError} maps a failed `Cause` to
+ * SvelteKit control flow at the boundary.
+ */
+export {
+  RequestRuntime,
+  makeRuntimeAdapter,
+  type RequestRuntimeProvider,
+  type RequestRuntimeRunners,
+  type RuntimeAdapter,
+  type RuntimeAdapterOptions,
+  type AdapterEndpointOptions,
+  type FromLayerPerRequestOptions,
+  type ErrorTranslator,
+} from "./request-runtime.js";
 
 /**
  * SvelteKit `$env` ⇄ Effect `Config` (see {@link sveltekitConfig}). The

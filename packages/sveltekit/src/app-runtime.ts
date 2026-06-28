@@ -28,6 +28,7 @@ import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import { causeToThrowable } from "./internal/error.js";
+import type { ErrorTranslator } from "./request-runtime.js";
 
 /**
  * The services provided to every wrapped effect on the server, in addition to
@@ -97,14 +98,35 @@ const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> =>
 const fetchLayer = (fetchFn: typeof globalThis.fetch): Layer.Layer<HttpClient.HttpClient> =>
   FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn)));
 
-/** Settle an exit the way SvelteKit expects: return the value or throw. */
-const settle = <A>(exit: Exit.Exit<A, unknown>): A =>
-  Exit.match(exit, {
-    onFailure: (cause) => {
-      throw causeToThrowable(cause);
-    },
-    onSuccess: (value) => value,
-  });
+/** Build a settle that returns a success value or throws via the translator. */
+const makeSettle =
+  (translate: ErrorTranslator) =>
+  <A>(exit: Exit.Exit<A, unknown>): A =>
+    Exit.match(exit, {
+      onFailure: (cause) => translate(cause),
+      onSuccess: (value) => value,
+    });
+
+/** The default settle: SvelteKit control flow through, anything else a 500. */
+const settle = makeSettle((cause) => {
+  throw causeToThrowable(cause);
+});
+
+/**
+ * Options for {@link makeServerRuntime}.
+ */
+export interface ServerRuntimeOptions {
+  /**
+   * Translate a failed `Cause` into SvelteKit control flow at the boundary of
+   * every wrapper (`serverLoad`, `action`, `actions`, `endpoint`, `handle`,
+   * `handleFetch`, `handleError`, `init`). It may throw `redirect()` /
+   * `error()` so a domain error catalogue surfaces as SvelteKit control flow
+   * instead of a generic 500. Defaults to the package passthrough: SvelteKit's
+   * own `redirect()` / `error()` are rethrown, anything else becomes an
+   * `EffectCauseError` (a 500).
+   */
+  readonly translateError?: ErrorTranslator;
+}
 
 /**
  * A server-side Effect runtime bound to an application layer.
@@ -295,14 +317,19 @@ export interface ServerRuntime<R = never, E = never> {
  */
 export const makeServerRuntime = <R = never, E = never>(
   layer?: Layer.Layer<R, E>,
+  options?: ServerRuntimeOptions,
 ): ServerRuntime<R, E> => {
   const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
+
+  // The boundary translator for this runtime's wrappers (defaults to the
+  // package passthrough: SvelteKit control flow through, anything else a 500).
+  const settleRequest = options?.translateError ? makeSettle(options.translateError) : settle;
 
   // Identity token tagging the per-request runtimes this runtime creates, so a
   // different runtime's wrappers don't run on the wrong application layer.
   const owner = {};
 
-  /** A {@link RequestRuntime} that provides the prebuilt request services. */
+  /** A {@link ScopedRequestRuntime} that provides the prebuilt request services. */
   const makeRequestRuntime = (
     requestServices: Context.Context<SvelteKitServices>,
   ): RequestRuntime<R> => {
@@ -311,7 +338,7 @@ export const makeServerRuntime = <R = never, E = never>(
     return {
       runPromiseExit: (effect) =>
         runtime.runPromiseExit(provide(effect)) as Promise<Exit.Exit<any, unknown>>,
-      runPromise: (effect) => runtime.runPromiseExit(provide(effect)).then(settle),
+      runPromise: (effect) => runtime.runPromiseExit(provide(effect)).then(settleRequest),
       runFork: (effect) => runtime.runFork(provide(effect)) as Fiber.Fiber<any, unknown>,
     };
   };
@@ -337,7 +364,7 @@ export const makeServerRuntime = <R = never, E = never>(
   const run = <A>(
     event: RequestEvent,
     effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
-  ): Promise<A> => runExit(event, effect).then(settle);
+  ): Promise<A> => runExit(event, effect).then(settleRequest);
 
   const action: ServerRuntime<R, E>["action"] = (fn) => (event) => run(event, fn(event));
 
@@ -380,7 +407,7 @@ export const makeServerRuntime = <R = never, E = never>(
     init: (effect) => async () => {
       // `init` runs outside of any request, so it executes directly on the
       // application runtime without the per-request layer.
-      settle(await runtime.runPromiseExit(effect));
+      settleRequest(await runtime.runPromiseExit(effect));
     },
     requestRuntime: requestRuntimeOf,
     endpoint: (fn) => (event) => run(event, fn(event)),

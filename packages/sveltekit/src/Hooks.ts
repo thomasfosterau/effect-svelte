@@ -57,7 +57,15 @@ export function reroute(
 
 /**
  * The universal `transport` hook built from Effect schemas: `transport`
- * assembles a whole `transport` object from a record of schemas, and
- * `transporter` builds a single entry. See {@link transport} for details.
+ * assembles a whole `transport` object from a record of entries, `transporter`
+ * builds a single round-tripping entry from a `Schema.Codec`, and
+ * `markerTransporter` builds a deliberately-lossy entry for a non-POJO wrapper
+ * whose contents should not round-trip. See {@link transport} for details.
  */
-export { transport, transporter } from "./transport.js";
+export {
+  transport,
+  transporter,
+  markerTransporter,
+  type MarkerTransporterOptions,
+  type TransportEntry,
+} from "./transport.js";

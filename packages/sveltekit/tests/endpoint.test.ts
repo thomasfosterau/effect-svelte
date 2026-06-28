@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Schema } from "effect";
+import { Context, Effect, Schema } from "effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
 import * as Endpoint from "../src/server/Endpoint.js";
@@ -38,6 +38,65 @@ describe("Endpoint.fromApi", () => {
     // The prefix match respects path boundaries: "/apiary" is not under "/api".
     const miss = await fallback(event("http://localhost/apiary/hello"));
     expect(miss.status).toBe(404);
+    await fallback.dispose();
+  });
+});
+
+describe("Endpoint.fromApi per-request context", () => {
+  class CurrentUser extends Context.Service<CurrentUser, { name: string }>()("test/CurrentUser") {}
+
+  // An API whose group handler requires a per-request service.
+  const UserApi = HttpApi.make("api").add(
+    HttpApiGroup.make("me").add(
+      HttpApiEndpoint.get("who", "/who", {
+        success: Schema.Struct({ name: Schema.String }),
+      }),
+    ),
+  );
+  const MeLive = HttpApiBuilder.group(UserApi, "me", (handlers) =>
+    handlers.handle("who", () => Effect.map(CurrentUser, (u) => ({ name: u.name }))),
+  );
+
+  it("provides request-scoped services via a Context resolver", async () => {
+    const fallback = Endpoint.fromApi(UserApi, MeLive, {
+      context: (request) =>
+        Context.make(CurrentUser, { name: new URL(request.url).searchParams.get("u") ?? "?" }),
+    });
+    const response = await fallback(event("http://localhost/who?u=ada"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ name: "ada" });
+    await fallback.dispose();
+  });
+
+  it("provides request-scoped services via an Effect resolver", async () => {
+    const fallback = Endpoint.fromApi(UserApi, MeLive, {
+      context: (request) =>
+        Effect.succeed(
+          Context.make(CurrentUser, { name: new URL(request.url).searchParams.get("u") ?? "?" }),
+        ),
+    });
+    const response = await fallback(event("http://localhost/who?u=grace"));
+    expect(await response.json()).toEqual({ name: "grace" });
+    await fallback.dispose();
+  });
+});
+
+describe("Endpoint.fromRouter per-request context", () => {
+  class CurrentUser extends Context.Service<CurrentUser, { name: string }>()("test/RouterUser") {}
+
+  it("provides the router's required services per request", async () => {
+    const MeLive = HttpRouter.use((router) =>
+      router.add(
+        "GET",
+        "/me",
+        Effect.map(CurrentUser, (u) => HttpServerResponse.text(`hi ${u.name}`)),
+      ),
+    );
+    const fallback = Endpoint.fromRouter(MeLive, {
+      context: () => Context.make(CurrentUser, { name: "ada" }),
+    });
+    const response = await fallback(event("http://localhost/me"));
+    expect(await response.text()).toBe("hi ada");
     await fallback.dispose();
   });
 });

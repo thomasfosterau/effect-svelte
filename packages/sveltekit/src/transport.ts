@@ -48,14 +48,65 @@ export const transporter = <T, E>(schema: Schema.Codec<T, E>): Transporter<T, re
 };
 
 /**
- * Assembles a SvelteKit `transport` object from a record of Effect schemas,
- * applying {@link transporter} to each. The keys are arbitrary labels (they
- * only need to be stable between server and client).
+ * Builds a deliberately-lossy {@link Transporter} for a non-POJO wrapper whose
+ * contents should *not* round-trip — the value is detected on the server and
+ * reconstructed fresh on the client.
+ *
+ * Unlike {@link transporter} (which needs a round-tripping {@link Schema.Codec}),
+ * this is for values that have no meaningful serialization but still need a
+ * `transport` entry so SvelteKit doesn't reject them: `encode` returns a truthy
+ * marker for matching values, and `decode` ignores it and produces a fresh value
+ * from {@link MarkerTransporterOptions.make}.
+ *
+ * ```ts
+ * // A non-serializable handle reconstructed as a fresh, empty instance:
+ * export const transport = Hooks.transport({
+ *   Live: Hooks.markerTransporter({
+ *     guard: (v): v is LiveHandle => v instanceof LiveHandle,
+ *     make: () => LiveHandle.empty(),
+ *   }),
+ * });
+ * ```
  */
-export const transport = (schemas: Record<string, Schema.Codec<any, any>>): Transport => {
+export const markerTransporter = <T>(
+  options: MarkerTransporterOptions<T>,
+): Transporter<T, unknown> => {
+  const marker = options.marker ?? 1;
+  return {
+    encode: (value) => (options.guard(value) ? marker : false),
+    decode: () => options.make(),
+  };
+};
+
+/** Options for {@link markerTransporter}. */
+export interface MarkerTransporterOptions<T> {
+  /** Detect, on the server, values this transporter handles. */
+  readonly guard: (value: unknown) => value is T;
+  /** Produce a fresh value on the client (the payload is discarded). */
+  readonly make: () => T;
+  /**
+   * The truthy marker `encode` emits (SvelteKit treats a falsy `encode` result
+   * as "not this type"). Defaults to `1`.
+   */
+  readonly marker?: unknown;
+}
+
+/** An entry accepted by {@link transport}: an Effect schema or a ready Transporter. */
+export type TransportEntry = Schema.Codec<any, any> | Transporter<any, any>;
+
+/**
+ * Assembles a SvelteKit `transport` object from a record of entries. Each entry
+ * is either an Effect {@link Schema.Codec} (wrapped with {@link transporter}) or
+ * a ready {@link Transporter} (e.g. from {@link markerTransporter}), so
+ * round-tripping and marker-style values can be mixed. The keys are arbitrary
+ * labels (they only need to be stable between server and client).
+ */
+export const transport = (entries: Record<string, TransportEntry>): Transport => {
   const result: Transport = {};
-  for (const [name, schema] of Object.entries(schemas)) {
-    result[name] = transporter(schema);
+  for (const [name, entry] of Object.entries(entries)) {
+    result[name] = Schema.isSchema(entry)
+      ? transporter(entry as Schema.Codec<any, any>)
+      : (entry as Transporter<any, any>);
   }
   return result;
 };
