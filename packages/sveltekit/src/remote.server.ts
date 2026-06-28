@@ -9,57 +9,48 @@ import type {
 } from "@sveltejs/kit";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import { Effect, Exit, type Schema } from "effect";
+import { Effect, type Schema } from "effect";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
-import { causeToThrowable } from "./internal/error.js";
 import {
   isBareHandler as isBareHandlerValue,
   toStandardValidator,
 } from "./internal/remote-validators.js";
+import {
+  defaultTranslate,
+  makeRunHelpers,
+  type FormErrorMapper,
+  type RunHelpers,
+  type Runner,
+} from "./internal/remote-run.js";
 import type { ErrorTranslator, RequestRuntimeProvider } from "./request-runtime.js";
+
+export type { FormErrorMapper } from "./internal/remote-run.js";
 
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
 
-/** Settle a remote handler's `Exit`: return the value or throw via the translator. */
-const defaultTranslate: ErrorTranslator = (cause) => {
-  throw causeToThrowable(cause);
-};
-
-/**
- * Runs a remote handler's effect for the current request and settles its exit.
- * A `Runner` decides *how* to obtain the per-request execution context and how
- * to translate failures at the boundary.
- */
-type Runner = <A>(effect: Effect.Effect<A, unknown, any>) => Promise<A>;
-
-/** The default runner: a fresh SvelteKit per-request runtime, passthrough translation. */
-const runRemoteEffect: Runner = (effect) => {
+/** The default helpers: a fresh SvelteKit per-request runtime, passthrough translation. */
+const defaultHelpers: RunHelpers = makeRunHelpers(() => {
   const event = AppServer.getRequestEvent();
-  const runtime = SvelteKitRuntime.forRequest(event);
-  return runtime
-    .runPromiseExit(effect)
-    .then((exit) => (Exit.isSuccess(exit) ? exit.value : defaultTranslate(exit.cause)));
-};
+  return { runExit: (effect) => SvelteKitRuntime.forRequest(event).runPromiseExit(effect) };
+}, defaultTranslate);
 
-/** Build a runner from a {@link RequestRuntimeProvider} and an optional translator. */
-const runnerFromProvider = (
+/** Build helpers from a {@link RequestRuntimeProvider}, translator, and form-error mapper. */
+const helpersFromProvider = (
   provider: RequestRuntimeProvider<any, any>,
   translate: ErrorTranslator,
-): Runner => {
-  return (effect) => {
-    const event = AppServer.getRequestEvent();
-    return provider
-      .run(event)
-      .runPromiseExit(effect)
-      .then((exit) => {
-        try {
-          return Exit.isSuccess(exit) ? exit.value : translate(exit.cause);
-        } finally {
-          provider.disposeAfterResponse?.(event);
-        }
-      });
-  };
-};
+  formError?: FormErrorMapper,
+): RunHelpers =>
+  makeRunHelpers(
+    () => {
+      const event = AppServer.getRequestEvent();
+      return {
+        runExit: (effect) => provider.run(event).runPromiseExit(effect),
+        dispose: () => provider.disposeAfterResponse?.(event),
+      };
+    },
+    translate,
+    formError,
+  );
 
 function unavailable(name: string): never {
   throw new Error(
@@ -222,11 +213,11 @@ export interface FormFn<Env> {
   ): RemoteForm<S["Encoded"], Output>;
 }
 
-const makeForm = <Env>(run: Runner): FormFn<Env> =>
+const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> =>
   ((arg1: unknown, arg2?: unknown): any => {
     if (isBareHandler<Env>(arg1)) {
       const handler = arg1;
-      return AppServer.form(() => run(handler()));
+      return AppServer.form(() => helpers.run(handler()));
     }
 
     if (!arg2) {
@@ -235,7 +226,11 @@ const makeForm = <Env>(run: Runner): FormFn<Env> =>
 
     return AppServer.form(
       toStandardValidator(arg1) as "unchecked",
-      (data: unknown, issue: unknown) => run((arg2 as EffectFormHandler<Env>)(data, issue)),
+      (data: unknown, issue: unknown) =>
+        helpers.runForm((arg2 as EffectFormHandler<Env>)(data, issue), {
+          issue: issue as InvalidField<any>,
+          data,
+        }),
     );
   }) as FormFn<Env>;
 
@@ -359,12 +354,12 @@ const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
 
 // ── Standalone exports (default SvelteKit per-request runtime) ──────────────
 
-export const query: QueryNamespace<SvelteKitEffectEnv> = makeQueryNamespace(runRemoteEffect);
+export const query: QueryNamespace<SvelteKitEffectEnv> = makeQueryNamespace(defaultHelpers.run);
 export const queryBatch: QueryBatchFn<SvelteKitEffectEnv> = query.batch;
 export const queryLive: QueryLiveFn<SvelteKitEffectEnv> = query.live;
-export const form: FormFn<SvelteKitEffectEnv> = makeForm(runRemoteEffect);
-export const command: CommandFn<SvelteKitEffectEnv> = makeCommand(runRemoteEffect);
-export const prerender: PrerenderFn<SvelteKitEffectEnv> = makePrerender(runRemoteEffect);
+export const form: FormFn<SvelteKitEffectEnv> = makeForm(defaultHelpers);
+export const command: CommandFn<SvelteKitEffectEnv> = makeCommand(defaultHelpers.run);
+export const prerender: PrerenderFn<SvelteKitEffectEnv> = makePrerender(defaultHelpers.run);
 
 /** The set of remote-function helpers bound to a particular runner. */
 export interface RemoteFunctions<Env> {
@@ -382,15 +377,23 @@ export interface RemoteFunctions<Env> {
  * argument and the native return types (`RemoteQueryFunction`, `RemoteForm`,
  * ...) are exactly as the standalone helpers.
  *
- * For remote forms, the translator receives the failure of the handler effect
- * and may call SvelteKit's `invalid()` to produce field-level errors rather
- * than a 500.
+ * For remote forms, the failure path runs `opts.formError` when provided —
+ * mapping a structured/nested error shape into SvelteKit's field issues (via the
+ * `issue` helper / `invalid()`) so a domain validation failure drives
+ * field-level invalidation rather than a generic failure. Otherwise the form
+ * falls back to `translateError`.
  *
  * @example
  * ```ts
  * const { query, form, command } = RemoteFunction.withRuntime(
  *   RequestRuntime.fromLocals((event) => event.locals.runtime),
- *   { translateError: toSvelteKit },
+ *   {
+ *     translateError: toSvelteKit,
+ *     formError: (error, { issue }) => {
+ *       if (error instanceof ValidationFailure) issue.field(error.field, error.message);
+ *       invalid();
+ *     },
+ *   },
  * );
  *
  * export const items = query(() =>
@@ -403,14 +406,18 @@ export interface RemoteFunctions<Env> {
  */
 export function withRuntime<R>(
   provider: RequestRuntimeProvider<R, any>,
-  opts?: { translateError?: ErrorTranslator },
+  opts?: { translateError?: ErrorTranslator; formError?: FormErrorMapper },
 ): RemoteFunctions<R> {
-  const run = runnerFromProvider(provider, opts?.translateError ?? defaultTranslate);
+  const helpers = helpersFromProvider(
+    provider,
+    opts?.translateError ?? defaultTranslate,
+    opts?.formError,
+  );
   return {
-    query: makeQueryNamespace<R>(run),
-    form: makeForm<R>(run),
-    command: makeCommand<R>(run),
-    prerender: makePrerender<R>(run),
+    query: makeQueryNamespace<R>(helpers.run),
+    form: makeForm<R>(helpers),
+    command: makeCommand<R>(helpers.run),
+    prerender: makePrerender<R>(helpers.run),
   };
 }
 

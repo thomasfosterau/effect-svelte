@@ -62,10 +62,14 @@ export const load = (event) => Effect.succeed({ id: event.params.id });
   `makeRuntimeAdapter`, `makeServerRuntime`, or `RemoteFunction.withRuntime` to
   map a failed `Cause` to SvelteKit control flow (`error(404)`, `redirect()`,
   remote-form `invalid()`) instead of a generic 500.
-- **Remote functions** — define with `RemoteFunction.*`, consume via the
-  `Remote` namespace (`Remote.callQuery`, `Remote.liveQueryStream`, …);
-  `useRemoteQuery` bridges a reactive remote resource to an `AsyncResult`.
-- **`transport` ⇄ Effect Schema** and **`$env` ⇄ Effect `Config`**.
+- **Remote functions** — define with `RemoteFunction.*` (a bare Effect `Schema`
+  validator is accepted and auto-wrapped), consume via the `Remote` namespace
+  (`Remote.callQuery`, `Remote.liveQueryStream`, …); `useRemoteQuery` bridges a
+  reactive remote resource to an `AsyncResult`. `RemoteFunction.withRuntime` also
+  takes a `formError` hook to map a domain error into SvelteKit field issues.
+- **`transport` ⇄ Effect Schema** (`Hooks.transport` / `transporter`, plus
+  `Hooks.markerTransporter` for non-round-tripping wrappers) and **`$env` ⇄
+  Effect `Config`**.
 - **Client navigation/state** — the `Navigation` (`goto`/`invalidate`/… plus
   `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`)
   namespaces.
