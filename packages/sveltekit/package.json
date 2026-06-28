@@ -1,6 +1,6 @@
 {
   "name": "@thomasfosterau/effect-sveltekit",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Effect integration for SvelteKit: load/action/endpoint wrappers, remote functions, an effectKit() Vite plugin, and an Effect HTTP deployment adapter",
   "keywords": [
     "effect",
