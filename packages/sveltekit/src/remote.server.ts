@@ -9,9 +9,13 @@ import type {
 } from "@sveltejs/kit";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, type Schema } from "effect";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import { causeToThrowable } from "./internal/error.js";
+import {
+  isBareHandler as isBareHandlerValue,
+  toStandardValidator,
+} from "./internal/remote-validators.js";
 import type { ErrorTranslator, RequestRuntimeProvider } from "./request-runtime.js";
 
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
@@ -70,22 +74,9 @@ type EffectFormHandler<Env> = (
 ) => Effect.Effect<unknown, unknown, Env>;
 type EffectVoidHandler<Env> = () => Effect.Effect<unknown, unknown, Env>;
 
-/**
- * Detects a Standard Schema validator via its `~standard` marker property.
- *
- * This cannot be a simple `typeof value === "function"` check on the handler
- * position: some Standard Schema implementations (such as Effect's
- * `Schema.toStandardSchemaV1`) return callable class values, which would be
- * mistaken for handler functions.
- */
-const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>
-  value !== null &&
-  (typeof value === "object" || typeof value === "function") &&
-  "~standard" in value;
-
-/** True when the argument is the no-validation handler overload. */
+/** True when the argument is the no-validation handler overload (typed narrowing). */
 const isBareHandler = <Env>(value: unknown): value is EffectVoidHandler<Env> =>
-  typeof value === "function" && !isStandardSchema(value);
+  isBareHandlerValue(value);
 
 /** The public shape of the `query` helper, parameterised by its handler env. */
 export interface QueryFn<Env> {
@@ -94,10 +85,14 @@ export interface QueryFn<Env> {
     validate: "unchecked",
     fn: (arg: Input) => Effect.Effect<Output, unknown, Env>,
   ): RemoteQueryFunction<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    schema: Schema,
-    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
+  <Sch extends StandardSchemaV1, Output>(
+    schema: Sch,
+    fn: (arg: StandardSchemaV1.InferOutput<Sch>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top, Output>(
+    schema: S,
+    fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
 const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
@@ -111,7 +106,9 @@ const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
       throw new Error("query requires a handler function when a schema is provided");
     }
 
-    return AppServer.query(arg1 as "unchecked", (arg: unknown) => run(arg2(arg)));
+    return AppServer.query(toStandardValidator(arg1) as "unchecked", (arg: unknown) =>
+      run(arg2(arg)),
+    );
   }) as QueryFn<Env>;
 
 export interface QueryBatchFn<Env> {
@@ -119,16 +116,20 @@ export interface QueryBatchFn<Env> {
     validate: "unchecked",
     fn: (args: Input[]) => Effect.Effect<(arg: Input, idx: number) => Output, unknown, Env>,
   ): RemoteQueryFunction<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    schema: Schema,
+  <Sch extends StandardSchemaV1, Output>(
+    schema: Sch,
     fn: (
-      args: StandardSchemaV1.InferOutput<Schema>[],
+      args: StandardSchemaV1.InferOutput<Sch>[],
     ) => Effect.Effect<
-      (arg: StandardSchemaV1.InferOutput<Schema>, idx: number) => Output,
+      (arg: StandardSchemaV1.InferOutput<Sch>, idx: number) => Output,
       unknown,
       Env
     >,
-  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top, Output>(
+    schema: S,
+    fn: (args: S["Type"][]) => Effect.Effect<(arg: S["Type"], idx: number) => Output, unknown, Env>,
+  ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
 const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> =>
@@ -136,7 +137,7 @@ const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> =>
     validate: unknown,
     fn: (args: unknown[]) => Effect.Effect<(arg: unknown, idx: number) => unknown, unknown, Env>,
   ): any =>
-    AppServer.query.batch(validate as "unchecked", (args: unknown[]) =>
+    AppServer.query.batch(toStandardValidator(validate) as "unchecked", (args: unknown[]) =>
       run(fn(args)),
     )) as QueryBatchFn<Env>;
 
@@ -181,12 +182,16 @@ export interface QueryLiveFn<Env> {
     validate: "unchecked",
     fn: (arg: Input) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
   ): RemoteQueryFunction<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    schema: Schema,
+  <Sch extends StandardSchemaV1, Output>(
+    schema: Sch,
     fn: (
-      arg: StandardSchemaV1.InferOutput<Schema>,
+      arg: StandardSchemaV1.InferOutput<Sch>,
     ) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
-  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Schema>, Output>;
+  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top, Output>(
+    schema: S,
+    fn: (arg: S["Type"]) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
+  ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
 const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
@@ -195,7 +200,7 @@ const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
     fn: (arg: unknown) => Effect.Effect<AsyncIterable<unknown>, unknown, Env>,
   ): any => {
     const live = getQueryLive();
-    return live(validate, (arg) => run(fn(arg)));
+    return live(toStandardValidator(validate), (arg) => run(fn(arg)));
   }) as QueryLiveFn<Env>;
 
 export interface FormFn<Env> {
@@ -204,13 +209,17 @@ export interface FormFn<Env> {
     validate: "unchecked",
     fn: (data: Input, issue: InvalidField<Input>) => Effect.Effect<Output, unknown, Env>,
   ): RemoteForm<Input, Output>;
-  <Schema extends StandardSchemaV1<RemoteFormInput, Record<string, any>>, Output>(
-    validate: Schema,
+  <Sch extends StandardSchemaV1<RemoteFormInput, Record<string, any>>, Output>(
+    validate: Sch,
     fn: (
-      data: StandardSchemaV1.InferOutput<Schema>,
-      issue: InvalidField<StandardSchemaV1.InferInput<Schema>>,
+      data: StandardSchemaV1.InferOutput<Sch>,
+      issue: InvalidField<StandardSchemaV1.InferInput<Sch>>,
     ) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteForm<StandardSchemaV1.InferInput<Schema>, Output>;
+  ): RemoteForm<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top & { readonly Encoded: RemoteFormInput }, Output>(
+    validate: S,
+    fn: (data: S["Type"], issue: InvalidField<S["Encoded"]>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteForm<S["Encoded"], Output>;
 }
 
 const makeForm = <Env>(run: Runner): FormFn<Env> =>
@@ -224,8 +233,9 @@ const makeForm = <Env>(run: Runner): FormFn<Env> =>
       throw new Error("form requires a handler function when a schema is provided");
     }
 
-    return AppServer.form(arg1 as "unchecked", (data: unknown, issue: unknown) =>
-      run((arg2 as EffectFormHandler<Env>)(data, issue)),
+    return AppServer.form(
+      toStandardValidator(arg1) as "unchecked",
+      (data: unknown, issue: unknown) => run((arg2 as EffectFormHandler<Env>)(data, issue)),
     );
   }) as FormFn<Env>;
 
@@ -235,10 +245,14 @@ export interface CommandFn<Env> {
     validate: "unchecked",
     fn: (arg: Input) => Effect.Effect<Output, unknown, Env>,
   ): RemoteCommand<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    validate: Schema,
-    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteCommand<StandardSchemaV1.InferInput<Schema>, Output>;
+  <Sch extends StandardSchemaV1, Output>(
+    validate: Sch,
+    fn: (arg: StandardSchemaV1.InferOutput<Sch>) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteCommand<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top, Output>(
+    validate: S,
+    fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteCommand<S["Encoded"], Output>;
 }
 
 const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
@@ -252,7 +266,9 @@ const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
       throw new Error("command requires a handler function when a schema is provided");
     }
 
-    return AppServer.command(arg1 as "unchecked", (arg: unknown) => run(arg2(arg)));
+    return AppServer.command(toStandardValidator(arg1) as "unchecked", (arg: unknown) =>
+      run(arg2(arg)),
+    );
   }) as CommandFn<Env>;
 
 export interface PrerenderFn<Env> {
@@ -271,16 +287,24 @@ export interface PrerenderFn<Env> {
       dynamic?: boolean;
     },
   ): RemotePrerenderFunction<Input, Output>;
-  <Schema extends StandardSchemaV1, Output>(
-    schema: Schema,
-    fn: (arg: StandardSchemaV1.InferOutput<Schema>) => Effect.Effect<Output, unknown, Env>,
+  <Sch extends StandardSchemaV1, Output>(
+    schema: Sch,
+    fn: (arg: StandardSchemaV1.InferOutput<Sch>) => Effect.Effect<Output, unknown, Env>,
     options?: {
       inputs?: () =>
-        | Promise<StandardSchemaV1.InferInput<Schema>[]>
-        | StandardSchemaV1.InferInput<Schema>[];
+        | Promise<StandardSchemaV1.InferInput<Sch>[]>
+        | StandardSchemaV1.InferInput<Sch>[];
       dynamic?: boolean;
     },
-  ): RemotePrerenderFunction<StandardSchemaV1.InferInput<Schema>, Output>;
+  ): RemotePrerenderFunction<StandardSchemaV1.InferInput<Sch>, Output>;
+  <S extends Schema.Top, Output>(
+    schema: S,
+    fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
+    options?: {
+      inputs?: () => Promise<S["Encoded"][]> | S["Encoded"][];
+      dynamic?: boolean;
+    },
+  ): RemotePrerenderFunction<S["Encoded"], Output>;
 }
 
 const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
@@ -310,7 +334,7 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
     }
 
     return AppServer.prerender(
-      arg1 as "unchecked",
+      toStandardValidator(arg1) as "unchecked",
       (arg: unknown) => run((arg2 as EffectHandler<Env>)(arg)),
       arg3,
     );
