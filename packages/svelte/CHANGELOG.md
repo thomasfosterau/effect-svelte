@@ -6,7 +6,6 @@
 
 - c15519f: Initial release of `@thomasfosterau/effect-svelte` — an Effect v4-native
   integration for Svelte 5 runes.
-
   - Runtime context (`provideRuntime` / `getRuntime`, `SvelteRuntime`) and
     component-lifecycle scopes (`useScope` / `useScopeCallback`).
   - Reactive hooks that expose Effect's native
