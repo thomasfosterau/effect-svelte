@@ -69,8 +69,13 @@ export const load = (event) => Effect.succeed({ id: event.params.id });
 - **Client navigation/state** — the `Navigation` (`goto`/`invalidate`/… plus
   `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`)
   namespaces.
-- **Effect deployment adapter** — a production HTTP server on
-  `effect/unstable/http` + `@effect/platform-node`.
+- **Effect deployment adapter** — the generated app is a platform-neutral
+  Effect `HttpApp` (`makeHandlerWith`): serve it as a production Node HTTP server
+  (`effect/unstable/http` + `@effect/platform-node`, the default) or as a Web
+  `fetch` handler on Cloudflare Workers (`effectAdapter({ target: "fetch" })` /
+  `toWebHandler`). Asset serving is a pluggable `AssetSource`
+  (`AssetSource.fileSystem` for Node, `AssetSource.cloudflareAssets(env.ASSETS)`
+  for Workers, or any custom source — R2, KV, a CDN passthrough).
 
 See the [monorepo README](https://github.com/thomasfosterau/effect-svelte#readme)
 for the full API and a runnable SvelteKit example.

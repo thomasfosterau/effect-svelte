@@ -3,40 +3,49 @@
  *
  * `makeHandler` turns a built SvelteKit app (the `Server` class and manifest
  * emitted by `vite build`) into an Effect HTTP application that serves
- * static client assets, prerendered pages, and server-side rendered routes.
+ * static client assets, prerendered pages, and server-side rendered routes from
+ * disk — the Node default.
+ *
+ * {@link makeHandlerWith} is the platform-neutral core: it takes an injected
+ * {@link AssetSource} (where assets come from) and a `read` capability (how to
+ * read server assets), so the same SvelteKit `HttpApp` can run on a Node server
+ * or on Cloudflare Workers (assets from `env.ASSETS`).
  *
  * The returned app is an ordinary Effect value: it can be served with the
- * generated `build/index.js` entry (see `./serve.js`), or mounted inside any
- * existing `effect/unstable/http` HTTP server alongside other routes.
+ * generated `build/index.js` entry (see `./serve.js`), mounted inside any
+ * existing `effect/unstable/http` HTTP server, or converted to a `fetch` handler
+ * (see {@link toWebHandler}).
  */
 
 import type { SSRManifest, Server as SvelteKitServer } from "@sveltejs/kit";
 import * as FileSystem from "effect/FileSystem";
 import * as HttpMethod from "effect/unstable/http/HttpMethod";
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform";
+import * as HttpEffect from "effect/unstable/http/HttpEffect";
 import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import * as Path from "effect/Path";
-import { Config, Context, Effect, Option, Stream } from "effect";
+import { Config, Context, Effect, Layer, Option, Stream } from "effect";
+import { AssetSource, type FileSystemAssetServices } from "./assets.js";
+
+export { AssetSource, type FileSystemAssetServices } from "./assets.js";
 
 /**
- * The services required by the SvelteKit HTTP application. All of them are
- * provided by `NodeHttpServer.layer` from `@effect/platform-node`.
+ * The services required by the SvelteKit HTTP application when serving assets
+ * from the file system (the Node default). All of them are provided by
+ * `NodeHttpServer.layer` from `@effect/platform-node`.
  */
-export type SvelteKitHttpAppServices =
-  | FileSystem.FileSystem
-  | Path.Path
-  | HttpPlatform.HttpPlatform;
+export type SvelteKitHttpAppServices = FileSystemAssetServices;
 
 /**
  * The SvelteKit application as a composable Effect HTTP handler: an effect that
  * produces an {@link HttpServerResponse.HttpServerResponse} for the current
- * request. The `HttpServerRequest` is supplied per request by the server.
+ * request. The `HttpServerRequest` is supplied per request by the server. `R`
+ * is the asset source's services (defaults to the file-system services).
  */
-export type SvelteKitHttpApp = Effect.Effect<
+export type SvelteKitHttpApp<R = SvelteKitHttpAppServices> = Effect.Effect<
   HttpServerResponse.HttpServerResponse,
   never,
-  SvelteKitHttpAppServices | HttpServerRequest.HttpServerRequest
+  R | HttpServerRequest.HttpServerRequest
 >;
 
 export interface SvelteKitHandlerOptions {
@@ -54,6 +63,26 @@ export interface SvelteKitHandlerOptions {
   readonly env?: Record<string, string | undefined>;
   /** Prefix for the runtime configuration environment variables (ORIGIN, ...). */
   readonly envPrefix?: string;
+}
+
+/** Options for the platform-neutral SSR core, {@link makeHandlerWith}. */
+export interface SvelteKitNeutralHandlerOptions<RAssets> {
+  /** The SvelteKit `Server` class exported by the build output. */
+  readonly Server: typeof SvelteKitServer;
+  /** The SSR manifest exported by the build output. */
+  readonly manifest: SSRManifest;
+  /** Environment variables passed to the SvelteKit server. */
+  readonly env?: Record<string, string | undefined> | undefined;
+  /** Prefix for the runtime configuration environment variables (ORIGIN, ...). */
+  readonly envPrefix?: string | undefined;
+  /** Where static client assets and prerendered pages come from. */
+  readonly assets: AssetSource<RAssets>;
+  /**
+   * How to read a server asset (backs `read()` from `$app/server`). On Node
+   * this streams from `<dir>/server`; on Workers, back it with the platform's
+   * own mechanism.
+   */
+  readonly read: (file: string) => ReadableStream<Uint8Array>;
 }
 
 /** Runtime configuration, read from the environment (compatible with adapter-node). */
@@ -126,8 +155,6 @@ const toWebRequest = (
   return new Request(url, init);
 };
 
-const IMMUTABLE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };
-
 /**
  * Creates the SvelteKit HTTP handler.
  *
@@ -159,83 +186,73 @@ export const makeHandler = (
   options: SvelteKitHandlerOptions,
 ): Effect.Effect<SvelteKitHttpApp, never, SvelteKitHttpAppServices> =>
   Effect.gen(function* () {
-    const config = yield* handlerConfig(options.envPrefix ?? "").pipe(Effect.orDie);
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const context = yield* Effect.context<never>();
 
-    const clientDir = path.join(options.dir, "client");
-    const prerenderedDir = path.join(options.dir, "prerendered");
     const serverDir = path.join(options.dir, "server");
 
-    // Initialise the SvelteKit server. `read` backs the `read()` helper from
-    // `$app/server`, streaming server assets from the build output.
+    return yield* makeHandlerWith<SvelteKitHttpAppServices>({
+      Server: options.Server,
+      manifest: options.manifest,
+      env: options.env,
+      envPrefix: options.envPrefix,
+      // `read` backs the `read()` helper from `$app/server`, streaming server
+      // assets from the build output.
+      read: (file) => Stream.toReadableStreamWith(fs.stream(path.join(serverDir, file)), context),
+      assets: AssetSource.fileSystem({
+        dir: options.dir,
+        appPath: options.manifest.appPath,
+        prerendered: options.prerendered,
+      }),
+    });
+  });
+
+/**
+ * The platform-neutral SSR core. Like {@link makeHandler}, but the asset source
+ * and the server-asset `read` capability are injected, so the same SvelteKit
+ * `HttpApp` can run on Node (file-system assets) or on Cloudflare Workers
+ * (`AssetSource.cloudflareAssets(env.ASSETS)`).
+ *
+ * The returned app:
+ *
+ * 1. falls through to the injected {@link AssetSource} for static client assets
+ *    and prerendered pages (GET/HEAD), then
+ * 2. server-side renders via the SvelteKit server.
+ *
+ * @example
+ * ```ts
+ * // Workers: a fetch handler with assets from env.ASSETS
+ * import { makeHandlerWith, AssetSource, toWebHandler } from "...adapter/handler";
+ * import { Server } from "./server/index.js";
+ * import { manifest } from "./manifest.js";
+ *
+ * export default {
+ *   fetch: (request, env, ctx) =>
+ *     toWebHandler(
+ *       makeHandlerWith({
+ *         Server, manifest, env,
+ *         assets: AssetSource.cloudflareAssets(env.ASSETS),
+ *         read: () => { throw new Error("read() not supported on this deployment"); },
+ *       }),
+ *     )(request),
+ * };
+ * ```
+ */
+export const makeHandlerWith = <RAssets = never>(
+  options: SvelteKitNeutralHandlerOptions<RAssets>,
+): Effect.Effect<SvelteKitHttpApp<RAssets>, never, never> =>
+  Effect.gen(function* () {
+    const config = yield* handlerConfig(options.envPrefix ?? "").pipe(Effect.orDie);
+
+    // Initialise the SvelteKit server. `read` backs `read()` from `$app/server`.
     const server = new options.Server(options.manifest);
     yield* Effect.promise(() =>
       server.init({
         env: (options.env ?? {}) as Record<string, string>,
-        read: (file) => Stream.toReadableStreamWith(fs.stream(path.join(serverDir, file)), context),
+        read: options.read,
       }),
     );
-
-    /**
-     * Serve a file from `root` if `pathname` resolves to an existing file
-     * inside it. Returns `Option.none()` when the file does not exist or the
-     * path escapes `root`.
-     */
-    const serveFile = (
-      root: string,
-      pathname: string,
-      headers?: Record<string, string>,
-    ): Effect.Effect<
-      Option.Option<HttpServerResponse.HttpServerResponse>,
-      never,
-      SvelteKitHttpAppServices
-    > =>
-      Effect.gen(function* () {
-        const filePath = path.join(root, pathname);
-
-        // Prevent path traversal outside of the served directory.
-        const relative = path.relative(root, filePath);
-        if (relative.startsWith("..") || path.isAbsolute(relative)) {
-          return Option.none();
-        }
-
-        const stat = yield* fs.stat(filePath).pipe(Effect.option);
-        if (Option.isNone(stat) || stat.value.type !== "File") {
-          return Option.none();
-        }
-
-        const response = yield* HttpServerResponse.file(filePath, { headers }).pipe(Effect.orDie);
-        return Option.some(response);
-      });
-
-    /** Serve a prerendered page, trying the file layouts SvelteKit emits. */
-    const servePrerendered = (
-      pathname: string,
-    ): Effect.Effect<
-      Option.Option<HttpServerResponse.HttpServerResponse>,
-      never,
-      SvelteKitHttpAppServices
-    > => {
-      const candidates =
-        pathname === "/"
-          ? ["/index.html"]
-          : pathname.endsWith("/")
-            ? [`${pathname}index.html`, `${pathname.slice(0, -1)}.html`]
-            : [pathname, `${pathname}.html`, `${pathname}/index.html`];
-
-      return Effect.gen(function* () {
-        let found = Option.none<HttpServerResponse.HttpServerResponse>();
-        for (const candidate of candidates) {
-          if (Option.isSome(found)) break;
-          found = yield* serveFile(prerenderedDir, candidate);
-        }
-        return found;
-      });
-    };
-
-    const immutablePrefix = `/${options.manifest.appPath}/immutable/`;
 
     // The HTTP handler itself, evaluated once per request.
     return Effect.gen(function* () {
@@ -252,24 +269,18 @@ export const makeHandler = (
         return HttpServerResponse.empty({ status: 400 });
       }
 
-      // 1. Static client assets (hashed build assets get immutable caching).
+      // 1. Static client assets / prerendered pages, via the injected source.
+      //    Only GET/HEAD reach assets; build a body-less request for the source.
       if (request.method === "GET" || request.method === "HEAD") {
-        const isImmutable = pathname.startsWith(immutablePrefix);
-        const asset = yield* serveFile(
-          clientDir,
-          pathname,
-          isImmutable ? IMMUTABLE_HEADERS : undefined,
-        );
+        const assetRequest = new Request(url, {
+          method: request.method,
+          headers: { ...request.headers },
+        });
+        const asset = yield* options.assets.serveAsset(assetRequest, pathname);
         if (Option.isSome(asset)) return asset.value;
-
-        // 2. Prerendered pages.
-        if (options.prerendered.has(pathname) || options.prerendered.has(pathname + "/")) {
-          const page = yield* servePrerendered(pathname);
-          if (Option.isSome(page)) return page.value;
-        }
       }
 
-      // 3. Server-side rendering.
+      // 2. Server-side rendering.
       const webRequest = toWebRequest(request, url, requestContext);
       const response = yield* Effect.promise(() =>
         server.respond(webRequest, {
@@ -279,3 +290,33 @@ export const makeHandler = (
       return HttpServerResponse.fromWeb(response);
     });
   });
+
+/**
+ * Convert a SvelteKit `HttpApp` to a Web `fetch` handler, providing the asset
+ * source's services with `layer`. Use this for a Workers `fetch` export or any
+ * runtime that speaks the Web platform.
+ *
+ * @example
+ * ```ts
+ * const fetchHandler = toWebHandler(
+ *   makeHandlerWith({ ..., assets: AssetSource.cloudflareAssets(env.ASSETS) }),
+ *   Layer.empty,
+ * );
+ * ```
+ */
+export const toWebHandler = <RAssets, E>(
+  app: Effect.Effect<SvelteKitHttpApp<RAssets>, never, never>,
+  layer: Layer.Layer<RAssets, E>,
+): ((request: Request) => Promise<Response>) => {
+  // Build the app (server.init) and the per-request web handler once, lazily on
+  // the first request, then dispatch each request through it.
+  let built: Promise<(request: Request) => Promise<Response>> | undefined;
+  const build = (): Promise<(request: Request) => Promise<Response>> =>
+    (built ??= Effect.runPromise(app).then(
+      (inner) =>
+        HttpEffect.toWebHandlerLayer(inner, layer).handler as (
+          request: Request,
+        ) => Promise<Response>,
+    ));
+  return async (request) => (await build())(request);
+};

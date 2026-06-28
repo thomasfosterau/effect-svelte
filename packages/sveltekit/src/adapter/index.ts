@@ -52,6 +52,21 @@ export interface EffectAdapterOptions {
    * @default ""
    */
   readonly envPrefix?: string;
+  /**
+   * The deployment target for the generated entry:
+   *
+   * - `"node"` (default) — a production Node HTTP server (`node build`) on
+   *   `@effect/platform-node`, serving assets from disk.
+   * - `"fetch"` — a Web `fetch` handler suitable for Cloudflare Workers
+   *   (`build/index.js` exports `default { fetch }`), serving assets from the
+   *   `env.ASSETS` binding via `AssetSource.cloudflareAssets`.
+   *
+   * Both targets also write `build/handler.js` (the SvelteKit `HttpApp`), so you
+   * can compose your own entry for any `effect/unstable/http` runtime.
+   *
+   * @default "node"
+   */
+  readonly target?: "node" | "fetch";
 }
 
 const PACKAGE = "@thomasfosterau/effect-sveltekit";
@@ -84,8 +99,8 @@ export const handler = makeHandler({
 });
 `;
 
-/** Template for the generated `<out>/index.js`. */
-const entryTemplate = (envPrefix: string): string => `\
+/** Template for the generated Node `<out>/index.js`. */
+const nodeEntryTemplate = (envPrefix: string): string => `\
 import { serve } from "${PACKAGE}/adapter/serve";
 import { handler } from "./handler.js";
 
@@ -93,10 +108,49 @@ serve(handler, { envPrefix: ${JSON.stringify(envPrefix)} });
 `;
 
 /**
+ * Template for the generated Cloudflare Workers `<out>/index.js`.
+ *
+ * Exports a module worker (`default { fetch }`). Static client assets and
+ * prerendered pages are served from the `ASSETS` binding; everything else is
+ * server-side rendered by the SvelteKit `HttpApp`.
+ */
+const fetchEntryTemplate = (envPrefix: string): string => `\
+import { Layer } from "effect";
+import { makeHandlerWith, AssetSource, toWebHandler } from "${PACKAGE}/adapter/handler";
+import { Server } from "./server/index.js";
+import { manifest } from "./manifest.js";
+
+let fetchHandler;
+
+export default {
+  /** @param {Request} request @param {Record<string, any>} env @param {any} ctx */
+  fetch(request, env, ctx) {
+    fetchHandler ??= toWebHandler(
+      makeHandlerWith({
+        Server,
+        manifest,
+        env,
+        envPrefix: ${JSON.stringify(envPrefix)},
+        // Static assets come from the Workers ASSETS binding (configure it to
+        // serve the uploaded \`client/\` + \`prerendered/\` output).
+        assets: AssetSource.cloudflareAssets(env.ASSETS),
+        // \`read()\` from \`$app/server\` is not backed by a file system on workerd.
+        read: (file) => {
+          throw new Error(\`read() is not supported on this deployment (\${file})\`);
+        },
+      }),
+      Layer.empty,
+    );
+    return fetchHandler(request);
+  },
+};
+`;
+
+/**
  * Creates the Effect SvelteKit adapter.
  */
 export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
-  const { out = "build", precompress = true, envPrefix = "" } = options;
+  const { out = "build", precompress = true, envPrefix = "", target = "node" } = options;
 
   return {
     name: `${PACKAGE}/adapter`,
@@ -133,12 +187,17 @@ export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
 
       builder.log.minor("Writing server entry");
       writeFileSync(`${out}/handler.js`, handlerTemplate(envPrefix));
-      writeFileSync(`${out}/index.js`, entryTemplate(envPrefix));
+      writeFileSync(
+        `${out}/index.js`,
+        target === "fetch" ? fetchEntryTemplate(envPrefix) : nodeEntryTemplate(envPrefix),
+      );
     },
 
     supports: {
-      // `read()` from `$app/server` is backed by the platform FileSystem.
-      read: () => true,
+      // On Node, `read()` from `$app/server` is backed by the platform
+      // FileSystem. On the `fetch` (Workers) target it has no file system, so
+      // routes using `read()` are unsupported there.
+      read: () => target !== "fetch",
     },
   };
 }
