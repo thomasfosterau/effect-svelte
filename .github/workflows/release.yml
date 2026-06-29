@@ -34,6 +34,14 @@ jobs:
       - name: Ensure npm supports OIDC trusted publishing
         run: npm install -g npm@latest
 
+      # This is a pnpm workspace (`packageManager: pnpm` + `workspace:^` deps),
+      # so `changeset publish` shells out to `pnpm publish`. Vite+ uses pnpm
+      # internally but does not expose it on PATH, so install it explicitly
+      # (pinned to the workspace's pnpm version) or the publish fails with
+      # `spawn pnpm ENOENT`. pnpm 10.x performs OIDC trusted publishing too.
+      - name: Ensure pnpm is on PATH for changeset publish
+        run: npm install -g pnpm@10.33.0
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
