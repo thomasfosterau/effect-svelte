@@ -11,6 +11,9 @@ on:
 jobs:
   debug:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,3 +39,16 @@ jobs:
 
       - name: Versions (via vp run)
         run: vp run toolinfo
+
+      - name: OIDC request env present?
+        run: |
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL: PRESENT"
+          else
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL: MISSING"
+          fi
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: PRESENT (length ${#ACTIONS_ID_TOKEN_REQUEST_TOKEN})"
+          else
+            echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: MISSING"
+          fi
