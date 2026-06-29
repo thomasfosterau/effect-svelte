@@ -26,7 +26,7 @@ jobs:
           run-install: false
 
       - name: Install dependencies
-        run: vp install --frozen-lockfile
+        run: vp install --no-frozen-lockfile
 
       # npm Trusted Publishing (OIDC) requires npm >= 11.5. Upgrade so
       # `changeset publish` authenticates to npm via the `id-token` below
