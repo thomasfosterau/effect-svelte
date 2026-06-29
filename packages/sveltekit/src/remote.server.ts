@@ -196,21 +196,27 @@ const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
 
 export interface FormFn<Env> {
   <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteForm<void, Output>;
-  <Input extends RemoteFormInput, Output>(
+  <Input, Output>(
     validate: "unchecked",
-    fn: (data: Input, issue: InvalidField<Input>) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteForm<Input, Output>;
-  <Sch extends StandardSchemaV1<RemoteFormInput, Record<string, any>>, Output>(
+    fn: (
+      data: Input,
+      issue: InvalidField<Input & RemoteFormInput>,
+    ) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteForm<Input & RemoteFormInput, Output>;
+  <Sch extends StandardSchemaV1, Output>(
     validate: Sch,
     fn: (
       data: StandardSchemaV1.InferOutput<Sch>,
-      issue: InvalidField<StandardSchemaV1.InferInput<Sch>>,
+      issue: InvalidField<StandardSchemaV1.InferInput<Sch> & RemoteFormInput>,
     ) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteForm<StandardSchemaV1.InferInput<Sch>, Output>;
-  <S extends Schema.Top & { readonly Encoded: RemoteFormInput }, Output>(
+  ): RemoteForm<StandardSchemaV1.InferInput<Sch> & RemoteFormInput, Output>;
+  <S extends Schema.Top, Output>(
     validate: S,
-    fn: (data: S["Type"], issue: InvalidField<S["Encoded"]>) => Effect.Effect<Output, unknown, Env>,
-  ): RemoteForm<S["Encoded"], Output>;
+    fn: (
+      data: S["Type"],
+      issue: InvalidField<S["Encoded"] & RemoteFormInput>,
+    ) => Effect.Effect<Output, unknown, Env>,
+  ): RemoteForm<S["Encoded"] & RemoteFormInput, Output>;
 }
 
 const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> =>
