@@ -45,3 +45,15 @@ jobs:
           # No NPM_TOKEN: publishing authenticates via OIDC trusted publishing
           # (the `id-token: write` permission above + a trusted publisher
           # configured for each package on npmjs.com). See docs/RELEASING.md.
+
+      # TEMPORARY DIAGNOSTIC: if the publish fails, print npm's debug log so we
+      # can see whether OIDC trusted publishing was attempted and why it was
+      # rejected. Remove once publishing succeeds.
+      - name: Dump npm debug log on failure
+        if: failure()
+        run: |
+          for f in $(ls -t "$HOME"/.npm/_logs/*-debug-0.log 2>/dev/null); do
+            echo "::group::$f"
+            cat "$f"
+            echo "::endgroup::"
+          done
