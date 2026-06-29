@@ -1,11 +1,48 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.1.1
+
+### Patch Changes
+
+- 3fba291: Widen route-param generics so partial (layout) params annotate cleanly.
+
+  The server/universal wrappers (`serverLoad`, `action`, `actions`, `endpoint`,
+  the universal `load`, and the `RuntimeAdapter` / `ServerRuntime` /
+  `UniversalRuntime` equivalents) hardcoded `Params extends Record<string, string>
+= any`. That was both more restrictive than SvelteKit's own handler types — whose
+  base param constraint is the generated `LayoutParams<'/'>`, a partial record for a
+  root `+layout` (e.g. `{ type?: string; id?: string }`) — and defaulted `Params`
+  to `any`, dropping param typing. As a result a partial-param root
+  `+layout.server.ts` could not be given an explicit `: LayoutServerLoad`
+  annotation, and consumers kept a local type-shim.
+
+  The wrappers now mirror SvelteKit's base param constraint, so they accept exactly
+  what SvelteKit accepts: a root-layout `: LayoutServerLoad` annotation type-checks,
+  and concrete-param routes (`[id]`) still infer precisely.
+
+  This is type-only and backward compatible; runtime behaviour is unchanged.
+
+- 7f31765: Allow remote-function validators to accept schemas with optional fields.
+
+  `form` (and the validated `query`, `query.batch`, `query.live`, `command`, and
+  `prerender` helpers) no longer constrain a schema's encoded/input type to
+  `extend RemoteFormInput`. An optional Effect-Schema field encodes to
+  `T | undefined`, which is not assignable to `RemoteFormInput`'s index
+  signature, so the previous constraint rejected most real forms (e.g. an
+  optional `redirectTo` text input). The form helpers now accept any schema and
+  intersect its encoded/input type with `RemoteFormInput` in the produced
+  `RemoteForm`, so SvelteKit still sees a form-input-shaped input while optional
+  fields are allowed. The handler's `data` remains the precise decoded type.
+
+  This is type-only and backward compatible; runtime behaviour is unchanged.
+
 ## 0.1.0
 
 ### Minor Changes
 
 - c15519f: Initial release of `@thomasfosterau/effect-sveltekit` — an Effect v4-native
   integration for SvelteKit. Depends on `@thomasfosterau/effect-svelte`.
+
   - Write `load`, `actions`, `endpoint`, and the SvelteKit hooks (the `Hooks`
     namespace: `handle`, `handleFetch`, `handleError`, `init`, `reroute`) as
     Effects — via explicit wrappers, app-wide runtimes (`makeServerRuntime` /
@@ -52,6 +89,7 @@
   backed by Effect. Each helper returns a SvelteKit `RequestHandler` (assign it to
   `fallback` on a catch-all route) with a `dispose()` for the backing layer's
   scope:
+
   - `Endpoint.fromApi(api, layer, options?)` — serve an Effect `HttpApi`. The
     platform services an `HttpApi` needs (`HttpPlatform`, `FileSystem`, `Path`,
     `Etag`) are provided for you; pass a layer that implements the API's groups.
@@ -65,6 +103,7 @@
 
 - 8ef700a: Group the SvelteKit hook helpers into a `Hooks` namespace, one per hook file,
   and complete the set so every hook can be written as an Effect:
+
   - `@thomasfosterau/effect-sveltekit` → `Hooks.reroute`, `Hooks.transport`,
     `Hooks.transporter` (universal `hooks.ts`).
   - `@thomasfosterau/effect-sveltekit/server` → `Hooks.handle`,
@@ -90,6 +129,7 @@
   (`serverLoad`, `action`, `actions`, `endpoint`, `handleFetch`, `handleError`)
   then runs the request's effects on it, rather than rebuilding the request
   services for each call.
+
   - `ServerRuntime.requestRuntime(event)` returns the per-request `RequestRuntime`
     (or `undefined` when `handle` was not used), so you can run your own effects on
     the same runtime — for example to populate `event.locals` from another hook.
@@ -99,6 +139,7 @@
 - c89d507: The deployment adapter now produces a platform-neutral Effect `HttpApp` with
   pluggable asset serving, so the same SvelteKit app can run on a Node HTTP server
   or as a Cloudflare Workers `fetch` handler.
+
   - `makeHandlerWith(options)` is the platform-neutral SSR core: it takes an
     injected `AssetSource` (where static assets come from) and a `read` capability
     (how to read server assets), instead of reading the file system directly.
@@ -127,6 +168,7 @@
   Cloudflare Workers, rebuilding the runtime mid-request and disposing it after
   the response) drive `serverLoad` / `action` / `actions` / `endpoint` and remote
   functions with its own service catalogue and its own error mapping.
+
   - `RequestRuntime` constructs a `RequestRuntimeProvider`:
     - `fromLocals(get)` — adopt a runtime the consumer stashed on the event
       (resolved at call time, so a mid-request rebuild is honoured); accepts a
@@ -160,6 +202,7 @@
   longer have to pre-wrap it. Passing a Standard Schema or `"unchecked"` is
   unchanged.
 - 0cc72db: Two opt-in extensions to the remote/transport surface:
+
   - `Hooks.markerTransporter({ guard, make })` builds a deliberately-lossy
     `transport` entry for a non-POJO wrapper whose contents should not round-trip:
     `encode` emits a truthy marker for matching values, `decode` reconstructs a
