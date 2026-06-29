@@ -1,0 +1,38 @@
+name: Debug Toolchain
+
+# Temporary diagnostic: replicate the Release job's toolchain setup and print
+# the node/npm versions both at the runner level and inside `vp run`, to find
+# out which npm `changeset publish` actually uses (OIDC needs npm >= 11.5.1).
+on:
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          cache: true
+          run-install: false
+
+      - name: Install dependencies
+        run: vp install --frozen-lockfile
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Versions (runner shell)
+        run: |
+          echo "node: $(node --version)"
+          echo "npm:  $(npm --version)"
+          echo "which npm: $(which npm)"
+          echo "PATH: $PATH"
+
+      - name: Versions (via vp run)
+        run: vp run toolinfo
