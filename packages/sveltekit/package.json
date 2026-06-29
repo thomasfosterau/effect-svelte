@@ -70,8 +70,7 @@
   "scripts": {
     "build": "vp pack",
     "test": "vp test",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "vp run clean && vp pack"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@standard-schema/spec": "^1.1.0",

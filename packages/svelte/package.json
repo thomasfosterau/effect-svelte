@@ -41,8 +41,7 @@
   "scripts": {
     "build": "vp pack",
     "test": "vp test",
-    "clean": "rm -rf dist",
-    "prepublishOnly": "vp run clean && vp pack"
+    "clean": "rm -rf dist"
   },
   "peerDependencies": {
     "effect": "^4.0.0-beta.75",
