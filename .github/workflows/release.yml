@@ -39,7 +39,14 @@ jobs:
         uses: changesets/action@v1
         with:
           version: vp run version
-          publish: vp run release
+          # Run the release script via `npm run`, NOT `vp run`: npm forwards the
+          # ambient environment to child processes, whereas `vp run` does not
+          # propagate the `ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN` variables
+          # that npm needs for OIDC trusted publishing. Without them npm logs
+          # "oidc Skipped because incorrect permissions for id-token" and falls
+          # back to token auth, failing with ENEEDAUTH. The `release` script
+          # still builds with `vp` internally; only the runner changes.
+          publish: npm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No NPM_TOKEN: publishing authenticates via OIDC trusted publishing
