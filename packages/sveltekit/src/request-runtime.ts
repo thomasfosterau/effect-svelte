@@ -47,6 +47,7 @@ import {
   type ServerLoad,
 } from "@sveltejs/kit";
 import { Cause, Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
+import type { SvelteRouteParams } from "./internal/route-params.js";
 import { causeToThrowable } from "./internal/error.js";
 
 /**
@@ -236,7 +237,7 @@ export interface AdapterEndpointOptions {
 /** The wrappers produced by {@link makeRuntimeAdapter}, bound to a provider. */
 export interface RuntimeAdapter<R> {
   readonly serverLoad: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     ParentData extends Record<string, any> = any,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
@@ -244,14 +245,14 @@ export interface RuntimeAdapter<R> {
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, R>,
   ) => ServerLoad<Params, ParentData, OutputData, RouteId>;
   readonly action: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
   >(
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, R>,
   ) => Action<Params, OutputData, RouteId>;
   readonly actions: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
   >(
@@ -261,7 +262,7 @@ export interface RuntimeAdapter<R> {
     >,
   ) => Actions<Params, OutputData, RouteId>;
   readonly endpoint: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     RouteId extends string | null = any,
   >(
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown, R>,
