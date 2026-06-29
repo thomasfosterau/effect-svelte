@@ -17,7 +17,6 @@
     "clean": "vp run -r clean",
     "prepare": "effect-language-service patch",
     "changeset": "changeset",
-    "toolinfo": "node --version && npm --version && which npm",
     "version": "changeset version",
     "release": "vp run -r build && changeset publish"
   },
