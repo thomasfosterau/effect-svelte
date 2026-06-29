@@ -1,6 +1,7 @@
 import type { Load } from "@sveltejs/kit";
 import { Effect } from "effect";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
+import type { SvelteRouteParams } from "./internal/route-params.js";
 import { defaultUniversalRuntime as runtime } from "./internal/default-runtime.js";
 
 /**
@@ -29,7 +30,7 @@ import { defaultUniversalRuntime as runtime } from "./internal/default-runtime.j
  * ```
  */
 export function load<
-  Params extends Record<string, string> = any,
+  Params extends SvelteRouteParams = SvelteRouteParams,
   InputData extends Record<string, unknown> | null = any,
   ParentData extends Record<string, unknown> = any,
   OutputData extends Record<string, unknown> | void = any,

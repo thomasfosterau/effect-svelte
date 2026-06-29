@@ -27,6 +27,7 @@ import { Context, Effect, type Fiber, Exit, Layer, ManagedRuntime, Scope } from 
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
+import type { SvelteRouteParams } from "./internal/route-params.js";
 import { causeToThrowable } from "./internal/error.js";
 import type { ErrorTranslator } from "./request-runtime.js";
 
@@ -144,7 +145,7 @@ export interface ServerRuntime<R = never, E = never> {
    * Wraps an Effect-based function as a SvelteKit server `load`.
    */
   readonly serverLoad: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     ParentData extends Record<string, any> = any,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
@@ -158,7 +159,7 @@ export interface ServerRuntime<R = never, E = never> {
    * Wraps an Effect-based function as a SvelteKit form action.
    */
   readonly action: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
   >(
@@ -171,7 +172,7 @@ export interface ServerRuntime<R = never, E = never> {
    * Wraps an object of Effect-based form actions.
    */
   readonly actions: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends string | null = any,
   >(
@@ -245,7 +246,7 @@ export interface ServerRuntime<R = never, E = never> {
    * handler (`GET`, `POST`, ...).
    */
   readonly endpoint: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     RouteId extends string | null = any,
   >(
     fn: (
@@ -435,7 +436,7 @@ export interface UniversalRuntime<R = never, E = never> {
    * client and server, plus the services of the application layer.
    */
   readonly load: <
-    Params extends Record<string, string> = any,
+    Params extends SvelteRouteParams = SvelteRouteParams,
     InputData extends Record<string, unknown> | null = any,
     ParentData extends Record<string, unknown> = any,
     OutputData extends Record<string, unknown> | void = any,
