@@ -229,3 +229,27 @@ export {
  * namespace (`Hooks.transport`) in `@thomasfosterau/effect-sveltekit`.
  */
 export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
+
+/**
+ * Effect-native SvelteKit control-flow helpers and the default boundary
+ * translator.
+ *
+ * - `SvelteKit.redirect` / `SvelteKit.error` / `SvelteKit.fail` — yield typed
+ *   Effect failures instead of throwing SvelteKit control-flow objects.
+ * - `SvelteKit.translate` — the default `translateError` wired into every
+ *   server wrapper; maps the Kit error types to `redirect()` / `error()` /
+ *   `fail()` at the request boundary.
+ * - `SvelteKit.makeTranslator([...cases])` — compose `translate` with your own
+ *   domain-error matchers (consumer cases run before the Kit base cases).
+ * - `KitRedirect`, `KitError`, `KitActionFailure` — the tagged error classes
+ *   for use with `Effect.catchTag`, `instanceof`, etc.
+ * - `KitTranslatorCase` — the argument type for `makeTranslator`.
+ */
+export {
+  SvelteKit,
+  KitRedirect,
+  KitError,
+  KitActionFailure,
+  type KitTranslatorCase,
+  type KitErrorTranslator,
+} from "./kit.js";

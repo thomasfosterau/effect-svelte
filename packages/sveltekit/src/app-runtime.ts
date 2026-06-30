@@ -28,8 +28,8 @@ import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
-import { causeToThrowable } from "./internal/error.js";
 import type { ErrorTranslator } from "./request-runtime.js";
+import { SvelteKit } from "./kit.js";
 
 /**
  * The services provided to every wrapped effect on the server, in addition to
@@ -108,10 +108,8 @@ const makeSettle =
       onSuccess: (value) => value,
     });
 
-/** The default settle: SvelteKit control flow through, anything else a 500. */
-const settle = makeSettle((cause) => {
-  throw causeToThrowable(cause);
-});
+/** The default settle: Kit control-flow errors through, anything else a 500. */
+const settle = makeSettle(SvelteKit.translate);
 
 /**
  * Options for {@link makeServerRuntime}.
