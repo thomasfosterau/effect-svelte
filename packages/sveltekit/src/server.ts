@@ -231,6 +231,24 @@ export {
 export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
 
 /**
+ * Schema-driven request parsing. Each helper reads a part of the current
+ * request (route params, search params, JSON body, or form data), validates it
+ * against an Effect `Schema` or Standard Schema V1 validator, and returns the
+ * typed output. A validation failure surfaces as {@link ParseError}.
+ *
+ * All helpers require `SvelteKitRequestEvent` in the environment and compose
+ * naturally inside `serverLoad` / `action` / `endpoint` handlers.
+ */
+export {
+  decodeParams,
+  decodeSearchParams,
+  decodeJson,
+  decodeFormData,
+  ParseError,
+  type ParseIssue,
+} from "./request-parse.js";
+
+/**
  * Effect-native SvelteKit control-flow helpers and the default boundary
  * translator.
  *
