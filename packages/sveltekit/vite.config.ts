@@ -12,6 +12,7 @@ export default defineConfig({
       "src/server.ts",
       "src/client.ts",
       "src/vite.ts",
+      "src/testing.ts",
       "src/adapter/index.ts",
       "src/adapter/handler.ts",
       "src/adapter/serve.ts",
