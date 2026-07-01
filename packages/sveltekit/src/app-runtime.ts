@@ -365,7 +365,13 @@ export const makeServerRuntime = <R = never, E = never>(
     effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
   ): Promise<A> => runExit(event, effect).then(settleRequest);
 
-  const action: ServerRuntime<R, E>["action"] = (fn) => (event) => run(event, fn(event));
+  const action: ServerRuntime<R, E>["action"] = (fn) => (event) =>
+    run(
+      event,
+      fn(event).pipe(
+        Effect.withSpan(`action ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+      ),
+    );
 
   /**
    * The `handle` hook: build a per-request runtime, store it on `event.locals`
@@ -383,7 +389,11 @@ export const makeServerRuntime = <R = never, E = never>(
     (event.locals as Record<PropertyKey, unknown>)[RequestRuntimeKey] = entry;
 
     try {
-      return await (entry.runtime as RequestRuntime<R>).runPromise(fn(input));
+      return await (entry.runtime as RequestRuntime<R>).runPromise(
+        fn(input).pipe(
+          Effect.withSpan(`handle ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      );
     } finally {
       await runtime.runPromise(Scope.close(scope, Exit.void));
     }
@@ -391,7 +401,13 @@ export const makeServerRuntime = <R = never, E = never>(
 
   return {
     runtime,
-    serverLoad: (fn) => (event) => run(event, fn(event)),
+    serverLoad: (fn) => (event) =>
+      run(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`serverLoad ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     action,
     actions: (actionsMap) => {
       const wrapped: Record<string, Action<any, any, any>> = {};
@@ -401,7 +417,13 @@ export const makeServerRuntime = <R = never, E = never>(
       return wrapped as never;
     },
     handle,
-    handleFetch: (fn) => (args) => run(args.event, fn(args)),
+    handleFetch: (fn) => (args) =>
+      run(
+        args.event,
+        fn(args).pipe(
+          Effect.withSpan(`handleFetch ${args.event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     handleError: (fn) => (args) => run(args.event, fn(args)),
     init: (effect) => async () => {
       // `init` runs outside of any request, so it executes directly on the
@@ -409,7 +431,15 @@ export const makeServerRuntime = <R = never, E = never>(
       settleRequest(await runtime.runPromiseExit(effect));
     },
     requestRuntime: requestRuntimeOf,
-    endpoint: (fn) => (event) => run(event, fn(event)),
+    endpoint: (fn) => (event) =>
+      run(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`${event.request.method} ${event.route.id ?? "(unknown)"}`, {
+            kind: "server",
+          }),
+        ),
+      ),
     runPromise: run,
     runPromiseExit: runExit,
     dispose: () => runtime.dispose(),
