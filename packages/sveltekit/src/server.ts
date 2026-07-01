@@ -249,6 +249,14 @@ export {
 } from "./request-parse.js";
 
 /**
+ * Streamed load helper. {@link defer} captures the current service context and
+ * runs a slow Effect in the background, returning the `Promise` so SvelteKit
+ * can stream the result to the browser while sending the initial HTML
+ * immediately. Use inside `serverLoad` alongside eagerly-computed fields.
+ */
+export { defer } from "./streamed-load.js";
+
+/**
  * Effect-native SvelteKit control-flow helpers and the default boundary
  * translator.
  *
