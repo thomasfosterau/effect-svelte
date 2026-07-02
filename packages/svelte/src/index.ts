@@ -18,6 +18,7 @@ export { useStream, type UseStreamReturn } from "./stream.svelte.js";
 // Layer 3: Convenience Hooks
 export { useDerived, type DerivedReturn } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
+export { useMutation, type UseMutationReturn, type MutationCallbacks } from "./mutation.svelte.js";
 export {
   useSubscriptionRef,
   usePubSub,
