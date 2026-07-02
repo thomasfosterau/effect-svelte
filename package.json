@@ -17,7 +17,7 @@
     "clean": "vp run -r clean",
     "prepare": "effect-language-service patch",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && vp fmt",
     "release": "vp run -r build && changeset publish"
   },
   "devDependencies": {
