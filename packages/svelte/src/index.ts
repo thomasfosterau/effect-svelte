@@ -24,6 +24,7 @@ export {
   type UseSubscriptionRefReturn,
   type UsePubSubReturn,
 } from "./subscription.svelte.js";
+export { useWritableRef, type UseWritableRefReturn } from "./writable-ref.svelte.js";
 
 // Layer 4: Effect Reactivity Integration (effect/unstable/reactivity)
 export {
