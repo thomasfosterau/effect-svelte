@@ -87,6 +87,22 @@ direction (`Store.fromStream`, `Store.fromSubscriptionRef`, `Store.fromPubSub`,
 `Store.fromQueue`, `Store.fromRef`) for surfacing Effect sources as Svelte
 stores.
 
+### Native form actions
+
+For SvelteKit page `actions`, the `Forms` namespace
+(`@thomasfosterau/effect-sveltekit/client`) expresses progressive enhancement
+with Effects: `Forms.enhance({ onSubmit, onResult })` builds a `SubmitFunction`
+for `use:enhance`, and `Forms.applyAction` / `Forms.deserialize` wrap the
+`$app/forms` helpers. (This complements `Remote.submitForm`, which covers remote
+forms.)
+
+## Recipes
+
+See the [cookbook](./docs/cookbook.md) for recipes that combine this package
+with Effect's own APIs — consuming an `Endpoint.fromApi` with a typed
+`HttpApiClient`, and choosing build-time vs runtime `$env` config with
+`sveltekitConfig`.
+
 ### SvelteKit Vite plugin (recommended)
 
 ```ts
