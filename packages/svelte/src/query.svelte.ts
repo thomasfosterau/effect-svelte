@@ -13,6 +13,19 @@ export interface UseQueryReturn<A, E> {
    * Re-fetch the data by re-running the effect
    */
   refetch: () => void;
+
+  /**
+   * Optimistically overwrite the query's data locally without refetching.
+   * Accepts a value or an updater over the current value (`undefined` if none
+   * yet). The next `refetch` reconciles it with the server.
+   */
+  setData: (updater: A | ((previous: A | undefined) => A)) => void;
+
+  /**
+   * `true` while showing a previous value during a refetch
+   * (stale-while-revalidate).
+   */
+  readonly isStale: boolean;
 }
 
 /**
@@ -49,5 +62,9 @@ export function useQuery<A, E, R>(effect: Effect.Effect<A, E, R>): UseQueryRetur
       return effectHook.current;
     },
     refetch: effectHook.run,
+    setData: effectHook.setData,
+    get isStale() {
+      return effectHook.isStale;
+    },
   };
 }

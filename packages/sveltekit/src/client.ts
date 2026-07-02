@@ -20,5 +20,13 @@ export * as Remote from "./Remote.js";
 // Reactive bridge: a remote query/resource as an AsyncResult.
 export { useRemoteQuery } from "./remote-reactive.js";
 
+// Realtime bridges: an SSE endpoint or a WebSocket as an Effect Stream
+// (counterpart to server-side `Endpoint.fromStream`).
+export * as Realtime from "./realtime.js";
+
+// Effect bridge for native form actions ($app/forms): an Effect-based
+// `use:enhance` SubmitFunction, plus `applyAction` / `deserialize`.
+export * as Forms from "./forms.js";
+
 // Effect wrappers for the client-side hooks (`hooks.client.ts`).
 export * as Hooks from "./client/Hooks.js";

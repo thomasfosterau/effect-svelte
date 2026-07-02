@@ -28,14 +28,25 @@ import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import type * as HttpClient from "effect/unstable/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
-import { causeToThrowable } from "./internal/error.js";
 import type { ErrorTranslator } from "./request-runtime.js";
+import { SvelteKit } from "./kit.js";
+import {
+  SvelteKitCookies,
+  SvelteKitLocals,
+  SvelteKitResponseHeaders,
+  requestServicesFrom,
+} from "./request-services.js";
 
 /**
  * The services provided to every wrapped effect on the server, in addition to
  * the application's own layer.
  */
-export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
+export type SvelteKitServices =
+  | HttpClient.HttpClient
+  | SvelteKitRequestEvent
+  | SvelteKitCookies
+  | SvelteKitResponseHeaders
+  | SvelteKitLocals;
 
 /**
  * A per-request Effect runtime: the application layer's services plus the
@@ -89,11 +100,16 @@ const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefin
     | undefined;
 
 /** Layer with the per-request services for a server-side request. */
-const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> =>
-  Layer.merge(
+const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> => {
+  const services = requestServicesFrom(event);
+  return Layer.mergeAll(
     FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, event.fetch))),
     Layer.succeed(SvelteKitRequestEvent, event),
+    Layer.succeed(SvelteKitCookies, services.cookies),
+    Layer.succeed(SvelteKitResponseHeaders, services.responseHeaders),
+    Layer.succeed(SvelteKitLocals, services.locals),
   );
+};
 
 /** Layer providing `HttpClient` backed by an arbitrary fetch implementation. */
 const fetchLayer = (fetchFn: typeof globalThis.fetch): Layer.Layer<HttpClient.HttpClient> =>
@@ -108,10 +124,8 @@ const makeSettle =
       onSuccess: (value) => value,
     });
 
-/** The default settle: SvelteKit control flow through, anything else a 500. */
-const settle = makeSettle((cause) => {
-  throw causeToThrowable(cause);
-});
+/** The default settle: Kit control-flow errors through, anything else a 500. */
+const settle = makeSettle(SvelteKit.translate);
 
 /**
  * Options for {@link makeServerRuntime}.
@@ -367,7 +381,13 @@ export const makeServerRuntime = <R = never, E = never>(
     effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
   ): Promise<A> => runExit(event, effect).then(settleRequest);
 
-  const action: ServerRuntime<R, E>["action"] = (fn) => (event) => run(event, fn(event));
+  const action: ServerRuntime<R, E>["action"] = (fn) => (event) =>
+    run(
+      event,
+      fn(event).pipe(
+        Effect.withSpan(`action ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+      ),
+    );
 
   /**
    * The `handle` hook: build a per-request runtime, store it on `event.locals`
@@ -385,7 +405,11 @@ export const makeServerRuntime = <R = never, E = never>(
     (event.locals as Record<PropertyKey, unknown>)[RequestRuntimeKey] = entry;
 
     try {
-      return await (entry.runtime as RequestRuntime<R>).runPromise(fn(input));
+      return await (entry.runtime as RequestRuntime<R>).runPromise(
+        fn(input).pipe(
+          Effect.withSpan(`handle ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      );
     } finally {
       await runtime.runPromise(Scope.close(scope, Exit.void));
     }
@@ -393,7 +417,13 @@ export const makeServerRuntime = <R = never, E = never>(
 
   return {
     runtime,
-    serverLoad: (fn) => (event) => run(event, fn(event)),
+    serverLoad: (fn) => (event) =>
+      run(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`serverLoad ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     action,
     actions: (actionsMap) => {
       const wrapped: Record<string, Action<any, any, any>> = {};
@@ -403,7 +433,13 @@ export const makeServerRuntime = <R = never, E = never>(
       return wrapped as never;
     },
     handle,
-    handleFetch: (fn) => (args) => run(args.event, fn(args)),
+    handleFetch: (fn) => (args) =>
+      run(
+        args.event,
+        fn(args).pipe(
+          Effect.withSpan(`handleFetch ${args.event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     handleError: (fn) => (args) => run(args.event, fn(args)),
     init: (effect) => async () => {
       // `init` runs outside of any request, so it executes directly on the
@@ -411,7 +447,15 @@ export const makeServerRuntime = <R = never, E = never>(
       settleRequest(await runtime.runPromiseExit(effect));
     },
     requestRuntime: requestRuntimeOf,
-    endpoint: (fn) => (event) => run(event, fn(event)),
+    endpoint: (fn) => (event) =>
+      run(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`${event.request.method} ${event.route.id ?? "(unknown)"}`, {
+            kind: "server",
+          }),
+        ),
+      ),
     runPromise: run,
     runPromiseExit: runExit,
     dispose: () => runtime.dispose(),

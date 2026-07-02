@@ -229,3 +229,72 @@ export {
  * namespace (`Hooks.transport`) in `@thomasfosterau/effect-sveltekit`.
  */
 export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
+
+/**
+ * Schema-driven request parsing. Each helper reads a part of the current
+ * request (route params, search params, JSON body, or form data), validates it
+ * against an Effect `Schema` or Standard Schema V1 validator, and returns the
+ * typed output. A validation failure surfaces as {@link ParseError}.
+ *
+ * All helpers require `SvelteKitRequestEvent` in the environment and compose
+ * naturally inside `serverLoad` / `action` / `endpoint` handlers.
+ */
+export {
+  decodeParams,
+  decodeSearchParams,
+  decodeJson,
+  decodeFormData,
+  ParseError,
+  type ParseIssue,
+} from "./request-parse.js";
+
+/**
+ * Streamed load helper. {@link defer} captures the current service context and
+ * runs a slow Effect in the background, returning the `Promise` so SvelteKit
+ * can stream the result to the browser while sending the initial HTML
+ * immediately. Use inside `serverLoad` alongside eagerly-computed fields.
+ */
+export { defer } from "./streamed-load.js";
+
+/**
+ * Effect-native SvelteKit control-flow helpers and the default boundary
+ * translator.
+ *
+ * - `SvelteKit.redirect` / `SvelteKit.error` / `SvelteKit.fail` — yield typed
+ *   Effect failures instead of throwing SvelteKit control-flow objects.
+ * - `SvelteKit.translate` — the default `translateError` wired into every
+ *   server wrapper; maps the Kit error types to `redirect()` / `error()` /
+ *   `fail()` at the request boundary.
+ * - `SvelteKit.makeTranslator([...cases])` — compose `translate` with your own
+ *   domain-error matchers (consumer cases run before the Kit base cases).
+ * - `KitRedirect`, `KitError`, `KitActionFailure` — the tagged error classes
+ *   for use with `Effect.catchTag`, `instanceof`, etc.
+ * - `KitTranslatorCase` — the argument type for `makeTranslator`.
+ */
+export {
+  SvelteKit,
+  KitRedirect,
+  KitError,
+  KitActionFailure,
+  type KitTranslatorCase,
+  type KitErrorTranslator,
+} from "./kit.js";
+
+/**
+ * Effect-native services for the three per-request surfaces of a SvelteKit
+ * `RequestEvent`: cookies, response headers, and locals.
+ *
+ * Each is a tagged `Context.Service` that is provided automatically in every
+ * server handler effect (part of {@link SvelteKitServices}). Use
+ * `yield* SvelteKitCookies` / `yield* SvelteKitResponseHeaders` /
+ * `yield* SvelteKitLocals` to access them; stub them with `Layer.succeed` in
+ * tests without a real `RequestEvent`.
+ */
+export {
+  SvelteKitCookies,
+  SvelteKitResponseHeaders,
+  SvelteKitLocals,
+  requestServicesLayer,
+  type SvelteKitCookiesInterface,
+  type SvelteKitResponseHeadersInterface,
+} from "./request-services.js";

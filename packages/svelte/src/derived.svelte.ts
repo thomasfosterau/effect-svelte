@@ -1,8 +1,21 @@
-import { Effect, Fiber } from "effect";
+import { Duration, Effect, Fiber } from "effect";
 import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
+
+export interface UseDerivedOptions {
+  /**
+   * Debounce re-runs by this duration: when a dependency changes, wait this
+   * long before running, and if another change arrives within the window,
+   * restart the wait. The previous value stays visible during the window (the
+   * result only flips to `waiting` once the run actually starts).
+   *
+   * Accepts any Effect `Duration.Input` (e.g. `"300 millis"`, `500`,
+   * `Duration.seconds(1)`).
+   */
+  readonly debounce?: Duration.Input;
+}
 
 export interface DerivedReturn<A, E> {
   /**
@@ -17,49 +30,67 @@ export interface DerivedReturn<A, E> {
  * The function parameter is called inside $effect, so it automatically tracks dependencies.
  * When dependencies change, the previous fiber is interrupted and a new one starts.
  *
+ * Pass `{ debounce }` to coalesce rapid dependency changes (e.g. a search box):
+ * interrupting the previous fiber cancels its pending debounce sleep, so only
+ * the last change in a burst actually runs.
+ *
  * @example
  * ```svelte
  * <script lang="ts">
  *   import { useDerived, AsyncResult } from '@thomasfosterau/effect-svelte';
  *   import { Effect } from 'effect';
  *
- *   let userId = $state(1);
+ *   let query = $state('');
  *
- *   const user = useDerived(() =>
- *     Effect.gen(function* () {
- *       const response = yield* fetchUser(userId);
- *       return response;
- *     })
+ *   const results = useDerived(
+ *     () => search(query),
+ *     { debounce: '300 millis' },
  *   );
  * </script>
  *
- * <button onclick={() => userId++}>Next User</button>
+ * <input bind:value={query} />
  *
- * {#if AsyncResult.isSuccess(user.current)}
- *   <p>User: {user.current.value.name}</p>
+ * {#if AsyncResult.isSuccess(results.current)}
+ *   <ul>{#each results.current.value as r}<li>{r}</li>{/each}</ul>
  * {/if}
  * ```
  */
-export function useDerived<A, E, R>(fn: () => Effect.Effect<A, E, R>): DerivedReturn<A, E> {
+export function useDerived<A, E, R>(
+  fn: () => Effect.Effect<A, E, R>,
+  options: UseDerivedOptions = {},
+): DerivedReturn<A, E> {
+  const { debounce } = options;
   const runtime = getRuntime() as RuntimeLike<R>;
 
   const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   $effect(() => {
-    // Interrupt previous fiber if it exists
+    // Interrupt previous fiber if it exists (this also cancels a pending
+    // debounce sleep, which is what makes debouncing work).
     if (currentFiber !== null) {
       interruptFiber(currentFiber);
     }
 
-    // Get the effect (this tracks reactive dependencies)
+    // Get the effect (this tracks reactive dependencies).
     const effect = fn();
 
-    // Mark as waiting, preserving the previous value if there is one.
-    state.startWaiting();
-
-    // Run the effect and capture the fiber reference
-    const runningFiber = runFork(runtime)(effect);
+    let runningFiber: Fiber.Fiber<A, E>;
+    if (debounce === undefined) {
+      // Mark as waiting, preserving the previous value if there is one.
+      state.startWaiting();
+      runningFiber = runFork(runtime)(effect);
+    } else {
+      // Wait out the debounce window first; only then flip to waiting and run,
+      // so the previous value stays visible until the run actually begins.
+      runningFiber = runFork(runtime)(
+        Effect.gen(function* () {
+          yield* Effect.sleep(debounce);
+          yield* Effect.sync(() => state.startWaiting());
+          return yield* effect;
+        }),
+      );
+    }
     currentFiber = runningFiber;
 
     // Settle the result when the fiber completes, unless deps changed first.

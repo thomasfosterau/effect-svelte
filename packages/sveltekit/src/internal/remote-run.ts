@@ -7,13 +7,11 @@
 
 import type { InvalidField } from "@sveltejs/kit";
 import { Cause, type Effect, Exit } from "effect";
-import { causeToThrowable } from "./error.js";
 import type { ErrorTranslator } from "../request-runtime.js";
+import { SvelteKit } from "../kit.js";
 
-/** The default translator: SvelteKit control flow through, anything else a 500. */
-export const defaultTranslate: ErrorTranslator = (cause) => {
-  throw causeToThrowable(cause);
-};
+/** The default translator: Kit control-flow errors through, anything else a 500. */
+export const defaultTranslate: ErrorTranslator = SvelteKit.translate;
 
 /**
  * Maps a remote *form* handler's failure into SvelteKit's field issues, given

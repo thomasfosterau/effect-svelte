@@ -42,7 +42,6 @@
 
 - c15519f: Initial release of `@thomasfosterau/effect-sveltekit` — an Effect v4-native
   integration for SvelteKit. Depends on `@thomasfosterau/effect-svelte`.
-
   - Write `load`, `actions`, `endpoint`, and the SvelteKit hooks (the `Hooks`
     namespace: `handle`, `handleFetch`, `handleError`, `init`, `reroute`) as
     Effects — via explicit wrappers, app-wide runtimes (`makeServerRuntime` /
@@ -89,7 +88,6 @@
   backed by Effect. Each helper returns a SvelteKit `RequestHandler` (assign it to
   `fallback` on a catch-all route) with a `dispose()` for the backing layer's
   scope:
-
   - `Endpoint.fromApi(api, layer, options?)` — serve an Effect `HttpApi`. The
     platform services an `HttpApi` needs (`HttpPlatform`, `FileSystem`, `Path`,
     `Etag`) are provided for you; pass a layer that implements the API's groups.
@@ -103,7 +101,6 @@
 
 - 8ef700a: Group the SvelteKit hook helpers into a `Hooks` namespace, one per hook file,
   and complete the set so every hook can be written as an Effect:
-
   - `@thomasfosterau/effect-sveltekit` → `Hooks.reroute`, `Hooks.transport`,
     `Hooks.transporter` (universal `hooks.ts`).
   - `@thomasfosterau/effect-sveltekit/server` → `Hooks.handle`,
@@ -129,7 +126,6 @@
   (`serverLoad`, `action`, `actions`, `endpoint`, `handleFetch`, `handleError`)
   then runs the request's effects on it, rather than rebuilding the request
   services for each call.
-
   - `ServerRuntime.requestRuntime(event)` returns the per-request `RequestRuntime`
     (or `undefined` when `handle` was not used), so you can run your own effects on
     the same runtime — for example to populate `event.locals` from another hook.
@@ -139,7 +135,6 @@
 - c89d507: The deployment adapter now produces a platform-neutral Effect `HttpApp` with
   pluggable asset serving, so the same SvelteKit app can run on a Node HTTP server
   or as a Cloudflare Workers `fetch` handler.
-
   - `makeHandlerWith(options)` is the platform-neutral SSR core: it takes an
     injected `AssetSource` (where static assets come from) and a `read` capability
     (how to read server assets), instead of reading the file system directly.
@@ -168,7 +163,6 @@
   Cloudflare Workers, rebuilding the runtime mid-request and disposing it after
   the response) drive `serverLoad` / `action` / `actions` / `endpoint` and remote
   functions with its own service catalogue and its own error mapping.
-
   - `RequestRuntime` constructs a `RequestRuntimeProvider`:
     - `fromLocals(get)` — adopt a runtime the consumer stashed on the event
       (resolved at call time, so a mid-request rebuild is honoured); accepts a
@@ -202,7 +196,6 @@
   longer have to pre-wrap it. Passing a Standard Schema or `"unchecked"` is
   unchanged.
 - 0cc72db: Two opt-in extensions to the remote/transport surface:
-
   - `Hooks.markerTransporter({ guard, make })` builds a deliberately-lossy
     `transport` entry for a non-POJO wrapper whose contents should not round-trip:
     `encode` emits a truthy marker for matching values, `decode` reconstructs a

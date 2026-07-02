@@ -48,7 +48,7 @@ import {
 } from "@sveltejs/kit";
 import { Cause, Context, Effect, Exit, type Fiber, Layer, ManagedRuntime } from "effect";
 import type { SvelteRouteParams } from "./internal/route-params.js";
-import { causeToThrowable } from "./internal/error.js";
+import { SvelteKit } from "./kit.js";
 
 /**
  * The runners a {@link RequestRuntimeProvider} resolves for a single request:
@@ -294,11 +294,7 @@ export const makeRuntimeAdapter = <R>(
   provider: RequestRuntimeProvider<R, any>,
   opts?: RuntimeAdapterOptions,
 ): RuntimeAdapter<R> => {
-  const translateError: ErrorTranslator =
-    opts?.translateError ??
-    ((cause) => {
-      throw causeToThrowable(cause);
-    });
+  const translateError: ErrorTranslator = opts?.translateError ?? SvelteKit.translate;
 
   const runSettle = async <A>(
     event: RequestEvent,
@@ -313,10 +309,22 @@ export const makeRuntimeAdapter = <R>(
     }
   };
 
-  const action: RuntimeAdapter<R>["action"] = (fn) => (event) => runSettle(event, fn(event));
+  const action: RuntimeAdapter<R>["action"] = (fn) => (event) =>
+    runSettle(
+      event,
+      fn(event).pipe(
+        Effect.withSpan(`action ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+      ),
+    );
 
   return {
-    serverLoad: (fn) => (event) => runSettle(event, fn(event)),
+    serverLoad: (fn) => (event) =>
+      runSettle(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`serverLoad ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     action,
     actions: (map) => {
       const wrapped: Record<string, Action<any, any, any>> = {};
@@ -324,21 +332,32 @@ export const makeRuntimeAdapter = <R>(
       return wrapped as never;
     },
     endpoint: (fn, options) => async (event) => {
-      const exit = await provider.run(event as RequestEvent).runPromiseExit(fn(event));
+      const effect = fn(event).pipe(
+        Effect.withSpan(
+          `${(event as RequestEvent).request.method} ${(event as RequestEvent).route.id ?? "(unknown)"}`,
+          { kind: "server" },
+        ),
+      );
+      const exit = await provider.run(event as RequestEvent).runPromiseExit(effect);
       try {
         if (Exit.isSuccess(exit)) return exit.value;
-        // A configured translator owns the whole failure path (control flow,
-        // structured error bodies, ...).
-        if (opts?.translateError) return opts.translateError(exit.cause);
-        // Default: pass SvelteKit control flow through, otherwise a 500.
-        const squashed = Cause.squash(exit.cause);
-        if (isRedirect(squashed) || isHttpError(squashed)) throw squashed;
-        console.error("Endpoint error:", Cause.pretty(exit.cause));
-        const message = options?.exposeErrors ? Cause.pretty(exit.cause) : "Internal server error";
-        return new Response(JSON.stringify({ error: message }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        // Run the translator (default: SvelteKit.translate). SvelteKit
+        // control-flow objects (redirect, error, KitRedirect, KitError) are
+        // thrown so SvelteKit can handle them. Anything unrecognised is wrapped
+        // in an EffectCauseError and caught below to produce a 500 Response.
+        try {
+          return translateError(exit.cause);
+        } catch (err) {
+          if (isRedirect(err) || isHttpError(err)) throw err;
+          console.error("Endpoint error:", Cause.pretty(exit.cause));
+          const message = options?.exposeErrors
+            ? Cause.pretty(exit.cause)
+            : "Internal server error";
+          return new Response(JSON.stringify({ error: message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
       } finally {
         provider.disposeAfterResponse?.(event as RequestEvent);
       }

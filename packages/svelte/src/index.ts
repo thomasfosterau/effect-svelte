@@ -16,14 +16,17 @@ export { useEffect, type UseEffectOptions, type UseEffectReturn } from "./effect
 export { useStream, type UseStreamReturn } from "./stream.svelte.js";
 
 // Layer 3: Convenience Hooks
-export { useDerived, type DerivedReturn } from "./derived.svelte.js";
+export { useDerived, type DerivedReturn, type UseDerivedOptions } from "./derived.svelte.js";
 export { useQuery, type UseQueryReturn } from "./query.svelte.js";
+export { useMutation, type UseMutationReturn, type MutationCallbacks } from "./mutation.svelte.js";
+export { useQueryPromise, type UseQueryPromiseReturn } from "./await.svelte.js";
 export {
   useSubscriptionRef,
   usePubSub,
   type UseSubscriptionRefReturn,
   type UsePubSubReturn,
 } from "./subscription.svelte.js";
+export { useWritableRef, type UseWritableRefReturn } from "./writable-ref.svelte.js";
 
 // Layer 4: Effect Reactivity Integration (effect/unstable/reactivity)
 export {

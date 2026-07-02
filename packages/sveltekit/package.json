@@ -47,6 +47,10 @@
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
     "./adapter": {
       "types": "./dist/adapter/index.d.ts",
       "import": "./dist/adapter/index.js"

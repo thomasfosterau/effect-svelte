@@ -31,7 +31,7 @@
  */
 
 import type { RequestHandler } from "@sveltejs/kit";
-import { Context, Effect, Layer } from "effect";
+import { Context, type Duration, Effect, Layer, Schedule, Stream } from "effect";
 import type { Scope } from "effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -44,6 +44,7 @@ import type * as HttpServerResponse from "effect/unstable/http/HttpServerRespons
 import type * as HttpApi from "effect/unstable/httpapi/HttpApi";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
+import { encodeRetry, encodeSseFrame, HEARTBEAT_FRAME, SSE_HEADERS } from "../internal/sse.js";
 
 /** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
 type WebHandler = (request: Request) => Promise<Response>;
@@ -307,4 +308,112 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
     >,
   );
   return make(handler, noopDispose, options?.prefix);
+};
+
+/** Options for {@link fromStream}: how to frame each element as an SSE event. */
+export interface FromStreamOptions<A, R = never> {
+  /**
+   * The event name (`event:` field). A string applies to every element, or a
+   * function derives it per element (return `undefined` for an unnamed event).
+   * Omit for the default unnamed `message` events.
+   */
+  readonly event?: string | ((value: A) => string | undefined);
+  /**
+   * Encode an element into the `data:` payload. Defaults to `JSON.stringify`.
+   * Multi-line output is split across multiple `data:` lines automatically.
+   */
+  readonly data?: (value: A) => string;
+  /** Derive an event id (`id:` field) the browser echoes on reconnect. */
+  readonly id?: (value: A) => string | undefined;
+  /**
+   * The client reconnection delay in milliseconds, sent once as a leading
+   * `retry:` field. The browser's `EventSource` reconnects automatically after
+   * this delay when the connection drops.
+   */
+  readonly retry?: number;
+  /**
+   * Send a comment heartbeat on this interval to keep the connection alive
+   * through proxies that time out idle streams. Accepts any `Duration.Input`
+   * (e.g. `"30 seconds"`).
+   */
+  readonly heartbeat?: Duration.Input;
+  /**
+   * A layer (or context) providing the stream's services `R`, applied per
+   * connection. Omit when the stream is self-contained (`R = never`).
+   */
+  readonly provide?: Layer.Layer<R> | Context.Context<R>;
+}
+
+/**
+ * Create a SvelteKit endpoint that streams an Effect `Stream` to the browser as
+ * [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+ * (`text/event-stream`). Consume it client-side with `Realtime.fromEventSource`
+ * (from `@thomasfosterau/effect-sveltekit/client`) or the native `EventSource`.
+ *
+ * Each element is framed as one SSE event (`event` / `id` optional, `data`
+ * defaults to JSON). A `retry` sets the reconnect delay; a `heartbeat` keeps
+ * idle connections alive. The response closes when the stream ends; the stream
+ * is interrupted (running its finalizers) when the client disconnects.
+ *
+ * @example
+ * ```ts
+ * // src/routes/events/+server.ts
+ * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
+ * import { Schedule, Stream } from "effect";
+ *
+ * const ticks = Stream.fromSchedule(Schedule.spaced("1 second"));
+ *
+ * export const GET = Endpoint.fromStream(ticks, {
+ *   event: "tick",
+ *   heartbeat: "30 seconds",
+ *   retry: 3000,
+ * });
+ * ```
+ */
+export const fromStream = <A, E, R = never>(
+  stream: Stream.Stream<A, E, R>,
+  options?: FromStreamOptions<A, R>,
+): RequestHandler => {
+  const encodeData = options?.data ?? ((value: A): string => JSON.stringify(value));
+  const eventOf = (value: A): string | undefined =>
+    typeof options?.event === "function" ? options.event(value) : options?.event;
+
+  return (event) => {
+    // Frame each element, then encode the resulting strings to bytes.
+    const events = stream.pipe(
+      Stream.map((value) =>
+        encodeSseFrame({
+          data: encodeData(value),
+          event: eventOf(value),
+          id: options?.id?.(value),
+        }),
+      ),
+    );
+
+    // A leading `retry:` field, if configured.
+    const withRetry =
+      options?.retry === undefined ? events : Stream.prepend(events, [encodeRetry(options.retry)]);
+
+    // Merge in a heartbeat that halts as soon as the data stream ends.
+    const framed =
+      options?.heartbeat === undefined
+        ? withRetry
+        : Stream.merge(
+            withRetry,
+            Stream.fromSchedule(Schedule.spaced(options.heartbeat)).pipe(
+              Stream.map(() => HEARTBEAT_FRAME),
+            ),
+            { haltStrategy: "left" },
+          );
+
+    const bytes = Stream.encodeText(framed);
+    const provided =
+      options?.provide === undefined ? bytes : Stream.provide(bytes, options.provide);
+
+    const body = Stream.toReadableStream(provided as Stream.Stream<Uint8Array, E>);
+
+    // SvelteKit forwards a streaming body Response as-is.
+    void event;
+    return new Response(body, { headers: { ...SSE_HEADERS } });
+  };
 };
