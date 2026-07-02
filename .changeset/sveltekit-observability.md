@@ -10,7 +10,7 @@ encode both the handler type and the SvelteKit route pattern:
 
 - `serverLoad /items/[id]`
 - `action /checkout`
-- `GET /api/items`  (HTTP method + route for endpoints)
+- `GET /api/items` (HTTP method + route for endpoints)
 - `handle /items/[id]`
 
 All spans have `kind: "server"`. Routes with no ID (e.g. standalone endpoints

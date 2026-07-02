@@ -34,10 +34,11 @@ Run an Effect-based server `load` function under test, providing services via
 
 ```ts
 const data = await runServerLoad(
-  (event) => Effect.gen(function* () {
-    const db = yield* Database;
-    return { items: yield* db.list() };
-  }),
+  (event) =>
+    Effect.gen(function* () {
+      const db = yield* Database;
+      return { items: yield* db.list() };
+    }),
   event,
   { layer: TestDatabase.layer },
 );
