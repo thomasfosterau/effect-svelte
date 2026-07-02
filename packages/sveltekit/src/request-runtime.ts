@@ -309,10 +309,22 @@ export const makeRuntimeAdapter = <R>(
     }
   };
 
-  const action: RuntimeAdapter<R>["action"] = (fn) => (event) => runSettle(event, fn(event));
+  const action: RuntimeAdapter<R>["action"] = (fn) => (event) =>
+    runSettle(
+      event,
+      fn(event).pipe(
+        Effect.withSpan(`action ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+      ),
+    );
 
   return {
-    serverLoad: (fn) => (event) => runSettle(event, fn(event)),
+    serverLoad: (fn) => (event) =>
+      runSettle(
+        event,
+        fn(event).pipe(
+          Effect.withSpan(`serverLoad ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        ),
+      ),
     action,
     actions: (map) => {
       const wrapped: Record<string, Action<any, any, any>> = {};
@@ -320,7 +332,13 @@ export const makeRuntimeAdapter = <R>(
       return wrapped as never;
     },
     endpoint: (fn, options) => async (event) => {
-      const exit = await provider.run(event as RequestEvent).runPromiseExit(fn(event));
+      const effect = fn(event).pipe(
+        Effect.withSpan(
+          `${(event as RequestEvent).request.method} ${(event as RequestEvent).route.id ?? "(unknown)"}`,
+          { kind: "server" },
+        ),
+      );
+      const exit = await provider.run(event as RequestEvent).runPromiseExit(effect);
       try {
         if (Exit.isSuccess(exit)) return exit.value;
         // Run the translator (default: SvelteKit.translate). SvelteKit
