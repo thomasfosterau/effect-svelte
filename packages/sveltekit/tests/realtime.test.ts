@@ -2,8 +2,19 @@ import { describe, expect, it } from "vite-plus/test";
 import { Effect, Fiber, Stream } from "effect";
 import * as Realtime from "../src/realtime.js";
 
-/** Yields to the event loop so the forked stream fiber opens the socket. */
-const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+/**
+ * Wait until the forked stream fiber has opened a fake socket. A single event-
+ * loop tick is not enough — `Stream.callback`'s setup effect runs across several
+ * microtasks — so poll until the socket exists before driving it.
+ */
+const awaitSocket = async (): Promise<FakeSocket> => {
+  for (let i = 0; i < 200 && FakeSocket.instances.length === 0; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  const socket = FakeSocket.instances[0];
+  if (socket === undefined) throw new Error("socket was never opened");
+  return socket;
+};
 
 /** A minimal, drivable fake of the DOM `WebSocket` / `EventSource` surface. */
 class FakeSocket {
@@ -41,9 +52,7 @@ describe("Realtime.fromWebSocket", () => {
         Stream.runCollect,
       ),
     );
-    await flush();
-
-    const socket = FakeSocket.instances[0]!;
+    const socket = await awaitSocket();
     socket.emit("message", { data: "a" });
     socket.emit("message", { data: "b" });
 
@@ -58,9 +67,7 @@ describe("Realtime.fromWebSocket", () => {
         Stream.runCollect,
       ),
     );
-    await flush();
-
-    const socket = FakeSocket.instances[0]!;
+    const socket = await awaitSocket();
     socket.emit("message", { data: "only" });
     socket.emit("close", { wasClean: true, code: 1000, reason: "" });
 
@@ -75,9 +82,8 @@ describe("Realtime.fromWebSocket", () => {
         Stream.runCollect,
       ),
     );
-    await flush();
-
-    FakeSocket.instances[0]!.emit("close", { wasClean: false, code: 1006, reason: "boom" });
+    const socket = await awaitSocket();
+    socket.emit("close", { wasClean: false, code: 1006, reason: "boom" });
 
     const exit = await Effect.runPromise(Effect.exit(Fiber.join(fiber)));
     expect(exit._tag).toBe("Failure");
@@ -93,9 +99,8 @@ describe("Realtime.fromEventSource", () => {
         Stream.runCollect,
       ),
     );
-    await flush();
-
-    FakeSocket.instances[0]!.emit("message", { type: "message", data: "hi", lastEventId: "7" });
+    const socket = await awaitSocket();
+    socket.emit("message", { type: "message", data: "hi", lastEventId: "7" });
 
     const result = await Effect.runPromise(Fiber.join(fiber));
     expect(result).toEqual([{ event: "message", data: "hi", lastEventId: "7" }]);
@@ -109,9 +114,8 @@ describe("Realtime.fromEventSource", () => {
         implementation: FakeSocket as never,
       }).pipe(Stream.take(1), Stream.runCollect),
     );
-    await flush();
-
-    FakeSocket.instances[0]!.emit("tick", { type: "tick", data: "1", lastEventId: "" });
+    const socket = await awaitSocket();
+    socket.emit("tick", { type: "tick", data: "1", lastEventId: "" });
 
     const result = await Effect.runPromise(Fiber.join(fiber));
     expect(result).toEqual([{ event: "tick", data: "1", lastEventId: "" }]);
