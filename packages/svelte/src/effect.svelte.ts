@@ -1,5 +1,5 @@
-import { Effect, Fiber } from "effect";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import { Effect, Fiber, Option } from "effect";
+import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
@@ -29,6 +29,21 @@ export interface UseEffectReturn<A, E> {
    * Interrupt the currently running effect
    */
   interrupt: () => void;
+
+  /**
+   * Optimistically overwrite the current value with a non-waiting `Success`,
+   * without running the effect. Accepts a value or an updater function that
+   * receives the current value (`undefined` if there is none yet). Useful for
+   * local cache writes after a mutation, reconciled by the next `run`.
+   */
+  setData: (updater: A | ((previous: A | undefined) => A)) => void;
+
+  /**
+   * `true` while a previous value is being shown but a re-run is in flight
+   * (stale-while-revalidate) — i.e. the result is `waiting` and still holds a
+   * value.
+   */
+  readonly isStale: boolean;
 }
 
 /**
@@ -107,11 +122,26 @@ export function useEffect<A, E, R>(
     };
   });
 
+  const setData = (updater: A | ((previous: A | undefined) => A)): void => {
+    const previous = Option.getOrUndefined(AsyncResult.value(state.current));
+    const next =
+      typeof updater === "function"
+        ? (updater as (previous: A | undefined) => A)(previous)
+        : updater;
+    state.succeed(next);
+  };
+
   return {
     get current() {
       return state.current;
     },
     run,
     interrupt,
+    setData,
+    get isStale() {
+      return (
+        AsyncResult.isWaiting(state.current) && Option.isSome(AsyncResult.value(state.current))
+      );
+    },
   };
 }
