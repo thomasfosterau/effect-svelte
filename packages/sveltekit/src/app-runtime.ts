@@ -30,12 +30,23 @@ import { SvelteKitRequestEvent } from "./runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
 import type { ErrorTranslator } from "./request-runtime.js";
 import { SvelteKit } from "./kit.js";
+import {
+  SvelteKitCookies,
+  SvelteKitLocals,
+  SvelteKitResponseHeaders,
+  requestServicesFrom,
+} from "./request-services.js";
 
 /**
  * The services provided to every wrapped effect on the server, in addition to
  * the application's own layer.
  */
-export type SvelteKitServices = HttpClient.HttpClient | SvelteKitRequestEvent;
+export type SvelteKitServices =
+  | HttpClient.HttpClient
+  | SvelteKitRequestEvent
+  | SvelteKitCookies
+  | SvelteKitResponseHeaders
+  | SvelteKitLocals;
 
 /**
  * A per-request Effect runtime: the application layer's services plus the
@@ -89,11 +100,16 @@ const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefin
     | undefined;
 
 /** Layer with the per-request services for a server-side request. */
-const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> =>
-  Layer.merge(
+const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> => {
+  const services = requestServicesFrom(event);
+  return Layer.mergeAll(
     FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, event.fetch))),
     Layer.succeed(SvelteKitRequestEvent, event),
+    Layer.succeed(SvelteKitCookies, services.cookies),
+    Layer.succeed(SvelteKitResponseHeaders, services.responseHeaders),
+    Layer.succeed(SvelteKitLocals, services.locals),
   );
+};
 
 /** Layer providing `HttpClient` backed by an arbitrary fetch implementation. */
 const fetchLayer = (fetchFn: typeof globalThis.fetch): Layer.Layer<HttpClient.HttpClient> =>

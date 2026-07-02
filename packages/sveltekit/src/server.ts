@@ -253,3 +253,22 @@ export {
   type KitTranslatorCase,
   type KitErrorTranslator,
 } from "./kit.js";
+
+/**
+ * Effect-native services for the three per-request surfaces of a SvelteKit
+ * `RequestEvent`: cookies, response headers, and locals.
+ *
+ * Each is a tagged `Context.Service` that is provided automatically in every
+ * server handler effect (part of {@link SvelteKitServices}). Use
+ * `yield* SvelteKitCookies` / `yield* SvelteKitResponseHeaders` /
+ * `yield* SvelteKitLocals` to access them; stub them with `Layer.succeed` in
+ * tests without a real `RequestEvent`.
+ */
+export {
+  SvelteKitCookies,
+  SvelteKitResponseHeaders,
+  SvelteKitLocals,
+  requestServicesLayer,
+  type SvelteKitCookiesInterface,
+  type SvelteKitResponseHeadersInterface,
+} from "./request-services.js";
