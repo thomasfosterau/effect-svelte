@@ -1,16 +1,14 @@
 # Cookbook
 
 Recipes that combine `@thomasfosterau/effect-sveltekit` with Effect's own APIs.
-These use APIs that already exist upstream, so they are documented here rather
-than re-wrapped.
 
-## Consume an `Endpoint.fromApi` with a typed `HttpApiClient`
+## Consume an `Endpoint.fromApi` with a typed client (`apiClient`)
 
 `Endpoint.fromApi` serves an Effect [`HttpApi`](https://effect.website) from a
-`+server.ts` route. To call it back from the browser (or a `load` function) with
-full end-to-end types, use Effect's own `HttpApiClient` — it derives a typed
-client from the same `HttpApi` definition, so the serve↔consume loop is closed
-without any extra wrapper.
+`+server.ts` route. `apiClient` closes the loop from the other side: it derives
+a typed client from the _same_ `HttpApi` definition and provides the
+`HttpClient` for you (via `FetchHttpClient`), so a browser or a universal `load`
+can call the same-origin API with full end-to-end types.
 
 Share the `HttpApi` definition between server and client:
 
@@ -19,11 +17,11 @@ Share the `HttpApi` definition between server and client:
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
 import { Schema } from "effect";
 
+const User = Schema.Struct({ id: Schema.String, name: Schema.String });
+
 export const api = HttpApi.make("app").add(
   HttpApiGroup.make("users").add(
-    HttpApiEndpoint.get("get", "/users/:id").addSuccess(
-      Schema.Struct({ id: Schema.String, name: Schema.String }),
-    ),
+    HttpApiEndpoint.get("get", "/users/:id", { params: { id: Schema.String }, success: User }),
   ),
 );
 ```
@@ -39,33 +37,32 @@ import { ApiLive } from "$lib/server/handlers";
 export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
 ```
 
-Consume it with a typed client. Point `baseUrl` at the same origin and the mount
-prefix; `client.fetch` is provided by SvelteKit's `event.fetch` in a `load`, or
-the global `fetch` in the browser:
+Consume it with `apiClient`. Point `baseUrl` at the mount prefix; in a `load`
+pass `event.fetch` so the call joins SvelteKit's SSR fetch (relative URLs,
+credentials, dedupe):
 
 ```ts
-// anywhere on the client, or in a universal `load`
-import { HttpApiClient } from "effect/unstable/httpapi";
-import { FetchHttpClient } from "effect/unstable/http";
+// src/routes/users/[id]/+page.ts — a universal load
+import { apiClient } from "@thomasfosterau/effect-sveltekit";
 import { Effect } from "effect";
 import { api } from "$lib/api";
 
-const program = Effect.gen(function* () {
-  const client = yield* HttpApiClient.make(api, { baseUrl: "/api" });
-  return yield* client.users.get({ path: { id: "1" } });
-}).pipe(Effect.provide(FetchHttpClient.layer));
+export const load = (event) =>
+  Effect.gen(function* () {
+    const client = yield* apiClient(api, { baseUrl: "/api", fetch: event.fetch });
+    return { user: yield* client.users.get({ params: { id: event.params.id } }) };
+  });
 ```
 
-The response is typed as the endpoint's success schema (`{ id, name }`), and
-schema decoding happens automatically. Because `HttpApiClient` already targets a
-same-origin `baseUrl`, no SvelteKit-specific client is needed.
+The result is typed as the endpoint's success schema (`{ id, name }`), decoded
+automatically. `apiClient` is a thin wrapper over Effect's `HttpApiClient.make`
+— reach for `HttpApiClient` directly if you need `transformResponse` or a
+custom `HttpClient` layer.
 
-## Build-time vs runtime config with `sveltekitConfig`
+## Typed config from `$env`, build-time vs runtime (`readConfig` / `sveltekitConfig`)
 
-`sveltekitConfig(env)` turns any SvelteKit env record into an Effect
-`ConfigProvider`, so `Config.string("...")` reads resolve from it. Which `$env`
-module you pass determines _when_ the value is read — this is the important
-distinction:
+Both helpers turn a SvelteKit env record into Effect `Config`. Which `$env`
+module you pass decides _when_ the value is resolved:
 
 | SvelteKit module       | Resolved     | Visibility      | Use for                                        |
 | ---------------------- | ------------ | --------------- | ---------------------------------------------- |
@@ -79,27 +76,35 @@ rebuilding — but they are the fastest and are safe to reference in client
 bundles (public only). Dynamic modules read from the process environment at
 request time, so a value can change between deploys of the same build.
 
-Feed whichever you need to `sveltekitConfig`:
+`readConfig(env, config)` decodes a typed `Config` in one call — ideal for
+reading `$env/static/public` on the client:
 
 ```ts
-// Runtime private config (server) — e.g. rotating credentials per deploy
+import { env } from "$env/static/public";
+import { readConfig } from "@thomasfosterau/effect-sveltekit";
+import { Config, Effect } from "effect";
+
+const settings = readConfig(
+  env,
+  Config.all({
+    apiUrl: Config.string("PUBLIC_API_URL"),
+    analytics: Config.string("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
+  }),
+);
+// settings: Effect<{ apiUrl: string; analytics: string }, ConfigError>
+```
+
+For services that read `Config` internally, install the provider as a `Layer`
+with `sveltekitConfig(env)` — typically the runtime private env on the server:
+
+```ts
 import { env } from "$env/dynamic/private";
 import { sveltekitConfig, makeServerRuntime } from "@thomasfosterau/effect-sveltekit/server";
 import { Layer } from "effect";
 import { Database } from "$lib/server/database";
 
+// Database.layer reads Config.string("DATABASE_URL"), now backed by $env
 export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
-```
-
-```ts
-// Build-time public config (usable on the client) — e.g. an analytics key
-import { env } from "$env/static/public";
-import { sveltekitConfig } from "@thomasfosterau/effect-sveltekit";
-import { Config, Effect } from "effect";
-
-const analyticsKey = Effect.gen(function* () {
-  return yield* Config.string("PUBLIC_ANALYTICS_KEY");
-}).pipe(Effect.provide(sveltekitConfig(env)));
 ```
 
 `ConfigProvider.fromEnv` splits nested keys on `_`, so
