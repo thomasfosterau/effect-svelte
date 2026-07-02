@@ -98,10 +98,9 @@ forms.)
 
 ## Recipes
 
-See the [cookbook](./docs/cookbook.md) for recipes that combine this package
-with Effect's own APIs — consuming an `Endpoint.fromApi` with a typed
-`HttpApiClient`, and choosing build-time vs runtime `$env` config with
-`sveltekitConfig`.
+See the [cookbook](./docs/cookbook.md) for recipes — consuming an
+`Endpoint.fromApi` with a typed `apiClient`, and reading build-time vs runtime
+`$env` config with `readConfig` / `sveltekitConfig`.
 
 ### SvelteKit Vite plugin (recommended)
 

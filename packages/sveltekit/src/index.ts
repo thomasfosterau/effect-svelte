@@ -16,4 +16,7 @@ export type { SvelteKitServices } from "./app-runtime.js";
 export * as Hooks from "./Hooks.js";
 
 // SvelteKit `$env` ⇄ Effect `Config`
-export { sveltekitConfig, sveltekitConfigProvider } from "./config.js";
+export { sveltekitConfig, sveltekitConfigProvider, readConfig } from "./config.js";
+
+// Typed HttpApiClient for an `Endpoint.fromApi`, with FetchHttpClient provided.
+export { apiClient, type ApiClientOptions } from "./api-client.js";

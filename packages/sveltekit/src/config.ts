@@ -27,7 +27,7 @@
  * `DATABASE_HOST` env var just like it does from `process.env`.
  */
 
-import { ConfigProvider, type Layer } from "effect";
+import { type Config, ConfigProvider, Effect, type Layer } from "effect";
 
 /** Drop `undefined` values so the record satisfies `ConfigProvider.fromEnv`. */
 const definedEntries = (env: Record<string, string | undefined>): Record<string, string> => {
@@ -53,3 +53,38 @@ export const sveltekitConfigProvider = (
  */
 export const sveltekitConfig = (env: Record<string, string | undefined>): Layer.Layer<never> =>
   ConfigProvider.layer(sveltekitConfigProvider(env));
+
+/**
+ * Read a typed {@link Config} value directly from a SvelteKit env record, in
+ * one call — the typed bridge for reading configuration without wiring a
+ * provider into a runtime first.
+ *
+ * Which `$env` module you pass decides *when* the value is resolved:
+ *
+ * - `$env/static/public` / `$env/static/private` are **build-time** — inlined
+ *   and fixed for the deployment (public values are safe in client bundles).
+ * - `$env/dynamic/public` / `$env/dynamic/private` are **runtime** — read from
+ *   the process environment per request, so they can change between deploys of
+ *   the same build.
+ *
+ * @example
+ * ```ts
+ * // Build-time public config (usable on the client)
+ * import { env } from "$env/static/public";
+ * import { readConfig } from "@thomasfosterau/effect-sveltekit";
+ * import { Config, Effect } from "effect";
+ *
+ * const settings = readConfig(
+ *   env,
+ *   Config.all({
+ *     apiUrl: Config.string("PUBLIC_API_URL"),
+ *     analytics: Config.string("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
+ *   }),
+ * );
+ * // settings: Effect<{ apiUrl: string; analytics: string }, ConfigError>
+ * ```
+ */
+export const readConfig = <A>(
+  env: Record<string, string | undefined>,
+  config: Config.Config<A>,
+): Effect.Effect<A, Config.ConfigError> => Effect.provide(config, sveltekitConfig(env));
