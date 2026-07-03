@@ -11,6 +11,15 @@ export interface ReactiveQueryReturn<A, E> {
   readonly current: AsyncResult.AsyncResult<A, E>;
 }
 
+export interface ReactiveOptions<R> {
+  /**
+   * Run against this runtime instead of the ambient context. Must still provide
+   * `Reactivity.Reactivity`; when provided, the effect's `R` is otherwise
+   * constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R | Reactivity.Reactivity>;
+}
+
 /**
  * Creates a reactive query that automatically re-runs when the specified keys are invalidated.
  *
@@ -45,8 +54,9 @@ export interface ReactiveQueryReturn<A, E> {
 export function reactiveQuery<A, E, R>(
   keys: () => ReadonlyArray<unknown>,
   effectFn: () => Effect.Effect<A, E, R>,
+  options: ReactiveOptions<R> = {},
 ): ReactiveQueryReturn<A, E> {
-  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
   let fiber: Fiber.Fiber<void, never> | null = null;
@@ -135,8 +145,9 @@ export interface ReactiveStreamReturn<A, E> {
 export function reactiveStream<A, E, R>(
   keys: ReadonlyArray<unknown> | (() => ReadonlyArray<unknown>),
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
+  options: ReactiveOptions<R> = {},
 ): ReactiveStreamReturn<A, E> {
-  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
   return streamState(runtime, () => {
     const currentKeys = typeof keys === "function" ? keys() : keys;
     const currentEffect = typeof effect === "function" ? effect() : effect;
@@ -176,8 +187,9 @@ export interface ReactiveMutationReturn<A, E> {
 export function reactiveMutation<A, E, R>(
   keys: ReadonlyArray<unknown> | (() => ReadonlyArray<unknown>),
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
+  options: ReactiveOptions<R> = {},
 ): ReactiveMutationReturn<A, E> {
-  const runtime = getRuntime() as RuntimeLike<R | Reactivity.Reactivity>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
@@ -240,8 +252,10 @@ export function reactiveMutation<A, E, R>(
  * <button onclick={() => invalidate(['users'])}>Refresh Users</button>
  * ```
  */
-export function useInvalidateKeys(): (keys: ReadonlyArray<unknown>) => void {
-  const runtime = getRuntime() as RuntimeLike<Reactivity.Reactivity>;
+export function useInvalidateKeys(
+  options: ReactiveOptions<never> = {},
+): (keys: ReadonlyArray<unknown>) => void {
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<Reactivity.Reactivity>);
   return (keys) => {
     runSync(runtime)(Reactivity.invalidate(keys));
   };

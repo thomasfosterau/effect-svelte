@@ -3,6 +3,11 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { refWriter } from "./internal/writable.js";
 
+export interface UseWritableRefOptions<R> {
+  /** Run against this runtime instead of the ambient context. */
+  readonly runtime?: RuntimeLike<R>;
+}
+
 export interface UseWritableRefReturn<A> {
   /**
    * The current value of the `SubscriptionRef`. Reading tracks it reactively;
@@ -47,10 +52,11 @@ export interface UseWritableRefReturn<A> {
  * <button onclick={() => name.set("")}>Clear</button>
  * ```
  */
-export function useWritableRef<A>(
+export function useWritableRef<A, R = never>(
   ref: SubscriptionRef.SubscriptionRef<A>,
+  options: UseWritableRefOptions<R> = {},
 ): UseWritableRefReturn<A> {
-  const runtime = getRuntime() as RuntimeLike<never>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   // Read the initial value synchronously so it is available before (and during
   // SSR, instead of) the subscription.

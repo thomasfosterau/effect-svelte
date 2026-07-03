@@ -23,11 +23,13 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Promise<A> {
   if (AsyncResult.isFailure(result)) {
     const cause = AsyncResult.cause(result);
-    if (Option.isSome(cause)) {
-      const error = Cause.findErrorOption(cause.value);
-      return Promise.reject(Option.isSome(error) ? error.value : Cause.squash(cause.value));
-    }
-    return Promise.reject(new Error("AsyncResult failure with no cause"));
+    const reason = Option.isSome(cause)
+      ? Option.match(Cause.findErrorOption(cause.value), {
+          onNone: () => Cause.squash(cause.value),
+          onSome: (error) => error,
+        })
+      : new Error("AsyncResult failure with no cause");
+    return rejected(reason);
   }
 
   const value = AsyncResult.value(result);
@@ -35,4 +37,19 @@ export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Pr
 
   // Initial / waiting with no value yet: stay pending.
   return new Promise<A>(() => {});
+}
+
+/**
+ * A rejected promise whose rejection is pre-observed with a no-op handler.
+ *
+ * Failures are surfaced as rejected promises from a `$derived`; a reactive
+ * re-render can produce (and then discard) such a promise before anything
+ * `await`s it. The no-op `catch` keeps that discarded value from tripping
+ * Node's `unhandledRejection` warning, while the returned promise still rejects
+ * for every real consumer (the `catch` runs on a separate branch).
+ */
+function rejected<A>(reason: unknown): Promise<A> {
+  const promise = Promise.reject<A>(reason);
+  promise.catch(() => {});
+  return promise;
 }

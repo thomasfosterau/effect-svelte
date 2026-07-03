@@ -1,6 +1,15 @@
 import type { Effect } from "effect";
 import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { useEffect } from "./effect.svelte.js";
+import type { RuntimeLike } from "./internal/run.js";
+
+export interface UseQueryOptions<R> {
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * effect's `R` is constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R>;
+}
 
 export interface UseQueryReturn<A, E> {
   /**
@@ -54,8 +63,11 @@ export interface UseQueryReturn<A, E> {
  * {/if}
  * ```
  */
-export function useQuery<A, E, R>(effect: Effect.Effect<A, E, R>): UseQueryReturn<A, E> {
-  const effectHook = useEffect(effect, { immediate: true });
+export function useQuery<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  options: UseQueryOptions<R> = {},
+): UseQueryReturn<A, E> {
+  const effectHook = useEffect(effect, { immediate: true, ...options });
 
   return {
     get current() {

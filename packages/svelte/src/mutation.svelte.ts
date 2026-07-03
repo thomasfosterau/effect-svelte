@@ -7,6 +7,18 @@ import { makeResult } from "./internal/result.svelte.js";
 
 export type { MutationCallbacks } from "./internal/mutation.js";
 
+/**
+ * Options for {@link useMutation}: the lifecycle {@link MutationCallbacks} plus
+ * an optional explicit `runtime`.
+ */
+export type UseMutationOptions<A, E, I, R, C> = MutationCallbacks<A, E, I, C> & {
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * mutation's `R` is constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R>;
+};
+
 export interface UseMutationReturn<A, E, I> {
   /**
    * The current result state of the mutation. Starts `Initial`; each `mutate`
@@ -56,9 +68,9 @@ export interface UseMutationReturn<A, E, I> {
  */
 export function useMutation<A, E, I, R, C = unknown>(
   fn: (input: I) => Effect.Effect<A, E, R>,
-  options: MutationCallbacks<A, E, I, C> = {},
+  options: UseMutationOptions<A, E, I, R, C> = {},
 ): UseMutationReturn<A, E, I> {
-  const runtime = getRuntime() as RuntimeLike<R>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   const state = makeResult<A, E>();
   const core = makeMutation(runtime, state, fn, options);
 

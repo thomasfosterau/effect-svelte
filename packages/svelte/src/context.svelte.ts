@@ -58,5 +58,77 @@ function provideRuntime<R = never>(
   provideRuntimeInternal(runtime as RuntimeLike<never>);
 }
 
-export { getRuntimeContext as getRuntime, provideRuntime };
-export type { RuntimeLike };
+/**
+ * A dedicated, type-safe runtime context.
+ *
+ * Unlike the shared default context ({@link provideRuntime} / {@link getRuntime},
+ * which is untyped — `RuntimeLike<never>`), each call to `createRuntimeContext`
+ * mints its *own* context instance carrying a fully-typed `RuntimeLike<R>`. A
+ * library whose whole point is a service-typed runtime (e.g.
+ * `ManagedRuntime<ClientView, never>`) can therefore expose its own context
+ * without colliding with the default context or with other libraries, and
+ * `get()` returns the precise `RuntimeLike<R>` rather than `RuntimeLike<never>`.
+ */
+interface RuntimeContext<R> {
+  /**
+   * Provide the runtime to the component subtree. Like `setContext`, this must
+   * be called during component initialisation.
+   */
+  readonly provide: (runtime: RuntimeLike<R>) => void;
+
+  /**
+   * Retrieve the runtime. Must be called during component initialisation.
+   * Throws an actionable error when no ancestor called `provide`.
+   */
+  readonly get: () => RuntimeLike<R>;
+}
+
+/**
+ * Create a typed runtime context, built on Svelte's
+ * [`createContext`](https://svelte.dev/docs/svelte/svelte#createContext) (one
+ * context instance per call).
+ *
+ * @param name - an optional label used in the "runtime not provided" error, to
+ *   help downstream users find the missing `provide` call.
+ *
+ * @example
+ * ```ts
+ * // library.ts — a library exposing a service-typed runtime
+ * import { createRuntimeContext } from '@thomasfosterau/effect-svelte';
+ * import type { ManagedRuntime } from 'effect';
+ * import type { ClientView } from './client.js';
+ *
+ * export const ClientContext =
+ *   createRuntimeContext<ClientView>('@legation/svelte client');
+ * ```
+ * ```svelte
+ * <script lang="ts">
+ *   // Root.svelte
+ *   import { ClientContext } from './library.js';
+ *   ClientContext.provide(myClientRuntime);
+ * </script>
+ * ```
+ */
+function createRuntimeContext<R>(name?: string): RuntimeContext<R> {
+  const [get, set] = createContext<RuntimeLike<R>>();
+  const label = name === undefined ? "this runtime context" : `the "${name}" runtime context`;
+
+  return {
+    provide(runtime) {
+      set(runtime);
+    },
+    get() {
+      try {
+        return get();
+      } catch {
+        throw new Error(
+          `effect-svelte: No Effect runtime found for ${label}. ` +
+            "Call its `provide(runtime)` in a parent component during initialisation.",
+        );
+      }
+    },
+  };
+}
+
+export { createRuntimeContext, getRuntimeContext as getRuntime, provideRuntime };
+export type { RuntimeContext, RuntimeLike };

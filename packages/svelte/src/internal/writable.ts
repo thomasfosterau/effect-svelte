@@ -21,8 +21,8 @@ export interface RefWriter<A> {
  * Build a {@link RefWriter} for a `SubscriptionRef`, running writes on the
  * given runtime.
  */
-export function refWriter<A>(
-  runtime: RuntimeLike<never>,
+export function refWriter<A, R = never>(
+  runtime: RuntimeLike<R>,
   ref: SubscriptionRef.SubscriptionRef<A>,
 ): RefWriter<A> {
   return {

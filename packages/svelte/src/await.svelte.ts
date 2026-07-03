@@ -1,7 +1,16 @@
 import type { Effect } from "effect";
 import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
 import { resultToPromise } from "./internal/await.js";
+import type { RuntimeLike } from "./internal/run.js";
 import { useQuery } from "./query.svelte.js";
+
+export interface UseQueryPromiseOptions<R> {
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * effect's `R` is constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R>;
+}
 
 export interface UseQueryPromiseReturn<A, E> {
   /** The underlying query result state (same as {@link useQuery}). */
@@ -45,8 +54,9 @@ export interface UseQueryPromiseReturn<A, E> {
  */
 export function useQueryPromise<A, E, R>(
   effect: Effect.Effect<A, E, R>,
+  options: UseQueryPromiseOptions<R> = {},
 ): UseQueryPromiseReturn<A, E> {
-  const query = useQuery(effect);
+  const query = useQuery(effect, options);
 
   // Recompute (and only then hand `{#await}` a new promise) when the underlying
   // result transitions — not on every unrelated re-render.
