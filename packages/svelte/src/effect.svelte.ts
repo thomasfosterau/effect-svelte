@@ -4,13 +4,19 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
 
-export interface UseEffectOptions {
+export interface UseEffectOptions<R = never> {
   /**
    * If true, the effect will run immediately on mount.
    * If false, the effect will only run when manually triggered via run().
    * @default false
    */
   immediate?: boolean;
+
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * effect's `R` is constrained to what the runtime provides.
+   */
+  runtime?: RuntimeLike<R>;
 }
 
 export interface UseEffectReturn<A, E> {
@@ -68,10 +74,10 @@ export interface UseEffectReturn<A, E> {
  */
 export function useEffect<A, E, R>(
   effect: Effect.Effect<A, E, R>,
-  options: UseEffectOptions = {},
+  options: UseEffectOptions<R> = {},
 ): UseEffectReturn<A, E> {
   const { immediate = false } = options;
-  const runtime = getRuntime() as RuntimeLike<R>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;

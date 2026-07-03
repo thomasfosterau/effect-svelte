@@ -4,8 +4,8 @@
  */
 
 // Layer 0: Runtime Context
-export { provideRuntime, getRuntime } from "./context.svelte.js";
-export type { RuntimeLike } from "./context.svelte.js";
+export { provideRuntime, getRuntime, createRuntimeContext } from "./context.svelte.js";
+export type { RuntimeLike, RuntimeContext } from "./context.svelte.js";
 export { SvelteRuntime, defaultSvelteRuntime } from "./runtime.js";
 
 // Layer 1: Scope Primitive
@@ -13,20 +13,40 @@ export { useScope, useScopeCallback } from "./scope.svelte.js";
 
 // Layer 2: Core Runners
 export { useEffect, type UseEffectOptions, type UseEffectReturn } from "./effect.svelte.js";
-export { useStream, type UseStreamReturn } from "./stream.svelte.js";
+export { useStream, type UseStreamOptions, type UseStreamReturn } from "./stream.svelte.js";
+export {
+  useLiveStream,
+  type UseLiveStreamOptions,
+  type UseLiveStreamReturn,
+} from "./live-stream.svelte.js";
 
 // Layer 3: Convenience Hooks
 export { useDerived, type DerivedReturn, type UseDerivedOptions } from "./derived.svelte.js";
-export { useQuery, type UseQueryReturn } from "./query.svelte.js";
-export { useMutation, type UseMutationReturn, type MutationCallbacks } from "./mutation.svelte.js";
-export { useQueryPromise, type UseQueryPromiseReturn } from "./await.svelte.js";
+export { useQuery, type UseQueryOptions, type UseQueryReturn } from "./query.svelte.js";
+export {
+  useMutation,
+  type UseMutationOptions,
+  type UseMutationReturn,
+  type MutationCallbacks,
+} from "./mutation.svelte.js";
+export {
+  useQueryPromise,
+  type UseQueryPromiseOptions,
+  type UseQueryPromiseReturn,
+} from "./await.svelte.js";
 export {
   useSubscriptionRef,
   usePubSub,
+  type UseSubscriptionRefOptions,
+  type UsePubSubOptions,
   type UseSubscriptionRefReturn,
   type UsePubSubReturn,
 } from "./subscription.svelte.js";
-export { useWritableRef, type UseWritableRefReturn } from "./writable-ref.svelte.js";
+export {
+  useWritableRef,
+  type UseWritableRefOptions,
+  type UseWritableRefReturn,
+} from "./writable-ref.svelte.js";
 
 // Layer 4: Effect Reactivity Integration (effect/unstable/reactivity)
 export {
@@ -34,6 +54,7 @@ export {
   reactiveStream,
   reactiveMutation,
   useInvalidateKeys,
+  type ReactiveOptions,
   type ReactiveQueryReturn,
   type ReactiveStreamReturn,
   type ReactiveMutationReturn,

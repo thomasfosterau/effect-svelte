@@ -4,7 +4,7 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
 
-export interface UseDerivedOptions {
+export interface UseDerivedOptions<R = never> {
   /**
    * Debounce re-runs by this duration: when a dependency changes, wait this
    * long before running, and if another change arrives within the window,
@@ -15,6 +15,12 @@ export interface UseDerivedOptions {
    * `Duration.seconds(1)`).
    */
   readonly debounce?: Duration.Input;
+
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * effect's `R` is constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R>;
 }
 
 export interface DerivedReturn<A, E> {
@@ -57,10 +63,10 @@ export interface DerivedReturn<A, E> {
  */
 export function useDerived<A, E, R>(
   fn: () => Effect.Effect<A, E, R>,
-  options: UseDerivedOptions = {},
+  options: UseDerivedOptions<R> = {},
 ): DerivedReturn<A, E> {
   const { debounce } = options;
-  const runtime = getRuntime() as RuntimeLike<R>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;

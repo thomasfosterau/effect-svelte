@@ -74,11 +74,88 @@ and `fromStore`), typed as Effect's native
 {/if}
 ```
 
-The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`,
-`usePubSub`, `reactiveQuery`, `reactiveStream`, `reactiveMutation`) all return a
-handle with `.current` (plus `values`/`latest`/`run`/`refetch` where relevant).
-`AsyncResult` and its combinators (`match`, `isSuccess`, `isWaiting`,
-`getOrElse`, ...) are re-exported from the package root.
+The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useLiveStream`,
+`useSubscriptionRef`, `usePubSub`, `reactiveQuery`, `reactiveStream`,
+`reactiveMutation`) all return a handle with `.current` (plus
+`values`/`latest`/`run`/`refetch`/`promise` where relevant). `AsyncResult` and
+its combinators (`match`, `isSuccess`, `isWaiting`, `getOrElse`, ...) are
+re-exported from the package root.
+
+Every hook also accepts `options.runtime` to run against an explicit runtime
+instead of the ambient context. Unlike the shared `provideRuntime`/`getRuntime`
+context (which is untyped — `RuntimeLike<never>`), passing `options.runtime`
+constrains the effect's `R` to exactly what that runtime provides:
+
+```svelte
+<script lang="ts">
+  import { useQuery } from "@thomasfosterau/effect-svelte";
+  import { myClientRuntime } from "./runtime.js"; // ManagedRuntime<ClientView, never>
+
+  // `R` is checked against the runtime — an effect needing a service the
+  // runtime does not provide is a compile error.
+  const posts = useQuery(loadPosts, { runtime: myClientRuntime });
+</script>
+```
+
+### Typed runtime contexts
+
+For libraries built around a service-typed runtime, `createRuntimeContext<R>()`
+mints a dedicated, fully-typed context (one instance per call, built on Svelte's
+`createContext`) that never collides with the default context or other
+libraries:
+
+```ts
+// context.ts
+import { createRuntimeContext } from "@thomasfosterau/effect-svelte";
+import type { ClientView } from "./client.js";
+
+export const ClientContext = createRuntimeContext<ClientView>("@my/lib client");
+```
+
+```svelte
+<script lang="ts">
+  // Root.svelte — provide once, like setContext (component init only).
+  import { ClientContext } from "./context.ts";
+  ClientContext.provide(myClientRuntime);
+</script>
+```
+
+```ts
+// anywhere below — `get()` returns the precise RuntimeLike<ClientView>,
+// throwing an actionable error if no ancestor provided it.
+const runtime = ClientContext.get();
+const posts = useQuery(loadPosts, { runtime });
+```
+
+### Live queries with `useLiveStream`
+
+`useLiveStream` subscribes to a live `Stream` and tracks its **latest emission**
+(each emission replaces the previous — live queries emit whole result sets). The
+stream thunk runs inside `$effect`, so any reactive input it reads (e.g. a
+cursor) is dependency-tracked; on change the previous subscription is interrupted
+and a new one starts, keeping the previous value visible as a waiting `Success`
+(stale-while-revalidate). Interruption from teardown/re-subscribe never surfaces
+as a `Failure`.
+
+It also exposes a reactive `promise` for `{#await}`-free async templates
+(`experimental.async` + `<svelte:boundary>`): pending until the first emission,
+replaced with an already-resolved promise on every subsequent emission (no
+pending flash), rejecting on failure. Pass `initial` to seed a synchronous
+`Success` (and a pre-resolved `promise`) — the SSR seam that avoids a
+hydration-mismatching empty first paint.
+
+```svelte
+<script lang="ts">
+  import { useLiveStream } from "@thomasfosterau/effect-svelte";
+
+  let cursor = $state(0);
+  const todos = useLiveStream(() => liveTodos(cursor), { initial: seededTodos });
+</script>
+
+<svelte:boundary>
+  <ul>{#each await todos.promise as todo}<li>{todo.title}</li>{/each}</ul>
+</svelte:boundary>
+```
 
 To go the other way — Svelte → Effect — `Store.toStream(store)` turns any
 Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive

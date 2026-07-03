@@ -1,4 +1,12 @@
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
+
+/**
+ * The Svelte plugin, with `experimental.async` enabled so component fixtures
+ * can use `{await ...}` in templates under `<svelte:boundary>` — the surface
+ * `useLiveStream`'s `promise` is designed for.
+ */
+const svelteAsync = () => svelte({ compilerOptions: { experimental: { async: true } } });
 
 export default defineConfig({
   /**
@@ -18,8 +26,45 @@ export default defineConfig({
     sourcemap: true,
   },
 
-  /** `vp test` (Vitest) */
+  /**
+   * `vp test` (Vitest). Split into three projects because component fixtures
+   * must be compiled differently per target:
+   *
+   * - `unit` — plain Node. The rune-free orchestrators and internal helpers
+   *   (the bulk of the suite), tested without a Svelte/DOM environment.
+   * - `dom` — happy-dom with the `browser` resolve condition, so Svelte resolves
+   *   to its client build and components can be `mount`ed. Drives the live
+   *   `<svelte:boundary>` behaviour.
+   * - `ssr` — Node with the Svelte plugin but no `browser` condition, so Svelte
+   *   resolves to its server build and `svelte/server`'s `render` produces HTML.
+   */
   test: {
-    include: ["tests/**/*.test.ts"],
+    projects: [
+      {
+        test: {
+          name: "unit",
+          include: ["tests/**/*.test.ts"],
+          exclude: ["tests/dom/**", "tests/ssr/**"],
+          environment: "node",
+        },
+      },
+      {
+        plugins: [svelteAsync()],
+        resolve: { conditions: ["browser"] },
+        test: {
+          name: "dom",
+          include: ["tests/dom/**/*.test.ts"],
+          environment: "happy-dom",
+        },
+      },
+      {
+        plugins: [svelteAsync()],
+        test: {
+          name: "ssr",
+          include: ["tests/ssr/**/*.test.ts"],
+          environment: "node",
+        },
+      },
+    ],
   },
 });

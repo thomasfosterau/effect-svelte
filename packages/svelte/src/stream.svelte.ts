@@ -4,6 +4,14 @@ import { getRuntime } from "./context.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
 import { streamState } from "./internal/subscribe.js";
 
+export interface UseStreamOptions<R> {
+  /**
+   * Run against this runtime instead of the ambient context. When provided, the
+   * stream's `R` is constrained to what the runtime provides.
+   */
+  readonly runtime?: RuntimeLike<R>;
+}
+
 export interface UseStreamReturn<A, E> {
   /**
    * The current result state of the stream. `Initial`/`Success` carry a
@@ -47,7 +55,10 @@ export interface UseStreamReturn<A, E> {
  * <p>All values: {counter.values.join(', ')}</p>
  * ```
  */
-export function useStream<A, E, R>(stream: Stream.Stream<A, E, R>): UseStreamReturn<A, E> {
-  const runtime = getRuntime() as RuntimeLike<R>;
+export function useStream<A, E, R>(
+  stream: Stream.Stream<A, E, R>,
+  options: UseStreamOptions<R> = {},
+): UseStreamReturn<A, E> {
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   return streamState(runtime, () => stream);
 }

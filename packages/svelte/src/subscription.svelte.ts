@@ -3,6 +3,16 @@ import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { streamState, valueState } from "./internal/subscribe.js";
 
+export interface UseSubscriptionRefOptions<R> {
+  /** Run against this runtime instead of the ambient context. */
+  readonly runtime?: RuntimeLike<R>;
+}
+
+export interface UsePubSubOptions<R> {
+  /** Run against this runtime instead of the ambient context. */
+  readonly runtime?: RuntimeLike<R>;
+}
+
 export interface UseSubscriptionRefReturn<A> {
   /**
    * The current value of the SubscriptionRef
@@ -31,10 +41,11 @@ export interface UseSubscriptionRefReturn<A> {
  * <p>Count: {count.current}</p>
  * ```
  */
-export function useSubscriptionRef<A>(
+export function useSubscriptionRef<A, R = never>(
   ref: SubscriptionRef.SubscriptionRef<A>,
+  options: UseSubscriptionRefOptions<R> = {},
 ): UseSubscriptionRefReturn<A> {
-  const runtime = getRuntime() as RuntimeLike<never>;
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   // Get the initial value synchronously so it is available before (and during
   // SSR, instead of) the subscription. `SubscriptionRef.changes` re-emits the
@@ -79,8 +90,11 @@ export interface UsePubSubReturn<A> {
  * </ul>
  * ```
  */
-export function usePubSub<A>(pubsub: PubSub.PubSub<A>): UsePubSubReturn<A> {
-  const runtime = getRuntime() as RuntimeLike<never>;
+export function usePubSub<A, R = never>(
+  pubsub: PubSub.PubSub<A>,
+  options: UsePubSubOptions<R> = {},
+): UsePubSubReturn<A> {
+  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   const state = streamState(runtime, () => Stream.fromPubSub(pubsub));
   return {
     get values() {
