@@ -1,6 +1,6 @@
 {
   "name": "@thomasfosterau/effect-svelte",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Effect integration for Svelte 5 runes",
   "keywords": [
     "effect",
