@@ -20,6 +20,7 @@
   const live = useLiveStream<A, string, never>(() => makeFor(cursor.current), { runtime });
 </script>
 
+<span data-testid="waiting">{String(live.current.waiting)}</span>
 <svelte:boundary>
   {#snippet pending()}
     <span data-testid="status">pending</span>
