@@ -1,5 +1,6 @@
 import { Option, type Stream } from "effect";
 import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { resultToPromise } from "./internal/await.js";
 import { makeLiveStream, type LiveResultState } from "./internal/live-stream.js";
@@ -60,7 +61,12 @@ function makeLiveResult<A, E>(seed: Option.Option<A>): LiveResultState<A, E> {
       return current;
     },
     startWaiting() {
-      current = AsyncResult.waiting(current);
+      // `startWaiting` runs from inside the hook's `$effect` (via
+      // `core.subscribe`), so reading `current` here must be untracked —
+      // otherwise the effect depends on its own result state and every
+      // emission (which writes `current`) re-triggers the effect, tearing
+      // down and re-starting the subscription on every value.
+      current = AsyncResult.waiting(untrack(() => current));
     },
     emit(value) {
       current = AsyncResult.success<A, E>(value);

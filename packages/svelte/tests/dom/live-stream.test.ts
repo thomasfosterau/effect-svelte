@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { Layer, ManagedRuntime, Queue, Stream, SubscriptionRef } from "effect";
+import { Layer, ManagedRuntime, Queue, Schedule, Stream, SubscriptionRef } from "effect";
 import { mount, tick, unmount } from "svelte";
 import Boundary from "./Boundary.svelte";
+import Counting from "./Counting.svelte";
 import Reactive from "./Reactive.svelte";
 import Typed from "./Typed.svelte";
 import { MultiplierLayer } from "./service.js";
@@ -27,6 +28,16 @@ const mountTarget = (): HTMLElement => {
 
 const text = (target: HTMLElement, id: string): string | null =>
   target.querySelector(`[data-testid="${id}"]`)?.textContent?.trim() ?? null;
+
+/** Polls `check` (with a `tick()` between attempts) until it returns `true` or the timeout elapses. */
+const waitFor = async (check: () => boolean, timeoutMs = 2000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error("waitFor: timed out");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await tick();
+  }
+};
 
 const mounted: Array<{ component: Record<string, unknown>; target: HTMLElement }> = [];
 const track = <T extends Record<string, unknown>>(component: T, target: HTMLElement): void => {
@@ -175,9 +186,58 @@ describe("useLiveStream (DOM boundary)", () => {
     expect(text(target, "value")).toBe("value:10");
     expect(text(target, "status")).toBeNull();
 
+    // Waiting while the second subscription is still pending its first value.
+    expect(text(target, "waiting")).toBe("true");
+
     await runtime.runPromise(Queue.offer(second, 20));
     await settle();
     expect(text(target, "value")).toBe("value:20");
+    // The new subscription's first emission clears `waiting` again.
+    expect(text(target, "waiting")).toBe("false");
+
+    await runtime.dispose();
+  });
+
+  it("one subscription serves many emissions (self-invalidation regression)", async () => {
+    // A self-invalidating `$effect` reads its own result state, so every
+    // emission (which writes that state) re-triggers the effect and
+    // re-subscribes — the thunk below would run roughly once per emission
+    // instead of once for the component's whole lifetime.
+    const runtime = ManagedRuntime.make(Layer.empty);
+    const target = mountTarget();
+
+    const component = mount(Counting, {
+      target,
+      props: {
+        make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
+        runtime,
+      },
+    });
+    track(component, target);
+
+    await waitFor(() => Number(text(target, "value") ?? "-1") >= 5);
+
+    expect(Number(text(target, "calls"))).toBeLessThan(3);
+
+    await runtime.dispose();
+  });
+
+  it("`waiting` clears after the first emission", async () => {
+    const runtime = ManagedRuntime.make(Layer.empty);
+    const target = mountTarget();
+
+    const component = mount(Counting, {
+      target,
+      props: {
+        make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
+        runtime,
+      },
+    });
+    track(component, target);
+
+    await waitFor(() => text(target, "tag") === "Success");
+
+    expect(text(target, "waiting")).toBe("false");
 
     await runtime.dispose();
   });
