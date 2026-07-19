@@ -83,7 +83,7 @@
   },
   "peerDependencies": {
     "@effect/platform-node": "^4.0.0-beta.75",
-    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/kit": "^2.0.0 || ^3.0.0-next.0",
     "effect": "^4.0.0-beta.75",
     "svelte": "^5.40.0",
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
