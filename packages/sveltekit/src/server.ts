@@ -198,7 +198,7 @@ export {
  * Export the SvelteKit runtime utilities for advanced use cases.
  */
 export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
-export { RemoteFunction } from "./remote.server.js";
+export { RemoteFunction } from "./remote-functions.js";
 
 /**
  * A general, Effect-idiomatic seam for *how the per-request execution context is

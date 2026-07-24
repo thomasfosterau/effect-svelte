@@ -8,9 +8,9 @@ import type {
   RemoteQueryFunction,
 } from "@sveltejs/kit";
 import { Effect, Schema } from "effect";
-import type { CommandFn, FormFn, PrerenderFn, QueryFn } from "../src/remote.server.js";
+import type { CommandFn, FormFn, PrerenderFn, QueryFn } from "../src/remote-functions.js";
 
-// The helpers are `declare`d (never constructed) so importing `remote.server.ts`
+// The helpers are `declare`d (never constructed) so importing `remote-functions.ts`
 // — and its `$app/server` dependency — costs nothing at runtime. The assertions
 // below live inside `typeChecks`, which is exported (so it isn't flagged unused)
 // but never invoked: the helper calls are type-checked, never executed.

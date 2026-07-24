@@ -156,7 +156,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@sveltejs/kit':
-        specifier: ^2.0.0
+        specifier: ^2.0.0 || ^3.0.0-next.0
         version: 2.68.0(@sveltejs/vite-plugin-svelte@7.1.2(svelte@5.56.4)(vite@8.1.0(@types/node@22.20.0)(yaml@2.9.0)))(svelte@5.56.4)(typescript@5.9.3)(vite@8.1.0(@types/node@22.20.0)(yaml@2.9.0))
       '@thomasfosterau/effect-svelte':
         specifier: workspace:^
