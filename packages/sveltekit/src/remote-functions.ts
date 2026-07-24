@@ -1,3 +1,12 @@
+// NOTE: This module builds the `query` / `form` / `command` / `prerender`
+// *factories* that consumers call inside their own `*.remote.ts` files — it is
+// NOT itself a SvelteKit remote module, and its exports (e.g. `RemoteFunction`)
+// are deliberately not remote functions. Its filename must therefore never match
+// SvelteKit's remote-module matcher `/[/.]remote(\.[^/]+)+$/`
+// (kit `src/exports/vite/utils.js`), or kit's build-time validation will reject
+// the built file with "all exports from this file must be remote functions".
+// That is why this is `remote-functions.ts` and never `remote.server.ts` /
+// `*.remote.ts`. See `tests/remote-module-naming.test.ts` for the guard.
 import * as AppServer from "$app/server";
 import type {
   RemoteCommand,

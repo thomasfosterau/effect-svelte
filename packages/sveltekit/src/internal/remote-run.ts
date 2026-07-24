@@ -2,7 +2,7 @@
  * Run/settle helpers for the remote-function wrappers, factored out so they can
  * be unit-tested without importing `$app/server` (a SvelteKit virtual module
  * unavailable outside an app build). The `$app/server`-dependent resolvers live
- * in `remote.server.ts`; this module only deals in `Exit`s.
+ * in `remote-functions.ts`; this module only deals in `Exit`s.
  */
 
 import type { InvalidField } from "@sveltejs/kit";
