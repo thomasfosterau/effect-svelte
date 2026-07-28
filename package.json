@@ -24,7 +24,7 @@
     "@changesets/cli": "^2.27.1",
     "@effect/language-service": "^0.86.2",
     "@effect/platform-node": "4.0.0-beta.75",
-    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/kit": "^2.69.1",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/node": "^22.19.19",
     "@typescript/native-preview": "^7.0.0-dev.20260602.1",
