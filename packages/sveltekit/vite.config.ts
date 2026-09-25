@@ -21,7 +21,10 @@ export default defineConfig({
     format: ["esm"],
     platform: "neutral",
     unbundle: true,
-    dts: { tsgo: true },
+    // Declarations come from the TS6 JS compiler (the `typescript` alias): the
+    // `tsgo` generator only discovers `@typescript/native-preview` or an
+    // unaliased TypeScript 7, neither of which the 6/7 split installs.
+    dts: true,
     sourcemap: true,
     deps: {
       // SvelteKit virtual modules are provided by the consumer's app.

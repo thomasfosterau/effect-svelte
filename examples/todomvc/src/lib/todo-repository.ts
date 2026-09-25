@@ -79,13 +79,11 @@ export class TodoRepository extends Context.Service<TodoRepository>()("examples/
         ),
 
       stats: readAll.pipe(
-        Effect.map(
-          (todos): TodoStats => ({
-            total: todos.length,
-            active: todos.filter((todo) => !todo.completed).length,
-            completed: todos.filter((todo) => todo.completed).length,
-          }),
-        ),
+        Effect.map((todos): TodoStats => ({
+          total: todos.length,
+          active: todos.filter((todo) => !todo.completed).length,
+          completed: todos.filter((todo) => todo.completed).length,
+        })),
       ),
 
       add: (title: string) =>
