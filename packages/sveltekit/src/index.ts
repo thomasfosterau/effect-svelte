@@ -15,6 +15,9 @@ export type { SvelteKitServices } from "./app-runtime.js";
 // exposes `reroute` and the Effect Schema ⇄ `transport` helpers.
 export * as Hooks from "./Hooks.js";
 
+// A response-headers buffer that can be returned from `load` (see `Hooks.responseHeadersTransporter`).
+export { ResponseHeaders } from "./response-headers.js";
+
 // SvelteKit `$env` ⇄ Effect `Config`
 export { sveltekitConfig, sveltekitConfigProvider, readConfig } from "./config.js";
 

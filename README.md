@@ -368,6 +368,46 @@ import {
 } from "@thomasfosterau/effect-sveltekit/server";
 ```
 
+### Boundary error translation from a catalogue (`Errors.toSvelteKit`)
+
+Every server wrapper takes a `translateError` that turns a failed `Cause` into
+SvelteKit control flow. Rather than hand-writing that switch, pass your tagged
+error catalogue as data — keyed by `_tag` — and the app's `kit.ts` becomes one
+call:
+
+```ts
+// src/lib/server/effect/kit.ts
+import {
+  Errors,
+  makeRuntimeAdapter,
+  RequestRuntime,
+} from "@thomasfosterau/effect-sveltekit/server";
+import { error } from "@sveltejs/kit";
+import type { AppError } from "$lib/errors"; // NotFound | Unauthorized | Forbidden | Redirect | HttpError | JsonapiError
+
+export const { serverLoad, endpoint } = makeRuntimeAdapter(
+  RequestRuntime.fromLocals((event) => event.locals.runtime),
+  {
+    translateError: Errors.toSvelteKit<AppError>({
+      NotFound: { status: 404, message: (e) => `${e.resource} ${e.id} not found` },
+      Unauthorized: 401, // body: the error's own `message`, else its tag
+      Forbidden: 403,
+      Redirect: "redirect", // redirect(e.status, e.to)
+      HttpError: "status", // error(e.status, e.message)
+      JsonapiError: (e) => error(e.status, JSON.stringify(e.toDocument())), // full control
+    }),
+  },
+);
+```
+
+The squashed cause is matched, so a tagged error that surfaced as a defect is
+translated too. Anything outside the catalogue goes to `fallback` — by default
+`SvelteKit.translate` (Kit control-flow errors pass through; everything else is
+an `EffectCauseError` 500 carrying the full `Cause`); pass
+`{ fallback: Errors.rethrowSquashed }` to rethrow the original value unchanged
+for `handleError`. With the error union as the type argument, catalogue keys and
+each entry's callback are checked against it.
+
 ### SvelteKit endpoints backed by Effect
 
 Create a `+server.ts` endpoint from an Effect [`HttpApi`](https://effect.website),
@@ -442,6 +482,49 @@ export const transport = Hooks.transport({
   Date: Schema.Date,
 });
 ```
+
+### Response-headers buffer (`ResponseHeaders`)
+
+SvelteKit's `setHeaders` refuses `set-cookie`, throws when a header is set
+twice, and is out of reach of components rendering during SSR. The usual answer
+is a mutable headers buffer on `event.locals` that loads (and SSR components,
+via `page.data`) append to and a `handle` copies onto the response.
+`ResponseHeaders` is that buffer: a real `Headers` that serialises to `{}`, with
+a transport entry that reconstructs it empty on the client (its contents never
+leave the server):
+
+```ts
+// src/app.d.ts
+declare global {
+  namespace App {
+    interface Locals {
+      headers: import("@thomasfosterau/effect-sveltekit").ResponseHeaders;
+    }
+  }
+}
+
+// src/hooks.ts
+import { Hooks } from "@thomasfosterau/effect-sveltekit";
+export const transport = Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter });
+
+// src/hooks.server.ts
+import { ResponseHeaders } from "@thomasfosterau/effect-sveltekit";
+import type { Handle } from "@sveltejs/kit";
+
+export const handle: Handle = async ({ event, resolve }) => {
+  event.locals.headers = new ResponseHeaders();
+  const response = await resolve(event);
+  event.locals.headers.appendTo(response.headers); // appends, so every set-cookie survives
+  return response;
+};
+
+// src/routes/+layout.server.ts — expose the same buffer to every page
+export const load = ({ locals }) => ({ headers: locals.headers });
+```
+
+(`SvelteKitResponseHeaders`, the per-request _service_, wraps `setHeaders` for
+handler effects; `ResponseHeaders` is the buffer for everything `setHeaders`
+cannot do.)
 
 ### `$env` as an Effect `Config` source
 
@@ -520,6 +603,52 @@ To additionally provide your application's services to the server hooks, use the
 matching methods on an app-wide runtime (`runtime.handle`, `runtime.handleFetch`,
 `runtime.handleError`, `runtime.init`). The same exports also work as bare
 Effects (no explicit wrapper) when the `effectKit()` Vite plugin is enabled.
+
+## Surface status: adopt vs drop (proposal, #81)
+
+The three foundation apps (website, gardeneria, preferenceflow) use
+`makeRuntimeAdapter(RequestRuntime.fromLocals(...), { translateError })` and the
+`serverLoad` / `endpoint` it returns — and hand-write the pieces several other
+surfaces are for. This table records, per surface, whether the apps should adopt
+it or the package should drop it. **It is a proposal awaiting the owner's
+verdict on #81; nothing has been removed.**
+
+| Surface                                                                                                                  | What the apps do today                                                                                        | Proposal                                        | Reasoning                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Errors.toSvelteKit` (new)                                                                                               | hand-written `toSvelteKit` switch (`lib/server/effect/translate.ts`, ~113 LoC)                                | **Adopt**                                       | `kit.ts` becomes one `makeRuntimeAdapter` call over the app's catalogue (see above).                                                                                                                                                                                      |
+| `ResponseHeaders` + `Hooks.responseHeadersTransporter` (new), `Hooks.transport` / `transporter` / `markerTransporter`    | a `Headers` wrapper (`lib/cache.ts`, ~93 LoC) and a hand-written `transport` (`hooks.ts`, ~31 LoC)            | **Adopt**                                       | The recipe above replaces both files.                                                                                                                                                                                                                                     |
+| `Hooks.handle` / `handleFetch` / `handleError` / `init` (server), `Hooks.handleError` / `init` (client), `Hooks.reroute` | plain `Handle`s composed with `sequence` that populate `locals` and wrap `resolve`                            | **Keep; no app migration**                      | The apps' handles are SvelteKit glue, not Effect programs — wrapping them buys nothing. Adopt per hook only where the body is an Effect (e.g. `handleError` reporting through an Effect logger/PostHog layer). Small (~300 LoC) and exercised by the hacker-news example. |
+| `Forms.enhance` / `applyAction` / `deserialize` (`./client`)                                                             | `enhanceForm(form)` → spreadable `<form>` props over `@thomasfosterau/effect-forms-svelte`'s `FormStore`      | **Drop (deprecate → remove in the next major)** | Form-action glue is moving to `effect-forms-svelte/kit` (effect-forms#2), which owns the form store the apps bind to; `Forms.enhance`'s callback shape does not fit that store. Remove once effect-forms#2 ships.                                                         |
+| `sveltekitConfig` / `sveltekitConfigProvider` / `readConfig`                                                             | build-time `PUBLIC_*` catalogue via Kit 3's `defineEnvVars` + Standard Schema (`src/env.ts`, `public-env.ts`) | **Keep; adopt only for runtime `Config`**       | `defineEnvVars` is the right tool for the build-time public catalogue and stays in the apps. `sveltekitConfig` is for server layers that read `Config.*` from `$env/dynamic/private`; apps adopt it where a service reads `Config` (recipe above).                        |
+| `effectKit()` Vite plugin (`./vite`, `./internal/auto`)                                                                  | explicit `serverLoad(...)` / `endpoint(...)` wrappers                                                         | **Drop candidate (deprecate)**                  | ~640 LoC of export rewriting (plus `magic-string`) that none of the apps use; they prefer the explicit wrappers, which are also what `makeRuntimeAdapter` returns. If deprecated, its "(recommended)" label above goes first.                                             |
+| Remote functions (`RemoteFunction`, `Remote.*`, `useRemoteQuery`, validators)                                            | not used — website retired remote functions (website#1461)                                                    | **Freeze; decide with Kit 3 (#85)**             | Kit's remote functions are still experimental and change under Kit 3; porting them there is the cost of keeping them. Recommend deprecating unless a consumer appears by the Kit 3 move.                                                                                  |
+| `Navigation` / `State` (`./client`)                                                                                      | not used                                                                                                      | Keep; no app migration                          | Small Effect wrappers over `$app/navigation` / `$app/state`; no maintenance pressure.                                                                                                                                                                                     |
+| Effect deployment adapter (`./adapter`)                                                                                  | `@sveltejs/adapter-cloudflare`                                                                                | Keep; no app migration                          | Node deployment target used by the hacker-news example; the apps deploy to Workers.                                                                                                                                                                                       |
+
+Two app-side patterns stay recipes rather than APIs:
+
+- **Leaving an error page.** After an error page renders, client-side
+  navigation can re-run loads against a stale context; the apps force a full
+  reload instead:
+
+  ```svelte
+  <script lang="ts">
+    import { beforeNavigate } from "$app/navigation";
+    import { page } from "$app/state";
+
+    beforeNavigate((navigation) => {
+      if (page.error) {
+        navigation.cancel();
+        window.location.href = navigation.to?.url.href ?? "/";
+      }
+    });
+  </script>
+  ```
+
+- **Paraglide.** The paraglide wiring (plugin shim, compile step, the
+  `paraglide` handle and the `fillPattern` workaround) is SvelteKit/Vite-specific
+  and not Effect, so it stays an app template rather than a `./paraglide` entry
+  here.
 
 ## Examples
 

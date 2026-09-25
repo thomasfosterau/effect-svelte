@@ -281,6 +281,17 @@ export {
 } from "./kit.js";
 
 /**
+ * A `translateError` built from a tag-keyed catalogue:
+ * `Errors.toSvelteKit({ NotFound: 404, Forbidden: 403, Redirect: "redirect", HttpError: "status" })`.
+ * Pass it to `makeRuntimeAdapter` / `RemoteFunction.withRuntime`; see
+ * {@link Errors.toSvelteKit}.
+ */
+export * as Errors from "./errors.js";
+
+/** The response-headers buffer, re-exported from the universal entry for server-only modules. */
+export { ResponseHeaders } from "./response-headers.js";
+
+/**
  * Effect-native services for the three per-request surfaces of a SvelteKit
  * `RequestEvent`: cookies, response headers, and locals.
  *
