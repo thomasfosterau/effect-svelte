@@ -69,3 +69,9 @@ export {
   type MarkerTransporterOptions,
   type TransportEntry,
 } from "./transport.js";
+
+/**
+ * The `transport` entry for the {@link ResponseHeaders} response-headers buffer
+ * (`Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter })`).
+ */
+export { responseHeadersTransporter } from "./response-headers.js";
