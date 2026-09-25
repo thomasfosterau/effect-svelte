@@ -91,7 +91,7 @@ describe("makeMutation", () => {
     const state = fakeResult<never, string>();
 
     const errors: Array<string> = [];
-    const core = makeMutation(runtime, state, (_: void) => Effect.fail("boom"), {
+    const core = makeMutation(runtime, state, () => Effect.fail("boom"), {
       onError: (error) => errors.push(error),
       onSuccess: () => errors.push("SHOULD-NOT-RUN"),
     });

@@ -7,7 +7,7 @@
     "ghcr.io/devcontainers-extra/features/pnpm:2": {},
     "ghcr.io/devcontainers-extra/features/ripgrep:1": {}
   },
-  "postCreateCommand": "pnpm install",
+  "postCreateCommand": ".claude/hooks/session-start.sh",
   "customizations": {
     "vscode": {
       "extensions": ["svelte.svelte-vscode", "oxc.oxc-vscode"]

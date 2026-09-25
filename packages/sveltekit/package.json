@@ -77,16 +77,19 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@standard-schema/spec": "^1.1.0",
+    "@standard-schema/spec": "catalog:",
     "@thomasfosterau/effect-svelte": "workspace:^",
-    "magic-string": "^0.30.0"
+    "magic-string": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
   },
   "peerDependencies": {
-    "@effect/platform-node": "^4.0.0-beta.75",
-    "@sveltejs/kit": "^2.0.0 || ^3.0.0-next.0",
-    "effect": "^4.0.0-beta.75",
-    "svelte": "^5.40.0",
-    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
+    "@effect/platform-node": "catalog:peers",
+    "@sveltejs/kit": "catalog:peers",
+    "effect": "catalog:peers",
+    "svelte": "catalog:peers",
+    "vite": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@effect/platform-node": {

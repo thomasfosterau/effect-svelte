@@ -5,24 +5,24 @@
   "description": "Hacker News reader built with SvelteKit, Effect, and @thomasfosterau/effect-svelte",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
+    "dev": "vp dev",
+    "build": "vp build",
     "preview": "node build/index.js",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.75",
+    "@effect/platform-node": "catalog:",
     "@thomasfosterau/effect-svelte": "workspace:*",
     "@thomasfosterau/effect-sveltekit": "workspace:*",
-    "effect": "4.0.0-beta.75"
+    "effect": "catalog:"
   },
   "devDependencies": {
-    "@sveltejs/kit": "^2.70.2",
-    "@sveltejs/vite-plugin-svelte": "^7.0.0",
-    "@types/node": "^22.0.0",
-    "svelte": "^5.46.4",
-    "svelte-check": "^4.0.0",
-    "typescript": "^5.3.3",
-    "vite": "^8.0.0"
+    "@sveltejs/kit": "catalog:",
+    "@sveltejs/vite-plugin-svelte": "catalog:",
+    "@types/node": "catalog:",
+    "svelte": "catalog:",
+    "svelte-check": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
   }
 }

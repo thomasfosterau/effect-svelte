@@ -1,9 +1,95 @@
-ignoredBuiltDependencies:
-  - msgpackr-extract
-
-onlyBuiltDependencies:
-  - esbuild
-
+# pnpm workspace — the two published packages plus the example apps.
+#
+# The `catalog:` protocol pins versions that MUST be singletons across the
+# workspace. Effect especially: two copies of `effect` break Context / Layer /
+# Schema identity at runtime, so every package references `catalog:`.
+#
+# EVERY external dependency version lives here — package.json files reference
+# only `catalog:` / `catalog:peers` (or `workspace:` for internal packages).
+# `catalogMode: strict` makes `pnpm add` enforce this at add time and
+# `pnpm install` reject non-catalog specifiers. After editing this catalog,
+# ALWAYS run `pnpm install` and commit the regenerated pnpm-lock.yaml — CI
+# installs with `--frozen-lockfile`, so a stale lockfile fails at once.
+#
+# Shape copied from the library standard (effect-drizzle-ext / effect-jsonapi).
+# The Effect line is deliberately still `4.0.0-beta.75`: the move to the shared
+# `4.0.0-rc.x` floor is a major change consumed by every application and is
+# tracked in its own issue.
 packages:
   - "packages/*"
   - "examples/*"
+
+catalogMode: strict
+
+catalog:
+  "@changesets/cli": ^3.0.3
+  "@effect/language-service": ^0.87.2
+  "@effect/platform-node": 4.0.0-beta.75
+  "@standard-schema/spec": ^1.1.0
+  "@sveltejs/kit": ^2.70.2
+  "@sveltejs/vite-plugin-svelte": ^7.1.2
+  "@types/node": ^22.19.19
+  effect: 4.0.0-beta.75
+  happy-dom: ^20.10.6
+  magic-string: ^0.30.0
+  svelte: ^5.46.4
+  svelte-check: ^4.0.0
+  todomvc-app-css: ^2.4.3
+  # TypeScript 6/7 side-by-side: TS7 (the native Go compiler) ships no JS API
+  # until 7.1, so JS-API consumers (@effect/language-service, svelte-check, the
+  # tsdown declaration bundler behind `vp pack`) stay on TS6. The alias keeps
+  # the package importable as `typescript` (bin `tsc6`); `@typescript/native`
+  # is TS7 (bin `tsc`). Pinned exact so the pair only moves together.
+  # Every workspace package lists `typescript: "catalog:"`: without it,
+  # peer auto-install resolves the alias's inner `typescript@6.0.x` as
+  # `vite`'s optional peer, giving vite-plus-core (and so every plugin type) a
+  # second instance and svelte-check a stack-depth crash on `defineConfig`.
+  typescript: "npm:@typescript/typescript6@6.0.2"
+  "@typescript/native": "npm:typescript@7.0.2"
+  # vite-plus pins `oxlint`, `oxfmt` and `vitest` to exact versions; `vite` is
+  # the same release under its aliased core package, and `vitest` must match
+  # vite-plus's exact pin because the `vitest: "catalog:"` override forces
+  # every resolution to the catalog singleton.
+  vite-plus: 0.3.0
+  vite: npm:@voidzero-dev/vite-plus-core@0.3.0
+  vitest: 4.1.11
+
+# Peer ranges the PUBLISHED packages declare. Kept as a named catalog so the
+# strict catalog mode still governs them while they stay ranges. `pnpm publish`
+# (which `changeset publish` shells out to) replaces `catalog:peers` with these
+# ranges in the published manifest.
+catalogs:
+  peers:
+    "@effect/platform-node": ^4.0.0-beta.75
+    "@sveltejs/kit": ^2.0.0 || ^3.0.0-next.0
+    effect: ^4.0.0-beta.75
+    svelte: ^5.40.0
+    vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
+
+overrides:
+  vite: "catalog:"
+  vitest: "catalog:"
+  # `effect` MUST be a singleton (see the header): force every resolution to
+  # the catalog version so a hoisting reshuffle cannot introduce a second copy.
+  effect: "catalog:"
+
+allowBuilds:
+  esbuild: true
+  # Arrives via vite-plus; an optional native accelerator the workspace does
+  # not need.
+  msgpackr-extract: false
+
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
+
+# Supply-chain delay (owner's policy, gardeneria #1149): hold newly published
+# versions for 1 day (unit: MINUTES) before pnpm will install them.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  # @thomasfosterau/* is first-party — exempt so our own releases install immediately.
+  - "@thomasfosterau/*"
