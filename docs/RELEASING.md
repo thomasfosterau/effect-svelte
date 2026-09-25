@@ -13,9 +13,10 @@ The private example apps under `examples/` are listed in
 ## One-time repository setup (required)
 
 Publishing uses **npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
-via OIDC** — no long-lived `NPM_TOKEN`. The workflow already has
-`permissions: id-token: write` and upgrades npm to a version that supports OIDC
-(>= 11.5); two things still need configuring outside the repo:
+via OIDC** — no long-lived `NPM_TOKEN`. The workflow runs with
+`permissions: {}` at the top level, grants its one job `id-token: write`, and
+upgrades npm to a version that supports OIDC (>= 11.5); three things still need
+configuring outside the repo:
 
 1. **Allow the Action to open the release PR.**
    _Settings → Actions → General → Workflow permissions →_ enable
@@ -32,7 +33,7 @@ via OIDC** — no long-lived `NPM_TOKEN`. The workflow already has
    - Organization or user: `thomasfosterau`
    - Repository: `effect-svelte`
    - Workflow filename: `release.yml`
-   - Environment: _(leave blank — the workflow doesn't use one)_
+   - Environment: `release` (or blank, which accepts any environment)
 
    Both packages point at the same workflow file. No npm token is stored
    anywhere; the workflow exchanges a short-lived GitHub OIDC token for npm
@@ -47,6 +48,13 @@ via OIDC** — no long-lived `NPM_TOKEN`. The workflow already has
    > then add the trusted publisher and let OIDC handle every release after.
    > (Tracked upstream in [npm/cli#8544](https://github.com/npm/cli/issues/8544).)
 
+3. **Protect the `release` environment.** The release job runs in the GitHub
+   Environment `release`. _Settings → Environments → `release`_ → enable
+   **Required reviewers** (yourself) and restrict deployment to `main`, so
+   every version-PR update and every publish pauses for manual approval. (If
+   the environment does not exist, GitHub creates it unprotected on the first
+   run.)
+
 ## How a release happens
 
 1. **Land changesets.** Every change that should appear in the changelog ships
@@ -55,14 +63,16 @@ via OIDC** — no long-lived `NPM_TOKEN`. The workflow already has
    what is pending with `vp run changeset status`.
 
 2. **Version Packages PR (automatic).** On every push to `main`, the Release
-   workflow runs `vp run version` (`changeset version`): it consumes the pending
+   workflow ([`changesets/action`](https://github.com/changesets/action) v2,
+   paired with `@changesets/cli` v3) runs `pnpm run version` (`changeset version`): it consumes the pending
    changesets, bumps the affected `package.json` versions, and writes each
    package's `CHANGELOG.md` on the `changeset-release/main` branch, then opens
    (or updates) a **"Version Packages"** PR. Review it like any other PR.
 
 3. **Publish (automatic on merge).** Merging the "Version Packages" PR triggers
-   the workflow's publish step, `vp run release`
-   (`vp run -r build && changeset publish`), which builds every package and
+   the workflow's publish step, `pnpm run release`
+   (`vp run -r build && changeset publish`; `pnpm run`, not `vp run`, because
+   `vp run` does not forward the OIDC token-request variables), which builds every package and
    publishes the ones whose versions changed to npm — authenticating via OIDC,
    no token required.
 
