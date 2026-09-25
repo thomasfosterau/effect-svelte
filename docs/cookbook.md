@@ -1,6 +1,7 @@
 # Cookbook
 
-Recipes that combine `@thomasfosterau/effect-sveltekit` with Effect's own APIs.
+Recipes that combine `@thomasfosterau/effect-svelte` / `@thomasfosterau/effect-sveltekit`
+with Effect's own APIs.
 
 ## Consume an `Endpoint.fromApi` with a typed client (`apiClient`)
 
@@ -110,3 +111,97 @@ export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(svelt
 `ConfigProvider.fromEnv` splits nested keys on `_`, so
 `Config.string("URL").pipe(Config.nested("DATABASE"))` resolves `DATABASE_URL`
 from the record — matching how it behaves against `process.env`.
+
+## Loading and error chrome around an atom query (`useAtomResult`)
+
+An `AsyncResult` distinguishes "nothing has loaded yet" from "a write is
+re-fetching" — which a `<svelte:boundary>` cannot — so render content from the
+first success onwards and keep it through a re-fetch (`waiting`), showing chrome
+only for a first read or a failure. That fits in a small headless component
+wrapped around whatever loading/error visuals your design system provides:
+
+```svelte
+<!-- QueryBoundary.svelte -->
+<script lang="ts" generics="A, E">
+  import type { Snippet } from "svelte";
+  import type { Cause } from "effect";
+  import { AsyncResult } from "@thomasfosterau/effect-svelte";
+
+  let {
+    result,
+    children,
+    failed,
+    loading,
+  }: {
+    result: AsyncResult.AsyncResult<A, E>;
+    children: Snippet<[value: A, waiting: boolean]>;
+    failed: Snippet<[cause: Cause.Cause<E>]>;
+    loading: Snippet;
+  } = $props();
+</script>
+
+{#if AsyncResult.isSuccess(result)}
+  {@render children(result.value, result.waiting)}
+{:else if AsyncResult.isFailure(result)}
+  {@render failed(result.cause)}
+{:else}
+  {@render loading()}
+{/if}
+```
+
+```svelte
+<script lang="ts">
+  import { useAtomResult } from "@thomasfosterau/effect-svelte";
+  import QueryBoundary from "$lib/QueryBoundary.svelte";
+
+  const proposals = useAtomResult(() => proposalsAtom({ page }));
+</script>
+
+<QueryBoundary result={proposals.current}>
+  {#snippet children(list, waiting)}
+    <ul class:opacity-60={waiting}>{#each list as p (p.id)}<li>{p.title}</li>{/each}</ul>
+  {/snippet}
+  {#snippet failed()}<p>Couldn't load proposals.</p>{/snippet}
+  {#snippet loading()}<p>Loading…</p>{/snippet}
+</QueryBoundary>
+```
+
+After a mutation, `invalidateAtomKeys(proposalKeys)` re-runs every mounted query
+registered against those keys (`Atom.withReactivity(keys)`, or `AtomHttpApi`
+queries given `reactivityKeys`); the list stays on screen, dimmed, until the new
+value lands. If you `provideAtomRegistry(...)` a configured registry in the root
+layout, it is also the one `invalidateAtomKeys` uses from non-component code.
+
+## Typeahead / combobox search (`useDebouncedSearch`)
+
+```svelte
+<script lang="ts">
+  import { useDebouncedSearch } from "@thomasfosterau/effect-svelte";
+  import type { Effect } from "effect";
+
+  let { onSearch }: { onSearch: (q: string) => Effect.Effect<ReadonlyArray<Option>> } = $props();
+
+  let query = $state("");
+  const search = useDebouncedSearch({
+    search: (q) => onSearch(q),
+    debounce: "150 millis",
+    errorMessage: () => "Search failed — try again.",
+  });
+  $effect(() => search.emit(query));
+</script>
+
+<input role="combobox" aria-expanded={search.current.results.length > 0} bind:value={query} />
+<ul role="listbox" aria-busy={search.current.pending}>
+  {#each search.current.results as option (option.id)}
+    <li role="option" aria-selected="false">{option.label}</li>
+  {/each}
+</ul>
+```
+
+- The `search` Effect must be interruptible: a newer query interrupts the
+  in-flight one, which aborts an Effect `HttpClient` request rather than merely
+  ignoring its response.
+- Queries are buffered through a `Queue`, so an `emit` on any tick (every
+  keystroke, long after mount) is delivered.
+- Requires `provideRuntime()` in an ancestor, or pass `runtime`; the `search`
+  Effect's requirements must be provided by that runtime.

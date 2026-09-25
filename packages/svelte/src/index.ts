@@ -60,6 +60,28 @@ export {
   type ReactiveMutationReturn,
 } from "./reactivity.svelte.js";
 
+// Layer 5: Atom binding (effect/unstable/reactivity atoms) and search
+export {
+  useAtom,
+  useAtomResult,
+  invalidateAtomKeys,
+  makeAtomRegistry,
+  provideAtomRegistry,
+  getAtomRegistry,
+  AtomRegistryUnavailable,
+  type AtomRegistry,
+  type MakeAtomRegistryOptions,
+  type UseAtomOptions,
+  type UseAtomReturn,
+  type UseWritableAtomReturn,
+} from "./atom.svelte.js";
+export {
+  useDebouncedSearch,
+  type DebouncedSearchState,
+  type UseDebouncedSearchOptions,
+  type UseDebouncedSearchReturn,
+} from "./debounced-search.svelte.js";
+
 // Svelte-to-Effect Direction
 export { SignalEmitter } from "./emitter.js";
 

@@ -45,6 +45,11 @@ npm install @thomasfosterau/effect-svelte effect@beta svelte
   `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`, `usePubSub`, and
   the keyed-reactivity hooks `reactiveQuery` / `reactiveStream` /
   `reactiveMutation` / `useInvalidateKeys`.
+- **Atoms** (`effect/unstable/reactivity`) — `useAtomResult` / `useAtom`, keyed
+  invalidation with `invalidateAtomKeys`, and `makeAtomRegistry` /
+  `provideAtomRegistry` for a configured (e.g. `defaultIdleTTL`) registry.
+- **Typeahead** — `useDebouncedSearch`: debounced, latest-wins, interruptible
+  search on `useStream`.
 - **Store interop** — the `Store` namespace (`Store.toStream` for
   Svelte → Effect; `Store.fromStream` / `fromSubscriptionRef` / `fromPubSub` /
   `fromQueue` / `fromRef` for Effect → Svelte stores), plus `SignalEmitter`.
