@@ -157,6 +157,71 @@ hydration-mismatching empty first paint.
 </svelte:boundary>
 ```
 
+### Atoms (`effect/unstable/reactivity`)
+
+Effect v4 ships atoms, the registry behind them and keyed invalidation in core;
+this package is the Svelte 5 binding (until an official `@effect/atom-svelte`
+lands — see #23). `useAtomResult` reads a query atom's `AsyncResult` —
+`AtomHttpApi` queries, `Atom.make(effect)` — with stale-while-revalidate
+`waiting`, and `invalidateAtomKeys` re-runs every mounted atom registered against
+the keys a mutation names. `useAtom` reads (and, for a writable atom, `set`s) any
+atom. The atom argument is a thunk, so a `$state`-keyed request re-subscribes to
+the new atom.
+
+```svelte
+<script lang="ts">
+  // +layout.svelte — optional: one registry for the app, keeping a query's
+  // value for 30s after its last reader unmounts.
+  import { makeAtomRegistry, provideAtomRegistry } from "@thomasfosterau/effect-svelte";
+
+  provideAtomRegistry(makeAtomRegistry({ defaultIdleTTL: 30_000 }));
+</script>
+```
+
+```svelte
+<script lang="ts">
+  import { invalidateAtomKeys, useAtomResult } from "@thomasfosterau/effect-svelte";
+
+  let { postId } = $props();
+  const comments = useAtomResult(() => commentsAtom(postId)); // e.g. Atom.withReactivity(["comments", postId])
+
+  async function post(body: string) {
+    await addComment(postId, body);
+    invalidateAtomKeys(["comments", postId]); // every reader re-fetches; the list stays on screen meanwhile
+  }
+</script>
+```
+
+Atoms are browser state: during SSR `useAtomResult` renders
+`AsyncResult.initial(true)` without evaluating the atom (so no request whose
+value would be discarded is issued), and the implicit registry throws a tagged
+`AtomRegistryUnavailable` if reached on the server.
+
+### Debounced search with `useDebouncedSearch`
+
+`useDebouncedSearch({ search, debounce })` is a typeahead controller on
+`useStream`: query changes are buffered through a `Queue`, `debounce`d, and
+`switchMap`ped into your interruptible `search` Effect, so a superseded request
+is interrupted (an `HttpClient` fetch is aborted) and a late result can never
+clobber a newer one. Previous results stay visible while the next search is
+`pending`; an empty query resets.
+
+```svelte
+<script lang="ts">
+  import { useDebouncedSearch } from "@thomasfosterau/effect-svelte";
+
+  let query = $state("");
+  const search = useDebouncedSearch({ search: searchUsers, debounce: "200 millis" });
+  $effect(() => search.emit(query));
+</script>
+
+<input bind:value={query} />
+<ul aria-busy={search.current.pending}>
+  {#each search.current.results as user (user.id)}<li>{user.name}</li>{/each}
+</ul>
+{#if search.current.error}<p role="alert">{search.current.error}</p>{/if}
+```
+
 To go the other way — Svelte → Effect — `Store.toStream(store)` turns any
 Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
 `$state` into a `Stream`. The `Store` namespace also exposes the reverse
@@ -176,8 +241,9 @@ forms.)
 ## Recipes
 
 See the [cookbook](./docs/cookbook.md) for recipes — consuming an
-`Endpoint.fromApi` with a typed `apiClient`, and reading build-time vs runtime
-`$env` config with `readConfig` / `sveltekitConfig`.
+`Endpoint.fromApi` with a typed `apiClient`, reading build-time vs runtime
+`$env` config with `readConfig` / `sveltekitConfig`, loading/error chrome around
+an atom query, and a typeahead on `useDebouncedSearch`.
 
 ### SvelteKit Vite plugin (recommended)
 
