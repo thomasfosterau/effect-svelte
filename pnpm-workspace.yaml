@@ -31,7 +31,7 @@ catalog:
   "@types/node": ^22.19.19
   effect: 4.0.0-beta.75
   happy-dom: ^20.10.6
-  magic-string: ^0.30.0
+  magic-string: ^1.4.2
   svelte: ^5.46.4
   svelte-check: ^4.0.0
   todomvc-app-css: ^2.4.3
