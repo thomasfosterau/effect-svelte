@@ -24,12 +24,12 @@ catalogMode: strict
 catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.2
-  "@effect/platform-node": 4.0.0-beta.75
+  "@effect/platform-node": 4.0.0-rc.117
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^2.70.2
   "@sveltejs/vite-plugin-svelte": ^7.1.2
   "@types/node": ^22.19.19
-  effect: 4.0.0-beta.75
+  effect: 4.0.0-rc.117
   happy-dom: ^20.14.5
   magic-string: ^1.4.2
   svelte: ^5.46.4
