@@ -1,5 +1,25 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.4.0
+
+### Minor Changes
+
+- 7a385e3: **Breaking:** require `effect@>=4.0.0-rc.118` (and `@effect/platform-node@>=4.0.0-rc.118` for `@thomasfosterau/effect-sveltekit`). The peer ranges move from `^4.0.0-beta.75`, so consumers on any beta, or on rc.112 through rc.117, fall outside the range and must upgrade `effect` and every `@effect/*` package together.
+
+  The published code now imports `effect/<module>` instead of the removed `effect/unstable/<module>` paths (`effect/http/*`, `effect/http-api/*`, `effect/reactivity/*`), so the built `dist` cannot load against an earlier `effect`. The public `.d.ts` of `apiClient` / `fromApi` changes: `Groups` is now constrained by `HttpApiGroup.Constraint` (was `HttpApiGroup.Any`) and `HttpApi` is invariant in `Groups`.
+
+- 2dea5b4: Add `Errors.toSvelteKit(catalogue)` (on `./server`): build a `translateError` from a tag-keyed error catalogue — a status, `{ status, message }`, `"status"`, `"redirect"` or a function per tag, with `SvelteKit.translate` (or `Errors.rethrowSquashed`) as the fallback. Add `ResponseHeaders`, a response-headers buffer that can be returned from `load`, with `Hooks.responseHeadersTransporter` as its `transport` entry and `appendTo` to copy it onto the response.
+- bbd3b69: Build on the shared library toolchain: Vite+ 0.3.0 (vitest 4.1.11), the TypeScript 6/7 alias split (declarations are now emitted by the TypeScript 6 compiler instead of `@typescript/native-preview`), a strict pnpm catalog (peer ranges are unchanged, now published from `catalog:peers`), and Changesets CLI v3. No API changes.
+
+### Patch Changes
+
+- ba6e2e3: Document behaviour inherited from Effect rc.118. `ConfigProvider.fromEnv` treats an empty string as a missing value, so `sveltekitConfigProvider`, `sveltekitConfig`, `readConfig` and the adapter's `*_ORIGIN`, `*_XFF_DEPTH`, `*_HOST` and `*_PORT` variables now fail (`Config.String`), take their `withDefault` (including `Config.Int`, which used to fail) or become `None` (`Config.option`) on `""`; tests now pin this. The Atom runtime memo map is now per registry, so layers are no longer shared across separate atom registries. The install docs now say `effect@rc` and `@effect/platform-node@rc`, and a `Stream.scan` JSDoc example uses the lazy seed.
+- Updated dependencies [7a385e3]
+- Updated dependencies [ba6e2e3]
+- Updated dependencies [6df0358]
+- Updated dependencies [bbd3b69]
+  - @thomasfosterau/effect-svelte@0.4.0
+
 ## 0.3.1
 
 ### Patch Changes
