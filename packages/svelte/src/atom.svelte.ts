@@ -202,6 +202,7 @@ export function useAtom<R, W>(
   atom: () => Atom.Writable<R, W>,
   options?: UseAtomOptions,
 ): UseWritableAtomReturn<R, W>;
+/** Read a read-only atom reactively; the returned handle has `current` but no `set`. */
 export function useAtom<A>(atom: () => Atom.Atom<A>, options?: UseAtomOptions): UseAtomReturn<A>;
 export function useAtom<R, W>(
   atom: () => Atom.Atom<R> | Atom.Writable<R, W>,

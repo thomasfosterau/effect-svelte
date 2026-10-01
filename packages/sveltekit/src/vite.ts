@@ -37,6 +37,7 @@ const INTERNAL_IMPORT = "@thomasfosterau/effect-sveltekit/internal/auto";
 const ORIG_PREFIX = "__effect_kit_orig_";
 const RUNTIME_IDENT = "__effect_kit_runtime";
 
+/** The SvelteKit route and hook file kinds `effectKit()` can rewrite. */
 export type EffectKitFileKind =
   | "pageServer"
   | "page"
@@ -241,6 +242,7 @@ function findExports(masked: string, targetNames: ReadonlySet<string>): ExportMa
   return matches;
 }
 
+/** Options for {@link effectKit}. */
 export interface EffectKitPluginOptions {
   /**
    * Restrict transformation to a subset of SvelteKit file kinds.

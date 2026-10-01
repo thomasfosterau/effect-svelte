@@ -4,6 +4,7 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
 
+/** Options for {@link useDerived}. */
 export interface UseDerivedOptions<R = never> {
   /**
    * Debounce re-runs by this duration: when a dependency changes, wait this
@@ -23,6 +24,7 @@ export interface UseDerivedOptions<R = never> {
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useDerived} returns. */
 export interface DerivedReturn<A, E> {
   /**
    * The current result. While re-running after a dependency change, the

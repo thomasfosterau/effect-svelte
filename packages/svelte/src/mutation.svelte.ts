@@ -19,6 +19,7 @@ export type UseMutationOptions<A, E, I, R, C> = MutationCallbacks<A, E, I, C> & 
   readonly runtime?: RuntimeLike<R>;
 };
 
+/** The handle {@link useMutation} returns. */
 export interface UseMutationReturn<A, E, I> {
   /**
    * The current result state of the mutation. Starts `Initial`; each `mutate`

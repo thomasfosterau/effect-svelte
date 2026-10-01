@@ -6,6 +6,7 @@ import { resultToPromise } from "./internal/await.js";
 import { makeLiveStream, type LiveResultState } from "./internal/live-stream.js";
 import type { RuntimeLike } from "./internal/run.js";
 
+/** Options for {@link useLiveStream}. */
 export interface UseLiveStreamOptions<A, R> {
   /**
    * Run against this runtime instead of the ambient context. When provided, the
@@ -25,6 +26,7 @@ export interface UseLiveStreamOptions<A, R> {
   readonly initial?: A;
 }
 
+/** The handle {@link useLiveStream} returns. */
 export interface UseLiveStreamReturn<A, E> {
   /**
    * The latest emission as an {@link AsyncResult.AsyncResult}. Each emission

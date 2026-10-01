@@ -33,6 +33,7 @@ export type FormRunner = <A>(
   ctx: { readonly issue: InvalidField<any>; readonly data: unknown },
 ) => Promise<A>;
 
+/** Runners that execute a remote-function handler's Effect on a request runtime, as `runRemote` returns them. */
 export interface RunHelpers {
   readonly run: Runner;
   readonly runForm: FormRunner;

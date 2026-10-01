@@ -4,6 +4,7 @@ import { resultToPromise } from "./internal/await.js";
 import type { RuntimeLike } from "./internal/run.js";
 import { useQuery } from "./query.svelte.js";
 
+/** Options for {@link useQueryPromise}. */
 export interface UseQueryPromiseOptions<R> {
   /**
    * Run against this runtime instead of the ambient context. When provided, the
@@ -12,6 +13,7 @@ export interface UseQueryPromiseOptions<R> {
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useQueryPromise} returns. */
 export interface UseQueryPromiseReturn<A, E> {
   /** The underlying query result state (same as {@link useQuery}). */
   readonly current: AsyncResult.AsyncResult<A, E>;

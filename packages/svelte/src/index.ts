@@ -1,6 +1,6 @@
 /**
- * Svelte namespace containing Effect-Svelte interoperability primitives.
- * Provides reactive hooks and utilities for integrating Effect-TS with Svelte 5 runes.
+ * Effect v4 bindings for Svelte 5 runes: runtime context, hooks that expose an
+ * `AsyncResult` via `.current`, atom bindings, and Svelte store interop.
  */
 
 // Layer 0: Runtime Context

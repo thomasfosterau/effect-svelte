@@ -3,11 +3,13 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { refWriter } from "./internal/writable.js";
 
+/** Options for {@link useWritableRef}. */
 export interface UseWritableRefOptions<R> {
   /** Run against this runtime instead of the ambient context. */
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useWritableRef} returns. */
 export interface UseWritableRefReturn<A> {
   /**
    * The current value of the `SubscriptionRef`. Reading tracks it reactively;

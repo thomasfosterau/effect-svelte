@@ -12,9 +12,22 @@ function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unk
   return Effect.promise(() => Promise.resolve(thunk()));
 }
 
+/**
+ * Calls a SvelteKit remote `query` as an Effect that succeeds with its output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callQuery<Output>(
   query: RemoteQueryFunction<void, Output>,
 ): Effect.Effect<Output, unknown, never>;
+/**
+ * Calls a SvelteKit remote `query` with `input` as an Effect that succeeds
+ * with its output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callQuery<Input, Output>(
   query: RemoteQueryFunction<Input, Output>,
   input: Input,
@@ -32,9 +45,23 @@ export function callQuery<Input, Output>(
   return fromRemotePromise(() => query(input as Input));
 }
 
+/**
+ * Calls a SvelteKit remote `command` as an Effect that succeeds with its
+ * output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callCommand<Output>(
   command: RemoteCommand<void, Output>,
 ): Effect.Effect<Output, unknown, never>;
+/**
+ * Calls a SvelteKit remote `command` with `input` as an Effect that succeeds
+ * with its output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callCommand<Input, Output>(
   command: RemoteCommand<Input, Output>,
   input: Input,
@@ -57,6 +84,9 @@ export function callCommand<Input, Output>(
  * Newer SvelteKit versions cache remote query instances, so a command that
  * changes data those queries depend on must list them here (or call
  * `query.refresh()` afterwards) for their cached values to update.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
  */
 export function callCommandWithUpdates<Input, Output>(
   command: RemoteCommand<Input, Output>,
@@ -66,9 +96,23 @@ export function callCommandWithUpdates<Input, Output>(
   return fromRemotePromise(() => command(input).updates(...queries));
 }
 
+/**
+ * Calls a SvelteKit remote `prerender` function as an Effect that succeeds
+ * with its output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callPrerender<Output>(
   prerender: RemotePrerenderFunction<void, Output>,
 ): Effect.Effect<Output, unknown, never>;
+/**
+ * Calls a SvelteKit remote `prerender` function with `input` as an Effect
+ * that succeeds with its output.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function callPrerender<Input, Output>(
   prerender: RemotePrerenderFunction<Input, Output>,
   input: Input,
@@ -95,12 +139,25 @@ export type RemoteSubmit = () => PromiseLike<unknown> & {
   updates: (...queries: Array<RemoteQuery<any> | RemoteQueryOverride>) => PromiseLike<unknown>;
 };
 
+/**
+ * Runs an enhanced remote form's `submit()` as an Effect.
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function submitForm(
   submit: () => PromiseLike<unknown>,
 ): Effect.Effect<void, unknown, never> {
   return Effect.asVoid(fromRemotePromise(() => submit()));
 }
 
+/**
+ * Runs an enhanced remote form's `submit()` and refreshes the given queries in
+ * the same round trip (SvelteKit's single-flight mutations).
+ *
+ * A rejected call (including a thrown `error()` / `redirect()`) surfaces as a
+ * defect, not on the error channel, despite the declared `unknown` error type.
+ */
 export function submitFormWithUpdates(
   submit: RemoteSubmit,
   ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>

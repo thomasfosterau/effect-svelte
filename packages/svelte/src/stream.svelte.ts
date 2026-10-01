@@ -4,6 +4,7 @@ import { getRuntime } from "./context.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
 import { streamState } from "./internal/subscribe.js";
 
+/** Options for {@link useStream}. */
 export interface UseStreamOptions<R> {
   /**
    * Run against this runtime instead of the ambient context. When provided, the
@@ -12,6 +13,7 @@ export interface UseStreamOptions<R> {
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useStream} returns. */
 export interface UseStreamReturn<A, E> {
   /**
    * The current result state of the stream. `Initial`/`Success` carry a

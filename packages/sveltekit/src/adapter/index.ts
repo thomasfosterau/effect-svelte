@@ -34,6 +34,7 @@
 import { writeFileSync } from "node:fs";
 import type { Adapter } from "@sveltejs/kit";
 
+/** Options for {@link effectAdapter}. */
 export interface EffectAdapterOptions {
   /**
    * The directory to write the production build to.

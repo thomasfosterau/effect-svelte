@@ -111,6 +111,7 @@ const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
     );
   }) as QueryFn<Env>;
 
+/** The public shape of `query.batch`, parameterised by its handler env. */
 export interface QueryBatchFn<Env> {
   <Input, Output>(
     validate: "unchecked",
@@ -177,6 +178,7 @@ function getRequested(): (...args: unknown[]) => unknown {
   return requestedFn;
 }
 
+/** The public shape of `query.live`, parameterised by its handler env. */
 export interface QueryLiveFn<Env> {
   <Input, Output>(
     validate: "unchecked",
@@ -203,6 +205,7 @@ const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
     return live(toStandardValidator(validate), (arg) => run(fn(arg)));
   }) as QueryLiveFn<Env>;
 
+/** The public shape of the `form` helper, parameterised by its handler env. */
 export interface FormFn<Env> {
   <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteForm<void, Output>;
   <Input, Output>(
@@ -249,6 +252,7 @@ const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> =>
     );
   }) as FormFn<Env>;
 
+/** The public shape of the `command` helper, parameterised by its handler env. */
 export interface CommandFn<Env> {
   <Output>(fn: () => Effect.Effect<Output, unknown, Env>): RemoteCommand<void, Output>;
   <Input, Output>(
@@ -281,6 +285,7 @@ const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
     );
   }) as CommandFn<Env>;
 
+/** The public shape of the `prerender` helper, parameterised by its handler env. */
 export interface PrerenderFn<Env> {
   <Output>(
     fn: () => Effect.Effect<Output, unknown, Env>,
@@ -350,6 +355,10 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
     );
   }) as PrerenderFn<Env>;
 
+/**
+ * SvelteKit's `requested` from `$app/server`, passed through. Throws when the
+ * installed SvelteKit version does not provide it.
+ */
 export function requested<Result = unknown>(...args: unknown[]): Result {
   const requestedFn = getRequested();
   return requestedFn(...args) as Result;
@@ -369,11 +378,63 @@ const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
 
 // ── Standalone exports (default SvelteKit per-request runtime) ──────────────
 
+/**
+ * SvelteKit's remote `query` with an Effect handler. Accepts `"unchecked"`, a
+ * Standard Schema or a bare Effect `Schema` as the validator; `query.batch`
+ * and `query.live` are attached.
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const query: QueryNamespace<SvelteKitEffectEnv> = makeQueryNamespace(defaultHelpers.run);
+/**
+ * SvelteKit's remote `query.batch` with an Effect handler (the same function
+ * as `query.batch`).
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const queryBatch: QueryBatchFn<SvelteKitEffectEnv> = query.batch;
+/**
+ * SvelteKit's remote `query.live` with an Effect handler that returns an
+ * `AsyncIterable` (the same function as `query.live`).
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const queryLive: QueryLiveFn<SvelteKitEffectEnv> = query.live;
+/**
+ * SvelteKit's remote `form` with an Effect handler.
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const form: FormFn<SvelteKitEffectEnv> = makeForm(defaultHelpers);
+/**
+ * SvelteKit's remote `command` with an Effect handler.
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const command: CommandFn<SvelteKitEffectEnv> = makeCommand(defaultHelpers.run);
+/**
+ * SvelteKit's remote `prerender` with an Effect handler.
+ *
+ * Handlers run on the default per-request runtime (`HttpClient` plus
+ * `SvelteKitRequestEvent`); a failure that is not a SvelteKit `error()` /
+ * `redirect()` becomes a 500. Use {@link withRuntime} to run on your own
+ * services.
+ */
 export const prerender: PrerenderFn<SvelteKitEffectEnv> = makePrerender(defaultHelpers.run);
 
 /** The set of remote-function helpers bound to a particular runner. */
@@ -436,6 +497,11 @@ export function withRuntime<R>(
   };
 }
 
+/**
+ * The remote-function helpers (`query`, `form`, `command`, `prerender`,
+ * `requested`) bound to the default per-request runtime; `withRuntime` binds
+ * them to your own services.
+ */
 export const RemoteFunction = {
   query,
   form,

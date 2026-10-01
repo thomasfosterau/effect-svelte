@@ -36,6 +36,7 @@ export type EventSourceConstructor = new (
   eventSourceInitDict?: { withCredentials?: boolean },
 ) => EventSource;
 
+/** Options for {@link fromEventSource}. */
 export interface FromEventSourceOptions {
   /** Send credentials (cookies) with the request. Defaults to `false`. */
   readonly withCredentials?: boolean;
@@ -120,6 +121,7 @@ export type WebSocketConstructor = new (
   protocols?: string | ReadonlyArray<string>,
 ) => WebSocket;
 
+/** Options for {@link fromWebSocket}. */
 export interface FromWebSocketOptions {
   /** Sub-protocols passed to the `WebSocket` constructor. */
   readonly protocols?: string | ReadonlyArray<string>;
