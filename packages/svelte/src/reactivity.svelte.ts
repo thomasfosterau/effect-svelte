@@ -6,11 +6,13 @@ import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/r
 import { makeResult } from "./internal/result.svelte.js";
 import { streamState } from "./internal/subscribe.js";
 
+/** The handle {@link reactiveQuery} returns. */
 export interface ReactiveQueryReturn<A, E> {
   /** The current result, re-derived whenever the keys are invalidated. */
   readonly current: AsyncResult.AsyncResult<A, E>;
 }
 
+/** Options shared by {@link reactiveQuery}, {@link reactiveStream} and {@link reactiveMutation}. */
 export interface ReactiveOptions<R> {
   /**
    * Run against this runtime instead of the ambient context. Must still provide
@@ -107,6 +109,7 @@ export function reactiveQuery<A, E, R>(
   };
 }
 
+/** The handle {@link reactiveStream} returns. */
 export interface ReactiveStreamReturn<A, E> {
   readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
   readonly values: ReadonlyArray<A>;
@@ -155,6 +158,7 @@ export function reactiveStream<A, E, R>(
   });
 }
 
+/** The handle {@link reactiveMutation} returns. */
 export interface ReactiveMutationReturn<A, E> {
   readonly current: AsyncResult.AsyncResult<A, E>;
   run: () => void;

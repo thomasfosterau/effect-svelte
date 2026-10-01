@@ -1,4 +1,4 @@
-# Hacker News — effect-svelte /kit
+# Hacker News — effect-sveltekit
 
 A Hacker News reader (in the spirit of [HNPWA](https://hnpwa.com)) built with
 SvelteKit, Effect, and
@@ -15,7 +15,7 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm run build           # build the package first (vp pack)
+pnpm run build           # builds every workspace package (vp run -r build)
 cd examples/hacker-news
 pnpm run dev
 ```

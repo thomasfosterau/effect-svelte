@@ -48,6 +48,7 @@ export type SvelteKitHttpApp<R = SvelteKitHttpAppServices> = Effect.Effect<
   R | HttpServerRequest.HttpServerRequest
 >;
 
+/** The SvelteKit build output {@link makeHandler} serves. */
 export interface SvelteKitHandlerOptions {
   /** The SvelteKit `Server` class exported by the build output (`./server/index.js`). */
   readonly Server: typeof SvelteKitServer;

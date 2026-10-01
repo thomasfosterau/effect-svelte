@@ -19,6 +19,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { Config, Effect, Layer } from "effect";
 import type { SvelteKitHttpApp } from "./handler.js";
 
+/** Options for {@link serve} and {@link layer}. */
 export interface ServeOptions {
   /** Prefix for the configuration environment variables (PORT, HOST, ...). */
   readonly envPrefix?: string;

@@ -11,14 +11,14 @@
 #
 # ## What it does
 #
-# 1. Installs the dependencies against the lockfile, so `vp check` /
+# 1. Repairs a broken bare `node` shim (see below).
+# 2. Installs the dependencies against the lockfile, so `vp check` /
 #    `vp test` / `vp pack` can run in a fresh agent session.
-# 2. Puts `vp` on PATH. The global Vite+ launcher is not installed in cloud
+# 3. Puts `vp` on PATH. The global Vite+ launcher is not installed in cloud
 #    sessions, and `node_modules/.bin` is on nobody's PATH, so it writes a
 #    re-exec shim into `~/.local/bin` (a directory already on PATH and
 #    writable by the session user). A file survives where an `export` cannot:
 #    this script cannot change its caller's environment.
-# 3. Repairs a broken bare `node` shim (see below).
 # 4. Installs the effect-solutions CLI and clones the Effect v4 reference
 #    repository (Effect-TS/effect-smol) that AGENTS.md tells agents to consult.
 #
@@ -119,7 +119,7 @@ fi
 # ── 2. Dependencies ──────────────────────────────────────────────────────────
 # Unconditional, not only when node_modules is absent: a prebaked container can
 # carry a tree built from an OLDER lockfile, and stale dependencies masquerade
-# as trunk breakage. `--frozen-lockfile` is a sub-second no-op when in sync.
+# as `main` breakage. `--frozen-lockfile` is a sub-second no-op when in sync.
 if [ -f "$PROJECT_DIR/pnpm-lock.yaml" ]; then
   log "syncing dependencies against the lockfile…"
   (cd "$PROJECT_DIR" && pnpm install --frozen-lockfile >/dev/null 2>&1) \

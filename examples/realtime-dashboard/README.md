@@ -1,7 +1,7 @@
 # Real-time Dashboard — effect-svelte
 
 A simulated market dashboard built with Svelte 5, Vite, and
-[`@thomasfosterau/effect-svelte`](../../src), focused on the
+[`@thomasfosterau/effect-svelte`](../../packages/svelte), focused on the
 **streaming and concurrency** side of the library: Effect Streams, PubSub,
 SubscriptionRef, scopes, and fiber interruption.
 
@@ -14,7 +14,7 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm run build           # build the package first (vp pack)
+pnpm run build           # builds every workspace package (vp run -r build)
 cd examples/realtime-dashboard
 pnpm run dev
 ```

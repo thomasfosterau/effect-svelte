@@ -410,7 +410,7 @@ NodeRuntime.runMain(Layer.launch(server));
 
 Unlike `adapter-node`, the server output is not bundled: deploy `build/`
 together with `package.json` and production `node_modules` (which must
-include `@thomasfosterau/effect-svelte`, `effect`, and
+include `@thomasfosterau/effect-sveltekit`, `effect`, and
 `@effect/platform-node`).
 
 ### SvelteKit universal load
@@ -671,28 +671,9 @@ matching methods on an app-wide runtime (`runtime.handle`, `runtime.handleFetch`
 `runtime.handleError`, `runtime.init`). The same exports also work as bare
 Effects (no explicit wrapper) when the `effectKit()` Vite plugin is enabled.
 
-## Surface status: adopt vs drop (proposal, #81)
+## App-side patterns
 
-The three foundation apps (website, gardeneria, preferenceflow) use
-`makeRuntimeAdapter(RequestRuntime.fromLocals(...), { translateError })` and the
-`serverLoad` / `endpoint` it returns — and hand-write the pieces several other
-surfaces are for. This table records, per surface, whether the apps should adopt
-it or the package should drop it. **It is a proposal awaiting the owner's
-verdict on #81; nothing has been removed.**
-
-| Surface                                                                                                                  | What the apps do today                                                                                        | Proposal                                        | Reasoning                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Errors.toSvelteKit` (new)                                                                                               | hand-written `toSvelteKit` switch (`lib/server/effect/translate.ts`, ~113 LoC)                                | **Adopt**                                       | `kit.ts` becomes one `makeRuntimeAdapter` call over the app's catalogue (see above).                                                                                                                                                                                      |
-| `ResponseHeaders` + `Hooks.responseHeadersTransporter` (new), `Hooks.transport` / `transporter` / `markerTransporter`    | a `Headers` wrapper (`lib/cache.ts`, ~93 LoC) and a hand-written `transport` (`hooks.ts`, ~31 LoC)            | **Adopt**                                       | The recipe above replaces both files.                                                                                                                                                                                                                                     |
-| `Hooks.handle` / `handleFetch` / `handleError` / `init` (server), `Hooks.handleError` / `init` (client), `Hooks.reroute` | plain `Handle`s composed with `sequence` that populate `locals` and wrap `resolve`                            | **Keep; no app migration**                      | The apps' handles are SvelteKit glue, not Effect programs — wrapping them buys nothing. Adopt per hook only where the body is an Effect (e.g. `handleError` reporting through an Effect logger/PostHog layer). Small (~300 LoC) and exercised by the hacker-news example. |
-| `Forms.enhance` / `applyAction` / `deserialize` (`./client`)                                                             | `enhanceForm(form)` → spreadable `<form>` props over `@thomasfosterau/effect-forms-svelte`'s `FormStore`      | **Drop (deprecate → remove in the next major)** | Form-action glue is moving to `effect-forms-svelte/kit` (effect-forms#2), which owns the form store the apps bind to; `Forms.enhance`'s callback shape does not fit that store. Remove once effect-forms#2 ships.                                                         |
-| `sveltekitConfig` / `sveltekitConfigProvider` / `readConfig`                                                             | build-time `PUBLIC_*` catalogue via Kit 3's `defineEnvVars` + Standard Schema (`src/env.ts`, `public-env.ts`) | **Keep; adopt only for runtime `Config`**       | `defineEnvVars` is the right tool for the build-time public catalogue and stays in the apps. `sveltekitConfig` is for server layers that read `Config.*` from `$env/dynamic/private`; apps adopt it where a service reads `Config` (recipe above).                        |
-| `effectKit()` Vite plugin (`./vite`, `./internal/auto`)                                                                  | explicit `serverLoad(...)` / `endpoint(...)` wrappers                                                         | **Drop candidate (deprecate)**                  | ~640 LoC of export rewriting (plus `magic-string`) that none of the apps use; they prefer the explicit wrappers, which are also what `makeRuntimeAdapter` returns. If deprecated, its "(recommended)" label above goes first.                                             |
-| Remote functions (`RemoteFunction`, `Remote.*`, `useRemoteQuery`, validators)                                            | not used — website retired remote functions (website#1461)                                                    | **Freeze; decide with Kit 3 (#85)**             | Kit's remote functions are still experimental and change under Kit 3; porting them there is the cost of keeping them. Recommend deprecating unless a consumer appears by the Kit 3 move.                                                                                  |
-| `Navigation` / `State` (`./client`)                                                                                      | not used                                                                                                      | Keep; no app migration                          | Small Effect wrappers over `$app/navigation` / `$app/state`; no maintenance pressure.                                                                                                                                                                                     |
-| Effect deployment adapter (`./adapter`)                                                                                  | `@sveltejs/adapter-cloudflare`                                                                                | Keep; no app migration                          | Node deployment target used by the hacker-news example; the apps deploy to Workers.                                                                                                                                                                                       |
-
-Two app-side patterns stay recipes rather than APIs:
+Two SvelteKit app patterns are recipes rather than APIs:
 
 - **Leaving an error page.** After an error page renders, client-side
   navigation can re-run loads against a stale context; the apps force a full
@@ -720,8 +701,8 @@ Two app-side patterns stay recipes rather than APIs:
 ## Examples
 
 The [`examples/`](./examples) directory contains three example apps, modelled
-on widely used demo applications, that together exercise the entire API
-surface:
+on widely used demo applications; [`examples/README.md`](./examples/README.md)
+maps which exports each one exercises:
 
 | Example                                                        | App                                              | Demonstrates                                                                                                     |
 | -------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
@@ -731,65 +712,16 @@ surface:
 
 ```bash
 pnpm install
-pnpm run build          # build both packages first (vp run -r build)
+pnpm run build          # builds every workspace package (vp run -r build)
 cd examples/todomvc     # (or hacker-news / realtime-dashboard)
 pnpm run dev
 ```
 
-See [`examples/README.md`](./examples/README.md) for the full API-to-example
-coverage map.
-
 ## Development
 
-This is a [Vite+](https://viteplus.dev) monorepo (`packages/svelte`,
-`packages/sveltekit`, and the `examples/*` apps). Day-to-day commands, run from
-the repository root:
-
-```bash
-vp install        # Install dependencies
-vp check          # Format, lint, and type-check the whole workspace
-vp run -r test    # Run every package's test suite (Vitest)
-vp run -r build   # Build every package (tsdown)
-```
-
-If you don't have the `vp` global CLI installed, the same commands are available
-through the root package scripts (`pnpm run check`, `pnpm run test`,
-`pnpm run build`), or install it with:
-
-```bash
-curl -fsSL https://vite.plus | bash
-```
-
-Lint and format are configured once at the workspace root (`vite.config.ts`);
-each package has its own `vite.config.ts` for `pack`/`test`.
-
-### Project layout
-
-```
-packages/svelte/      @thomasfosterau/effect-svelte (Svelte 5 runes integration)
-packages/sveltekit/   @thomasfosterau/effect-sveltekit (SvelteKit integration)
-examples/             Example apps (TodoMVC, Hacker News, real-time dashboard)
-vite.config.ts        Workspace Vite+ config (run cache, lint, fmt)
-```
-
-## Release workflow
-
-Releases are automated with [Changesets](https://github.com/changesets/changesets)
-and the **Release** GitHub workflow: changesets that land on `main` produce a
-"Version Packages" PR, and merging it publishes the changed packages to npm. The
-private example apps are excluded from versioning/publishing.
-
-```bash
-vp run changeset          # author a changeset
-vp run changeset status   # preview pending releases
-vp run version            # apply changesets locally (bumps + CHANGELOGs)
-vp run release            # build all packages + changeset publish
-```
-
-Publishing uses npm **Trusted Publishing (OIDC)** — no long-lived token. See
-**[`docs/RELEASING.md`](./docs/RELEASING.md)** for the full runbook, including
-the one-time setup (enabling GitHub Actions to open the release PR, and adding a
-trusted publisher for each package on npm).
+Setup, commands and the pre-PR checklist are in
+[CONTRIBUTING.md](./CONTRIBUTING.md). Releases are automated with Changesets
+and npm trusted publishing (OIDC); see [docs/RELEASING.md](./docs/RELEASING.md).
 
 ## License
 

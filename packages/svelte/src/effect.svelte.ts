@@ -4,6 +4,7 @@ import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
 
+/** Options for {@link useEffect}. */
 export interface UseEffectOptions<R = never> {
   /**
    * If true, the effect will run immediately on mount.
@@ -19,6 +20,7 @@ export interface UseEffectOptions<R = never> {
   runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useEffect} returns. */
 export interface UseEffectReturn<A, E> {
   /**
    * The current result state of the effect. Re-running preserves the previous

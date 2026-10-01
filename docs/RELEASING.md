@@ -15,7 +15,7 @@ The private example apps under `examples/` are listed in
 Publishing uses **npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
 via OIDC** — no long-lived `NPM_TOKEN`. The workflow runs with
 `permissions: {}` at the top level, grants its one job `id-token: write`, and
-upgrades npm to a version that supports OIDC (>= 11.5); three things still need
+installs npm 11 (OIDC needs npm >= 11.5); three things still need
 configuring outside the repo:
 
 1. **Allow the Action to open the release PR.**
@@ -62,8 +62,8 @@ configuring outside the repo:
 
 1. **Land changesets.** Every change that should appear in the changelog ships
    with a changeset — a markdown file in `.changeset/` created by
-   `vp run changeset` (pick the affected package(s) and a bump type). Preview
-   what is pending with `vp run changeset status`.
+   `pnpm changeset` (pick the affected package(s) and a bump type). Preview
+   what is pending with `pnpm changeset status`.
 
 2. **Version Packages PR (automatic).** On every push to `main`, the Release
    workflow ([`changesets/action`](https://github.com/changesets/action) v2,
@@ -87,17 +87,11 @@ open the "Version Packages" PR from that branch by hand. You can also run the
 version step locally:
 
 ```bash
-vp run version          # apply pending changesets -> bumps + CHANGELOGs
+pnpm run version        # apply pending changesets -> bumps + CHANGELOGs
 git switch -c version-packages
 git commit -am "Version Packages"
-# open a PR; merging it triggers publish (or run `vp run release` locally)
+# open a PR; merging it triggers the publish
 ```
 
-## Cheat sheet
-
-```bash
-vp run changeset          # author a changeset
-vp run changeset status   # preview pending releases
-vp run version            # apply changesets locally (bumps + CHANGELOGs)
-vp run release            # build all packages + changeset publish
-```
+Never run `pnpm run release` locally: publishing works only from the Release
+workflow, which holds the OIDC identity npm trusts.

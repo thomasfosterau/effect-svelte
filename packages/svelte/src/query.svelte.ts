@@ -3,6 +3,7 @@ import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useEffect } from "./effect.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
 
+/** Options for {@link useQuery}. */
 export interface UseQueryOptions<R> {
   /**
    * Run against this runtime instead of the ambient context. When provided, the
@@ -11,6 +12,7 @@ export interface UseQueryOptions<R> {
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useQuery} returns. */
 export interface UseQueryReturn<A, E> {
   /**
    * The current result state of the query. Refetching preserves the previous

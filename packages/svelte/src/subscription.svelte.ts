@@ -3,16 +3,19 @@ import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { streamState, valueState } from "./internal/subscribe.js";
 
+/** Options for {@link useSubscriptionRef}. */
 export interface UseSubscriptionRefOptions<R> {
   /** Run against this runtime instead of the ambient context. */
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** Options for {@link usePubSub}. */
 export interface UsePubSubOptions<R> {
   /** Run against this runtime instead of the ambient context. */
   readonly runtime?: RuntimeLike<R>;
 }
 
+/** The handle {@link useSubscriptionRef} returns. */
 export interface UseSubscriptionRefReturn<A> {
   /**
    * The current value of the SubscriptionRef
@@ -54,6 +57,7 @@ export function useSubscriptionRef<A, R = never>(
   return valueState(runtime, initial, () => SubscriptionRef.changes(ref));
 }
 
+/** The handle {@link usePubSub} returns. */
 export interface UsePubSubReturn<A> {
   /**
    * All values received from the PubSub
