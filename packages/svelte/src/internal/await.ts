@@ -1,5 +1,5 @@
 import { Cause, Option } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
  * Convert an {@link AsyncResult.AsyncResult} into a `Promise`, so Effect-backed

@@ -1,5 +1,5 @@
 import type { Stream } from "effect";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
 import { streamState } from "./internal/subscribe.js";

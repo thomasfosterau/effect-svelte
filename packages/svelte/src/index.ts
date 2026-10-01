@@ -48,7 +48,7 @@ export {
   type UseWritableRefReturn,
 } from "./writable-ref.svelte.js";
 
-// Layer 4: Effect Reactivity Integration (effect/unstable/reactivity)
+// Layer 4: Effect Reactivity Integration (effect/reactivity)
 export {
   reactiveQuery,
   reactiveStream,
@@ -60,7 +60,7 @@ export {
   type ReactiveMutationReturn,
 } from "./reactivity.svelte.js";
 
-// Layer 5: Atom binding (effect/unstable/reactivity atoms) and search
+// Layer 5: Atom binding (effect/reactivity atoms) and search
 export {
   useAtom,
   useAtomResult,
@@ -112,4 +112,4 @@ export * as Store from "./Store.js";
  * with the wider Effect ecosystem (the same type the official atom bindings
  * use).
  */
-export * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+export * as AsyncResult from "effect/reactivity/AsyncResult";

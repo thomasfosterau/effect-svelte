@@ -4,7 +4,7 @@
  * (Ported from the website application's `atom-registry` suite; the server half
  * lives in `tests/atom-registry.test.ts`.)
  */
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 import { getAtomRegistry, invalidateAtomKeys, makeAtomRegistry } from "../../src/atom.svelte.js";
 
@@ -20,7 +20,7 @@ describe("makeAtomRegistry", () => {
   });
 
   it("honours initialValues", async () => {
-    const { Atom } = await import("effect/unstable/reactivity");
+    const { Atom } = await import("effect/reactivity");
     const atom = Atom.make(1);
     const registry = makeAtomRegistry({ initialValues: [[atom, 5]], defaultIdleTTL: 1_000 });
     expect(registry.get(atom)).toBe(5);

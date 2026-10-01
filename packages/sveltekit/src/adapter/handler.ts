@@ -13,16 +13,16 @@
  *
  * The returned app is an ordinary Effect value: it can be served with the
  * generated `build/index.js` entry (see `./serve.js`), mounted inside any
- * existing `effect/unstable/http` HTTP server, or converted to a `fetch` handler
+ * existing `effect/http` HTTP server, or converted to a `fetch` handler
  * (see {@link toWebHandler}).
  */
 
 import type { SSRManifest, Server as SvelteKitServer } from "@sveltejs/kit";
 import * as FileSystem from "effect/FileSystem";
-import * as HttpMethod from "effect/unstable/http/HttpMethod";
-import * as HttpEffect from "effect/unstable/http/HttpEffect";
-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import * as HttpMethod from "effect/http/HttpMethod";
+import * as HttpEffect from "effect/http/HttpEffect";
+import * as HttpServerRequest from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Path from "effect/Path";
 import { Config, Context, Effect, Layer, Option, Stream } from "effect";
 import { AssetSource, type FileSystemAssetServices } from "./assets.js";
@@ -88,12 +88,12 @@ export interface SvelteKitNeutralHandlerOptions<RAssets> {
 /** Runtime configuration, read from the environment (compatible with adapter-node). */
 const handlerConfig = (prefix: string) =>
   Config.all({
-    origin: Config.option(Config.string(`${prefix}ORIGIN`)),
-    protocolHeader: Config.option(Config.string(`${prefix}PROTOCOL_HEADER`)),
-    hostHeader: Config.option(Config.string(`${prefix}HOST_HEADER`)),
-    portHeader: Config.option(Config.string(`${prefix}PORT_HEADER`)),
-    addressHeader: Config.option(Config.string(`${prefix}ADDRESS_HEADER`)),
-    xffDepth: Config.int(`${prefix}XFF_DEPTH`).pipe(Config.withDefault(1)),
+    origin: Config.option(Config.String(`${prefix}ORIGIN`)),
+    protocolHeader: Config.option(Config.String(`${prefix}PROTOCOL_HEADER`)),
+    hostHeader: Config.option(Config.String(`${prefix}HOST_HEADER`)),
+    portHeader: Config.option(Config.String(`${prefix}PORT_HEADER`)),
+    addressHeader: Config.option(Config.String(`${prefix}ADDRESS_HEADER`)),
+    xffDepth: Config.Int(`${prefix}XFF_DEPTH`).pipe(Config.withDefault(1)),
   });
 
 type HandlerConfig = Effect.Success<ReturnType<typeof handlerConfig>>;
@@ -168,9 +168,9 @@ const toWebRequest = (
  *
  * @example
  * ```ts
- * // Mounting SvelteKit inside an existing effect/unstable/http server:
+ * // Mounting SvelteKit inside an existing effect/http server:
  * import { handler } from "./build/handler.js";
- * import * as HttpServer from "effect/unstable/http/HttpServer";
+ * import * as HttpServer from "effect/http/HttpServer";
  * import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
  * import { Effect, Layer } from "effect";
  * import { createServer } from "node:http";

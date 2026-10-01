@@ -1,6 +1,6 @@
 /**
  * Svelte 5 runes binding for Effect's reactivity atoms
- * (`effect/unstable/reactivity`).
+ * (`effect/reactivity`).
  *
  * Effect ships first-party atom bindings for React, Solid and Vue but, as of
  * this writing, none for Svelte. This module is that binding — the bridge until
@@ -21,12 +21,7 @@
  */
 
 import { Context, Effect, Layer, Option, Schema, Scope } from "effect";
-import {
-  AsyncResult,
-  Atom,
-  AtomRegistry as Registry,
-  Reactivity,
-} from "effect/unstable/reactivity";
+import { AsyncResult, Atom, AtomRegistry as Registry, Reactivity } from "effect/reactivity";
 import { createContext } from "svelte";
 import { createSubscriber } from "svelte/reactivity";
 
@@ -55,7 +50,7 @@ export interface MakeAtomRegistryOptions {
  * browser registry during SSR, or a registry whose `Reactivity` service has not
  * resolved.
  */
-export class AtomRegistryUnavailable extends Schema.TaggedErrorClass<AtomRegistryUnavailable>()(
+export class AtomRegistryUnavailable extends Schema.TaggedError<AtomRegistryUnavailable>()(
   "AtomRegistryUnavailable",
   { message: Schema.String },
 ) {}
@@ -193,7 +188,7 @@ const subscription = <A>(registry: AtomRegistry, atom: Atom.Atom<A>) => ({
  * @example
  * ```svelte
  * <script lang="ts">
- *   import { Atom } from "effect/unstable/reactivity";
+ *   import { Atom } from "effect/reactivity";
  *   import { useAtom } from "@thomasfosterau/effect-svelte";
  *
  *   const countAtom = Atom.make(0);
@@ -342,11 +337,11 @@ const getOrThrow = (registry: Option.Option<AtomRegistry>): AtomRegistry =>
  * a second, unrelated instance whose invalidations nothing is listening to.
  */
 const reactivityAtom = Atom.keepAlive(
-  Atom.make(
+  Atom.make((get) =>
     Effect.contextWith((services: Context.Context<Scope.Scope>) =>
       Layer.buildWithMemoMap(
         Reactivity.layer,
-        Atom.runtime.memoMap,
+        get(Atom.runtime.memoMap),
         Context.get(services, Scope.Scope),
       ),
     ).pipe(Effect.map(Context.get(Reactivity.Reactivity))),

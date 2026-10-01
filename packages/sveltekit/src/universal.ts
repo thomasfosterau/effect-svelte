@@ -1,6 +1,6 @@
 import type { Load } from "@sveltejs/kit";
 import { Effect } from "effect";
-import type * as HttpClient from "effect/unstable/http/HttpClient";
+import type * as HttpClient from "effect/http/HttpClient";
 import type { SvelteRouteParams } from "./internal/route-params.js";
 import { defaultUniversalRuntime as runtime } from "./internal/default-runtime.js";
 
@@ -17,7 +17,7 @@ import { defaultUniversalRuntime as runtime } from "./internal/default-runtime.j
  * @example
  * ```ts
  * import { load as effectLoad } from '@thomasfosterau/effect-sveltekit';
- * import * as HttpClient from 'effect/unstable/http/HttpClient';
+ * import * as HttpClient from 'effect/http/HttpClient';
  * import { Effect } from 'effect';
  *
  * export const load = effectLoad((event) =>

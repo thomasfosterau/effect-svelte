@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Cause, Option } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { resultToPromise } from "../src/internal/await.js";
 
 /** Resolves true if `promise` stays pending across a macrotask. */

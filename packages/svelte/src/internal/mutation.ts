@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Fiber, Option } from "effect";
-import { Reactivity } from "effect/unstable/reactivity";
+import { Reactivity } from "effect/reactivity";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 import type { ResultState } from "./result.svelte.js";
 
@@ -31,7 +31,7 @@ export interface MutationCallbacks<A, E, I, C> {
   /**
    * Reactivity keys to invalidate after a successful mutation (a static array
    * or a function of the input). Requires the runtime to include
-   * `Reactivity.layer` from `effect/unstable/reactivity`.
+   * `Reactivity.layer` from `effect/reactivity`.
    */
   readonly invalidates?: ReadonlyArray<unknown> | ((input: I) => ReadonlyArray<unknown>);
 }

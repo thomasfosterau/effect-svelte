@@ -1,6 +1,6 @@
 import { Effect, Fiber, Stream } from "effect";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import { Reactivity } from "effect/unstable/reactivity";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
+import { Reactivity } from "effect/reactivity";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
@@ -23,7 +23,7 @@ export interface ReactiveOptions<R> {
 /**
  * Creates a reactive query that automatically re-runs when the specified keys are invalidated.
  *
- * Note: Make sure your runtime includes `Reactivity.layer` from `effect/unstable/reactivity`.
+ * Note: Make sure your runtime includes `Reactivity.layer` from `effect/reactivity`.
  *
  * @param keys - Reactivity keys that this query depends on
  * @param effectFn - The Effect to run when keys are invalidated

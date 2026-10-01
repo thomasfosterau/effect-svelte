@@ -62,13 +62,13 @@ If `effect-solutions` is not installed, run `.claude/hooks/session-start.sh`
 
 ## Effect v4
 
-This package targets **Effect v4 (beta)**: a single `effect` package plus
-`@effect/platform-node`, pinned to the same `4.0.0-beta.x` version.
+This package targets **Effect v4 (release candidate)**: a single `effect` package plus
+`@effect/platform-node`, pinned to the same `4.0.0-rc.x` version (currently `4.0.0-rc.118`).
 
 - `@effect/platform` does not exist in v4 — HTTP modules live under
-  `effect/unstable/http/*`, and `FileSystem`/`Path` under `effect/*`.
+  `effect/http/*`, and `FileSystem`/`Path` under `effect/*`.
 - `@effect/experimental` does not exist in v4 — `Reactivity` lives under
-  `effect/unstable/reactivity`.
+  `effect/reactivity`.
 - The v3 → v4 migration maps live in
   `~/.local/share/effect-solutions/effect/migration/` (start with `v3-to-v4.md`).
 

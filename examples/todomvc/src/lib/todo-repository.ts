@@ -2,12 +2,9 @@ import { Context, Effect, Layer, Schema } from "effect";
 import { StoredTodos, type Todo, type TodoFilter, type TodoStats } from "./model";
 
 /** Error raised when todos cannot be read from or written to storage. */
-export class TodoStorageError extends Schema.TaggedErrorClass<TodoStorageError>()(
-  "TodoStorageError",
-  {
-    reason: Schema.String,
-  },
-) {}
+export class TodoStorageError extends Schema.TaggedError<TodoStorageError>()("TodoStorageError", {
+  reason: Schema.String,
+}) {}
 
 export const STORAGE_KEY = "todos-effect-svelte";
 

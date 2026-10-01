@@ -13,26 +13,26 @@ import { EffectCauseError } from "../src/internal/error.js";
 import { KitError } from "../src/kit.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 
-class NotFound extends Schema.TaggedErrorClass<NotFound>()("NotFound", {
+class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
   resource: Schema.String,
   id: Schema.String,
 }) {}
-class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()("Unauthorized", {
+class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {
   message: Schema.optional(Schema.String),
 }) {}
-class Forbidden extends Schema.TaggedErrorClass<Forbidden>()("Forbidden", {
+class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
   message: Schema.optional(Schema.String),
 }) {}
-class Redirect extends Schema.TaggedErrorClass<Redirect>()("Redirect", {
+class Redirect extends Schema.TaggedError<Redirect>()("Redirect", {
   to: Schema.String,
   status: Schema.Number,
 }) {}
-class HttpError extends Schema.TaggedErrorClass<HttpError>()("HttpError", {
+class HttpError extends Schema.TaggedError<HttpError>()("HttpError", {
   status: Schema.Number,
   message: Schema.String,
 }) {}
 /** Stands in for effect-jsonapi's `JsonapiError`: a status plus a document. */
-class JsonapiError extends Schema.TaggedErrorClass<JsonapiError>()("JsonapiError", {
+class JsonapiError extends Schema.TaggedError<JsonapiError>()("JsonapiError", {
   status: Schema.Number,
   errors: Schema.Array(Schema.Struct({ status: Schema.String, detail: Schema.String })),
 }) {

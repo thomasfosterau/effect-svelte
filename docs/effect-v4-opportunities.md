@@ -1,7 +1,7 @@
 # Effect v4 × Svelte/SvelteKit — API opportunities review
 
 > Status: review / proposal. Researched against the versions currently pinned in
-> this repo: `effect@4.0.0-beta.75`, `svelte@5.56.1`, `@sveltejs/kit@2.61.1`.
+> this repo: `effect@4.0.0-rc.118 (the review itself was written against beta.75)`, `svelte@5.56.1`, `@sveltejs/kit@2.61.1`.
 > Signatures below were read from the installed `.d.ts` files, not from memory.
 
 The goal of this document is to map the surface of Svelte 5 and SvelteKit
@@ -13,7 +13,7 @@ can offer **idiomatic, Effect-native** interfaces ahead of a first publication.
 ## TL;DR — the headline finding
 
 Effect v4 absorbed the **Atom** reactive-state system into core, under
-`effect/unstable/reactivity`:
+`effect/reactivity`:
 
 | Module                    | What it is                                                                                                                                                     |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ not about filling holes in what already exists.
 > as the primary atom path once it lands. Items 1 and 3 are **implemented** (see
 > `packages/svelte/src/`).
 
-### 1. Adopt the native `AsyncResult` (`effect/unstable/reactivity/AsyncResult`) — ✅ done
+### 1. Adopt the native `AsyncResult` (`effect/reactivity/AsyncResult`) — ✅ done
 
 The library defines its own four-state union. The native type is a three-state
 union where `Initial`/`Success`/`Failure` _each_ carry `waiting: boolean` and a
@@ -116,7 +116,7 @@ Why it matters:
   transfer.
 
 Migration: re-export the native module (`export * as AsyncResult from
-"effect/unstable/reactivity/AsyncResult"`), keep thin `match`/guard wrappers for
+"effect/reactivity/AsyncResult"`), keep thin `match`/guard wrappers for
 ergonomics, and have `useEffect`/`useDerived`/`useStream` produce the native shape.
 The current bespoke `match(result, {initial, pending, success, failure})` becomes
 `AsyncResult.match` / `matchWithWaiting`. This is a breaking change — best done
@@ -229,7 +229,7 @@ export const sveltekitConfigProvider = (env: Record<string, string | undefined>)
 ```
 
 Then `makeServerRuntime(layer.pipe(Layer.provide(envConfig)))` and any
-`Config.string("DATABASE_URL")` resolves from SvelteKit's env. Small, but it's
+`Config.String("DATABASE_URL")` resolves from SvelteKit's env. Small, but it's
 the missing link that makes `Config`-driven services "just work" in SvelteKit.
 
 ### 6. `reroute` and `transport` in the Vite auto-plugin + explicit wrappers
@@ -300,7 +300,7 @@ issue #20's follow-ups), likely composing with `@effect/atom-svelte` (#23).
   argument and return a handle). The `derived` hook was renamed to `useDerived`
   to avoid confusion with Svelte's `derived` store and `$derived` rune.
 - **`AsyncResult` export collision.** ✅ Resolved: the bespoke type was removed
-  and the native `effect/unstable/reactivity/AsyncResult` is re-exported as the
+  and the native `effect/reactivity/AsyncResult` is re-exported as the
   `AsyncResult` namespace.
 - **`client.ts` placeholder.** ✅ Resolved: `…/client` now exports the
   `Navigation` / `State` / `Remote` namespaces, `useRemoteQuery`, etc.

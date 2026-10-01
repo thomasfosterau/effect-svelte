@@ -71,7 +71,7 @@ Both styles run through the same runtime; they differ in ergonomics:
 
 `svelte.config.js` uses the Effect deployment adapter. `pnpm run build`
 produces a `build/` directory whose server runs on Effect's
-`NodeHttpServer` (from `effect/unstable/http`):
+`NodeHttpServer` (from `effect/http`):
 
 ```bash
 pnpm run build

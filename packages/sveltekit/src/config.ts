@@ -5,7 +5,7 @@
  * {@link ConfigProvider}, while SvelteKit exposes configuration through its
  * `$env/static/*` and `$env/dynamic/*` virtual modules. These helpers bridge
  * the two: pass a SvelteKit env record and get back a `ConfigProvider` (or a
- * `Layer` that installs it), so any `Config.string("DATABASE_URL")` resolves
+ * `Layer` that installs it), so any `Config.String("DATABASE_URL")` resolves
  * from SvelteKit's environment.
  *
  * ```ts
@@ -17,13 +17,13 @@
  * import { Database } from "./database";
  *
  * export const runtime = makeServerRuntime(
- *   // Database.layer reads Config.string("DATABASE_URL"), now backed by $env
+ *   // Database.layer reads Config.String("DATABASE_URL"), now backed by $env
  *   Database.layer.pipe(Layer.provide(sveltekitConfig(env))),
  * );
  * ```
  *
  * `ConfigProvider.fromEnv` joins/splits path segments on `_`, so nested config
- * (`Config.string("HOST").pipe(...nested("DATABASE"))`) resolves a
+ * (`Config.String("HOST").pipe(...nested("DATABASE"))`) resolves a
  * `DATABASE_HOST` env var just like it does from `process.env`.
  */
 
@@ -77,8 +77,8 @@ export const sveltekitConfig = (env: Record<string, string | undefined>): Layer.
  * const settings = readConfig(
  *   env,
  *   Config.all({
- *     apiUrl: Config.string("PUBLIC_API_URL"),
- *     analytics: Config.string("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
+ *     apiUrl: Config.String("PUBLIC_API_URL"),
+ *     analytics: Config.String("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
  *   }),
  * );
  * // settings: Effect<{ apiUrl: string; analytics: string }, ConfigError>

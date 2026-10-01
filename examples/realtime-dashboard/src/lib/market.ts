@@ -10,7 +10,7 @@ export interface Quote {
 }
 
 /** Error raised when looking up a symbol that does not exist. */
-export class SymbolNotFound extends Schema.TaggedErrorClass<SymbolNotFound>()("SymbolNotFound", {
+export class SymbolNotFound extends Schema.TaggedError<SymbolNotFound>()("SymbolNotFound", {
   symbol: Schema.String,
 }) {}
 

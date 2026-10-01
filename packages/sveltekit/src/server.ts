@@ -23,7 +23,7 @@ export type { SvelteKitServices };
  * ```ts
  * import { serverLoad } from '@thomasfosterau/effect-sveltekit/server';
  * import { Effect } from 'effect';
- * import * as HttpClient from 'effect/unstable/http/HttpClient';
+ * import * as HttpClient from 'effect/http/HttpClient';
  *
  * export const load = serverLoad((event) =>
  *   Effect.gen(function* () {
@@ -123,7 +123,7 @@ export function actions<
  * import { endpoint } from '@thomasfosterau/effect-sveltekit/server';
  * import { Effect } from 'effect';
  * import { json } from '@sveltejs/kit';
- * import * as HttpClient from 'effect/unstable/http/HttpClient';
+ * import * as HttpClient from 'effect/http/HttpClient';
  *
  * export const GET = endpoint((event) =>
  *   Effect.gen(function* () {

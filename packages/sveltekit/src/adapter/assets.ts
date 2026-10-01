@@ -19,8 +19,8 @@
 import { Effect, Option } from "effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform";
-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
+import * as HttpPlatform from "effect/http/HttpPlatform";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
 /**
  * A source of static assets. `serveAsset` returns the response for an asset

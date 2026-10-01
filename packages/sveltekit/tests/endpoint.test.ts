@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Context, Effect, Schema } from "effect";
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
-import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import * as Endpoint from "../src/server/Endpoint.js";
 
 /** A SvelteKit RequestEvent is only read for its `request` by these helpers. */

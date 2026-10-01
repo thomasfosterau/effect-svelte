@@ -9,17 +9,17 @@ describe("sveltekitConfigProvider", () => {
       PORT: "3000",
     });
 
-    expect(Effect.runSync(Config.string("DATABASE_URL").parse(provider))).toBe(
+    expect(Effect.runSync(Config.String("DATABASE_URL").parse(provider))).toBe(
       "postgres://localhost",
     );
-    expect(Effect.runSync(Config.number("PORT").parse(provider))).toBe(3000);
+    expect(Effect.runSync(Config.Number("PORT").parse(provider))).toBe(3000);
   });
 
   it("ignores undefined env values", () => {
     const provider = sveltekitConfigProvider({ PRESENT: "yes", ABSENT: undefined });
 
-    expect(Effect.runSync(Config.string("PRESENT").parse(provider))).toBe("yes");
-    const missing = Effect.runSync(Effect.exit(Config.string("ABSENT").parse(provider)));
+    expect(Effect.runSync(Config.String("PRESENT").parse(provider))).toBe("yes");
+    const missing = Effect.runSync(Effect.exit(Config.String("ABSENT").parse(provider)));
     expect(missing._tag).toBe("Failure");
   });
 });
@@ -29,7 +29,7 @@ describe("sveltekitConfig", () => {
     const layer = sveltekitConfig({ GREETING: "hello" });
 
     // `Config<T>` is itself an `Effect` that resolves the ambient provider.
-    const result = await Effect.runPromise(Effect.provide(Config.string("GREETING"), layer));
+    const result = await Effect.runPromise(Effect.provide(Config.String("GREETING"), layer));
     expect(result).toBe("hello");
   });
 
@@ -43,7 +43,7 @@ describe("sveltekitConfig", () => {
 describe("readConfig", () => {
   it("resolves a single typed value from an env record", async () => {
     const url = await Effect.runPromise(
-      readConfig({ PUBLIC_API_URL: "https://api.example.com" }, Config.string("PUBLIC_API_URL")),
+      readConfig({ PUBLIC_API_URL: "https://api.example.com" }, Config.String("PUBLIC_API_URL")),
     );
     expect(url).toBe("https://api.example.com");
   });
@@ -52,7 +52,7 @@ describe("readConfig", () => {
     const settings = await Effect.runPromise(
       readConfig(
         { PUBLIC_API_URL: "https://api.example.com", PORT: "8080" },
-        Config.all({ apiUrl: Config.string("PUBLIC_API_URL"), port: Config.number("PORT") }),
+        Config.all({ apiUrl: Config.String("PUBLIC_API_URL"), port: Config.Number("PORT") }),
       ),
     );
     expect(settings).toEqual({ apiUrl: "https://api.example.com", port: 8080 });
@@ -60,14 +60,14 @@ describe("readConfig", () => {
 
   it("applies withDefault for absent keys", async () => {
     const value = await Effect.runPromise(
-      readConfig({}, Config.string("PUBLIC_MISSING").pipe(Config.withDefault("fallback"))),
+      readConfig({}, Config.String("PUBLIC_MISSING").pipe(Config.withDefault("fallback"))),
     );
     expect(value).toBe("fallback");
   });
 
   it("fails with a ConfigError when a required key is absent", async () => {
     const exit = await Effect.runPromise(
-      Effect.exit(readConfig({}, Config.string("PUBLIC_REQUIRED"))),
+      Effect.exit(readConfig({}, Config.String("PUBLIC_REQUIRED"))),
     );
     expect(exit._tag).toBe("Failure");
   });
@@ -76,7 +76,7 @@ describe("readConfig", () => {
     const host = await Effect.runPromise(
       readConfig(
         { DATABASE_HOST: "db.internal" },
-        Config.string("HOST").pipe(Config.nested("DATABASE")),
+        Config.String("HOST").pipe(Config.nested("DATABASE")),
       ),
     );
     expect(host).toBe("db.internal");

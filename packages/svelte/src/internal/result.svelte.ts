@@ -1,5 +1,5 @@
 import { Cause, Exit, Option } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
  * A reactive holder for an {@link AsyncResult.AsyncResult}, used by the hooks

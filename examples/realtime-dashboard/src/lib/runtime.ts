@@ -1,5 +1,5 @@
 import { Layer } from "effect";
-import { Reactivity } from "effect/unstable/reactivity";
+import { Reactivity } from "effect/reactivity";
 import { SvelteRuntime } from "@thomasfosterau/effect-svelte";
 import { MarketData } from "./market";
 

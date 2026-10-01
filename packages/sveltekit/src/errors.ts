@@ -17,18 +17,18 @@
  * import { Layer, Schema } from "effect";
  *
  * // The application's tagged-error catalogue (usually imported from a shared models package).
- * class NotFound extends Schema.TaggedErrorClass<NotFound>()("NotFound", {
+ * class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
  *   resource: Schema.String,
  *   id: Schema.String,
  * }) {}
- * class Forbidden extends Schema.TaggedErrorClass<Forbidden>()("Forbidden", {
+ * class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
  *   message: Schema.optional(Schema.String),
  * }) {}
- * class Redirect extends Schema.TaggedErrorClass<Redirect>()("Redirect", {
+ * class Redirect extends Schema.TaggedError<Redirect>()("Redirect", {
  *   to: Schema.String,
  *   status: Schema.Number,
  * }) {}
- * class HttpError extends Schema.TaggedErrorClass<HttpError>()("HttpError", {
+ * class HttpError extends Schema.TaggedError<HttpError>()("HttpError", {
  *   status: Schema.Number,
  *   message: Schema.String,
  * }) {}
@@ -55,7 +55,7 @@ import { error as kitError, redirect as kitRedirect } from "@sveltejs/kit";
 import { Cause, Predicate } from "effect";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
-/** Any value carrying a string `_tag` — `Schema.TaggedErrorClass`, `Data.TaggedError`, … */
+/** Any value carrying a string `_tag` — `Schema.TaggedError`, `Data.TaggedError`, … */
 export interface Tagged {
   readonly _tag: string;
 }

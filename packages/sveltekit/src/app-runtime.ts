@@ -24,8 +24,8 @@ import type {
   ServerLoad,
 } from "@sveltejs/kit";
 import { Context, Effect, type Fiber, Exit, Layer, ManagedRuntime, Scope } from "effect";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
-import type * as HttpClient from "effect/unstable/http/HttpClient";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import type * as HttpClient from "effect/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
 import type { ErrorTranslator } from "./request-runtime.js";

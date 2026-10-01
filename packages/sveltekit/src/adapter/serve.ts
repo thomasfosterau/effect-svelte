@@ -12,8 +12,8 @@
  */
 
 import { createServer } from "node:http";
-import * as HttpMiddleware from "effect/unstable/http/HttpMiddleware";
-import * as HttpServer from "effect/unstable/http/HttpServer";
+import * as HttpMiddleware from "effect/http/HttpMiddleware";
+import * as HttpServer from "effect/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import { Config, Effect, Layer } from "effect";
@@ -53,8 +53,8 @@ export const layer = (
   );
 
   const listenLayer = NodeHttpServer.layerConfig(createServer, {
-    port: Config.int(`${prefix}PORT`).pipe(Config.withDefault(3000)),
-    host: Config.string(`${prefix}HOST`).pipe(Config.withDefault("0.0.0.0")),
+    port: Config.Int(`${prefix}PORT`).pipe(Config.withDefault(3000)),
+    host: Config.String(`${prefix}HOST`).pipe(Config.withDefault("0.0.0.0")),
   });
 
   const withListener = serveLayer.pipe(HttpServer.withLogAddress, Layer.provide(listenLayer));
