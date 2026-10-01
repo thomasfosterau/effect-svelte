@@ -24,6 +24,31 @@ describe("sveltekitConfigProvider", () => {
   });
 });
 
+describe("empty-string env values (rc.118: treated as missing)", () => {
+  const provider = sveltekitConfigProvider({ EMPTY: "" });
+  const run = <A, E>(config: Config.Config<A>) =>
+    Effect.runSync(Effect.exit(config.parse(provider) as Effect.Effect<A, E>));
+
+  it("fails a required String", () => {
+    expect(run(Config.String("EMPTY"))._tag).toBe("Failure");
+  });
+
+  it("falls back to the default", () => {
+    const exit = run(Config.String("EMPTY").pipe(Config.withDefault("fallback")));
+    expect(exit._tag === "Success" && exit.value).toBe("fallback");
+  });
+
+  it("makes option None", () => {
+    const exit = run(Config.String("EMPTY").pipe(Config.option));
+    expect(exit._tag === "Success" && exit.value._tag).toBe("None");
+  });
+
+  it("falls back to the default for Int", () => {
+    const exit = run(Config.Int("EMPTY").pipe(Config.withDefault(7)));
+    expect(exit._tag === "Success" && exit.value).toBe(7);
+  });
+});
+
 describe("sveltekitConfig", () => {
   it("installs the provider as a Layer so ambient Config reads resolve", async () => {
     const layer = sveltekitConfig({ GREETING: "hello" });

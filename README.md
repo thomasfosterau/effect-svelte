@@ -24,7 +24,7 @@ number in v4 — keep `effect` and `@effect/platform-node` on the same
 For a plain Svelte 5 app:
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect@beta svelte
+npm install @thomasfosterau/effect-svelte effect@rc svelte
 ```
 
 For SvelteKit, install the SvelteKit package (it pulls in
@@ -33,14 +33,14 @@ previously lived in `@effect/platform` are part of `effect` itself in v4 (under
 `effect/http`), so no extra package is needed:
 
 ```bash
-npm install @thomasfosterau/effect-sveltekit effect@beta svelte @sveltejs/kit
+npm install @thomasfosterau/effect-sveltekit effect@rc svelte @sveltejs/kit
 ```
 
 If you use the Effect deployment adapter, you additionally need
 `@effect/platform-node` (the production server runs on it):
 
 ```bash
-npm install @effect/platform-node@beta
+npm install @effect/platform-node@rc
 ```
 
 ## Usage

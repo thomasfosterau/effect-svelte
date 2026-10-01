@@ -1,7 +1,8 @@
 # Effect v4 × Svelte/SvelteKit — API opportunities review
 
 > Status: review / proposal. Researched against the versions currently pinned in
-> this repo: `effect@4.0.0-rc.118 (the review itself was written against beta.75)`, `svelte@5.56.1`, `@sveltejs/kit@2.61.1`.
+> this repo: `effect@4.0.0-rc.118`, `svelte@5.56.1`, `@sveltejs/kit@2.61.1`
+> (the review itself was originally written against `effect@4.0.0-beta.75`).
 > Signatures below were read from the installed `.d.ts` files, not from memory.
 
 The goal of this document is to map the surface of Svelte 5 and SvelteKit
@@ -67,7 +68,7 @@ Svelte (`packages/svelte/src/`): `provideRuntime`/`getRuntime`, `SvelteRuntime`,
 `useScope(Callback)`, `useEffect`, `useStream`, `useDerived`, `useQuery`,
 `useSubscriptionRef`, `usePubSub`, `reactiveQuery`/`reactiveStream`/
 `reactiveMutation`/`useInvalidateKeys` (built on the older
-`unstable/reactivity/Reactivity`), `SignalEmitter`, and a bespoke
+`Reactivity` (now `effect/reactivity/Reactivity`)), `SignalEmitter`, and a bespoke
 `AsyncResult` (`initial | pending | success | failure`).
 
 SvelteKit (`packages/sveltekit/src/`): universal `load` + `makeUniversalRuntime`; server

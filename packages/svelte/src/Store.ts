@@ -53,7 +53,7 @@ export function toStream<A>(store: Readable<A>): Stream.Stream<A> {
  * import { Stream } from 'effect';
  *
  * const ticks = Store.fromStream(
- *   Stream.tick('1 second').pipe(Stream.scan(0, (n) => n + 1)),
+ *   Stream.tick('1 second').pipe(Stream.scan(() => 0, (n) => n + 1)),
  *   0,
  *   runtime,
  * );
