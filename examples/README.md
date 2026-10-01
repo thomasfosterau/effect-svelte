@@ -1,7 +1,8 @@
 # Examples
 
-Example apps demonstrating the full surface area of the effect-svelte
-package, modelled on widely used demo applications.
+Example apps for the `@thomasfosterau/effect-svelte` and
+`@thomasfosterau/effect-sveltekit` packages, modelled on widely used demo
+applications.
 
 | Example                                      | App                                                   | Stack           | Focus                                                                               |
 | -------------------------------------------- | ----------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
@@ -11,12 +12,12 @@ package, modelled on widely used demo applications.
 
 ## Running the examples
 
-The examples are pnpm workspace members and consume the package by building
-it first:
+The examples are pnpm workspace members and consume the packages' `dist/`, so
+build first:
 
 ```bash
 pnpm install
-pnpm run build         # builds the library into dist/ (vp pack)
+pnpm run build         # builds every workspace package (vp run -r build)
 cd examples/<name>
 pnpm run dev
 ```
@@ -74,12 +75,19 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 | `Remote.callQuery` / `Remote.callCommandWithUpdates` / `Remote.submitForm`     | `src/routes/bookmarks/+page.svelte`                      |
 | `Remote.callCommand` / `Remote.callPrerender` / `Remote.submitFormWithUpdates` | not demonstrated (same call shapes as the above)         |
 
-**Also available (not exercised by the examples):** the svelte `Store` namespace
-(`Store.toStream` / `Store.fromStream` / `Store.fromSubscriptionRef` /
-`Store.fromPubSub` / `Store.fromQueue` / `Store.fromRef`); and, from
-`@thomasfosterau/effect-sveltekit/client`, the `Navigation` namespace's
-`beforeNavigate` / `afterNavigate` / `onNavigate`, `State.page`, and
-`useRemoteQuery`.
+**Also available (not exercised by the examples):**
+
+- `@thomasfosterau/effect-svelte`: the atom hooks (`useAtom` / `useAtomResult`,
+  `invalidateAtomKeys`, `makeAtomRegistry` / `provideAtomRegistry`),
+  `useLiveStream`, `useDebouncedSearch`, `useMutation`, `useQueryPromise`,
+  `useWritableRef`, `createRuntimeContext`, and the `Store` namespace
+  (`Store.toStream` / `Store.fromStream` / `Store.fromSubscriptionRef` /
+  `Store.fromPubSub` / `Store.fromQueue` / `Store.fromRef`).
+- `@thomasfosterau/effect-sveltekit`: `ResponseHeaders` and `apiClient` (root);
+  `makeRuntimeAdapter` / `RequestRuntime`, `Errors`, `Endpoint` (`./server`);
+  the `Navigation` namespace's `beforeNavigate` / `afterNavigate` /
+  `onNavigate`, `State.page`, `Realtime`, `Forms` and `useRemoteQuery`
+  (`./client`); and the `./testing` runners.
 
 ## Notes
 

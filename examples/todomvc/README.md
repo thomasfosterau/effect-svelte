@@ -1,7 +1,7 @@
 # TodoMVC — effect-svelte
 
 The classic [TodoMVC](https://todomvc.com) app built with Svelte 5, Vite, and
-[`@thomasfosterau/effect-svelte`](../../src).
+[`@thomasfosterau/effect-svelte`](../../packages/svelte).
 
 Todos are persisted to `localStorage` through an Effect service
 (`TodoRepository`), and all reads/writes flow through Effect's reactivity
@@ -13,7 +13,7 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm run build           # build the package first (vp pack)
+pnpm run build           # builds every workspace package (vp run -r build)
 cd examples/todomvc
 pnpm run dev
 ```
