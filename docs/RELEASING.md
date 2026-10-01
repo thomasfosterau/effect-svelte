@@ -37,7 +37,10 @@ configuring outside the repo:
 
    Both packages point at the same workflow file. No npm token is stored
    anywhere; the workflow exchanges a short-lived GitHub OIDC token for npm
-   publish access at publish time, and provenance is attached automatically.
+   publish access at publish time. Provenance is left to npm: it attaches an
+   attestation itself when allowed (public source repository). Never force it
+   with `NPM_CONFIG_PROVENANCE`, `--provenance` or `publishConfig.provenance`;
+   an explicit request makes the publish fail from a private repository.
 
    > **First publish of a brand-new package.** npm only lets you add a trusted
    > publisher to a package that **already exists**, so the very first publish
