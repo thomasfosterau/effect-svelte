@@ -61,7 +61,7 @@ The changeset file is committed with your change. Releases happen when the owner
 1. Run every gate in [AGENTS.md § Verification](AGENTS.md#verification) and note each result in the PR body.
 2. Add a changeset (`pnpm changeset`) for every change to a published package.
 3. `git fetch origin main && git rebase origin/main` — never merge `main` into your branch.
-4. Update the docs: the API reference in the READMEs for any exported change, `examples/README.md` if an example's coverage changed, `AGENTS.md` for a new invariant.
+4. Update the docs: the package `README.md` (the npm API reference) for any exported change, `examples/README.md` if an example's coverage changed, `AGENTS.md` for a new invariant.
 
 ## Commit messages
 

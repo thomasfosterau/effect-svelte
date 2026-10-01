@@ -84,7 +84,7 @@ The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's
 
 ## Documentation surfaces
 
-- Root `README.md` — the API guide for both packages; package `README.md`s — the npm landing pages.
+- Package `README.md`s — the npm API reference (npm shows only these; links into the repo stay relative, but a consumer must not need them); root `README.md` — the landing page.
 - `docs/cookbook.md` — recipes; `examples/README.md` — which export each example exercises.
 - `CONTRIBUTING.md` — setup and the pre-PR checklist; `SECURITY.md` — reporting and supply-chain posture; `docs/RELEASING.md` — the release pipeline and one-time owner setup.
 - Decisions — issue comments.
