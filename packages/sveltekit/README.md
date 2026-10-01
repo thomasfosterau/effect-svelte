@@ -54,6 +54,43 @@ per-request runtime or on your own services (see
 | `…/testing`                        | A fake `RequestEvent` and runners for unit-testing server wrappers and remote functions (`TestRequestEvent`, `runServerLoad`, `runAction`, `runEndpoint`, `runRemote`)                                                                                            |
 | `…/internal/auto`                  | Referenced by `effectKit()`'s generated code; not a public API                                                                                                                                                                                                    |
 
+### At a glance
+
+- **Effects as route exports** — explicit wrappers, app-wide runtimes (services
+  built once per process), or the `effectKit()` plugin.
+- **Bring-your-own per-request runtime** — `makeRuntimeAdapter(provider, opts)`
+  binds the server wrappers to a `RequestRuntime` provider, so the handler
+  effect's services are your own application catalogue (not `SvelteKitServices`).
+  Adopt a runtime the consumer stashed on `event.locals`
+  (`RequestRuntime.fromLocals`, resolved per call so a mid-request rebuild is
+  honoured), let the package build + dispose one per request
+  (`RequestRuntime.fromLayerPerRequest`, with `afterResponse` to route disposal
+  through Cloudflare Workers' `ctx.waitUntil`), or reuse the build-once model
+  (`fromManagedRuntime` / `fromLayer`). `RemoteFunction.withRuntime(provider)`
+  gives remote functions the same seam.
+- **Pluggable boundary error translation** — pass `translateError` to
+  `makeRuntimeAdapter`, `makeServerRuntime`, or `RemoteFunction.withRuntime` to
+  map a failed `Cause` to SvelteKit control flow (`error(404)`, `redirect()`,
+  remote-form `invalid()`) instead of a generic 500.
+- **Remote functions** — define with `RemoteFunction.*` (a bare Effect `Schema`
+  validator is accepted and auto-wrapped), consume via the `Remote` namespace
+  (`Remote.callQuery`, `Remote.liveQueryStream`, …); `useRemoteQuery` bridges a
+  reactive remote resource to an `AsyncResult`. `RemoteFunction.withRuntime` also
+  takes a `formError` hook to map a domain error into SvelteKit field issues.
+- **`transport` ⇄ Effect Schema** (`Hooks.transport` / `transporter`, plus
+  `Hooks.markerTransporter` for non-round-tripping wrappers) and **`$env` ⇄
+  Effect `Config`**.
+- **Client navigation/state** — the `Navigation` (`goto`/`invalidate`/… plus
+  `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`)
+  namespaces.
+- **Effect deployment adapter** — the generated app is a platform-neutral
+  Effect `HttpApp` (`makeHandlerWith`): serve it as a production Node HTTP server
+  (`effect/http` + `@effect/platform-node`, the default) or as a Web
+  `fetch` handler on Cloudflare Workers (`effectAdapter({ target: "fetch" })` /
+  `toWebHandler`). Asset serving is a pluggable `AssetSource`
+  (`AssetSource.fileSystem` for Node, `AssetSource.cloudflareAssets(env.ASSETS)`
+  for Workers, or any custom source — R2, KV, a CDN passthrough).
+
 ### SvelteKit Vite plugin (recommended)
 
 ```ts
@@ -153,7 +190,9 @@ built once and sharing a single request scope — and stores it on `event.locals
 import { runtime } from "$lib/server/runtime";
 import { Effect } from "effect";
 
-export const handle = runtime.handle(({ event, resolve }) => Effect.promise(() => resolve(event)));
+export const handle = runtime.handle(({ event, resolve }) =>
+  Effect.promise(async () => resolve(event)),
+);
 ```
 
 With `handle` wired, every other wrapper for that runtime (`serverLoad`,
@@ -168,7 +207,7 @@ export const handle = runtime.handle(({ event, resolve }) =>
   Effect.gen(function* () {
     const rt = runtime.requestRuntime(event)!;
     event.locals.user = yield* Effect.promise(() => rt.runPromise(Auth.currentUser));
-    return yield* Effect.promise(() => resolve(event));
+    return yield* Effect.promise(async () => resolve(event));
   }),
 );
 ```
@@ -209,7 +248,7 @@ import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { createServer } from "node:http";
 
-const server = Layer.unwrap(Effect.map(handler, HttpServer.serve)).pipe(
+const server = Layer.unwrap(Effect.map(handler, (app) => HttpServer.serve(app))).pipe(
   Layer.provide(NodeHttpServer.layer(createServer, { port: 3000 })),
 );
 
@@ -447,7 +486,7 @@ export const init = Hooks.init(Effect.logInfo("server starting up"));
 export const handle = Hooks.handle(({ event, resolve }) =>
   Effect.gen(function* () {
     const start = Date.now();
-    const response = yield* Effect.promise(() => resolve(event));
+    const response = yield* Effect.promise(async () => resolve(event));
     yield* Effect.logInfo(`${event.url.pathname} -> ${response.status} (${Date.now() - start}ms)`);
     return response;
   }),
@@ -488,6 +527,8 @@ for `use:enhance`, and `Forms.applyAction` / `Forms.deserialize` wrap the
 `$app/forms` helpers. (This complements `Remote.submitForm`, which covers remote
 forms.)
 
+## Recipes
+
 ### App-side patterns
 
 Two SvelteKit app patterns are recipes rather than APIs:
@@ -515,7 +556,7 @@ Two SvelteKit app patterns are recipes rather than APIs:
   and not Effect, so it stays an app template rather than a `./paraglide` entry
   here.
 
-### Recipes
+### Cookbook
 
 See the [cookbook](../../docs/cookbook.md) for recipes — consuming an
 `Endpoint.fromApi` with a typed `apiClient`, reading build-time vs runtime

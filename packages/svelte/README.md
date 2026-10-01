@@ -53,18 +53,18 @@ and `fromStore`), typed as Effect's native
 
 ## API
 
-| Export                                                                                                         | Purpose                                                       |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `provideRuntime` / `getRuntime`, `SvelteRuntime`, `defaultSvelteRuntime`                                       | The ambient runtime the hooks run on                          |
-| `createRuntimeContext`                                                                                         | A dedicated, service-typed runtime context for a library      |
-| `useScope` / `useScopeCallback`                                                                                | A `Scope` tied to the component lifecycle                     |
-| `useEffect`, `useQuery`, `useDerived`, `useMutation`, `useQueryPromise`                                        | Run an Effect and expose its `AsyncResult` via `.current`     |
-| `useStream`, `useLiveStream`, `useSubscriptionRef`, `usePubSub`, `useWritableRef`                              | Expose a `Stream`, `SubscriptionRef` or `PubSub` as runes     |
-| `reactiveQuery`, `reactiveStream`, `reactiveMutation`, `useInvalidateKeys`                                     | Keyed invalidation through `effect/reactivity`'s `Reactivity` |
-| `useAtom`, `useAtomResult`, `invalidateAtomKeys`, `makeAtomRegistry`, `provideAtomRegistry`, `getAtomRegistry` | The Svelte binding for Effect's atoms                         |
-| `useDebouncedSearch`                                                                                           | Debounced, latest-wins, interruptible typeahead               |
-| `Store`, `SignalEmitter`                                                                                       | Interop with Svelte stores and `$state`                       |
-| `AsyncResult`                                                                                                  | Effect's native `AsyncResult` namespace, re-exported          |
+| Export                                                                                                                                    | Purpose                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `provideRuntime` / `getRuntime`, `SvelteRuntime`, `defaultSvelteRuntime`                                                                  | The ambient runtime the hooks run on                                                                     |
+| `createRuntimeContext`                                                                                                                    | A dedicated, service-typed runtime context for a library                                                 |
+| `useScope` / `useScopeCallback`                                                                                                           | A `Scope` tied to the component lifecycle                                                                |
+| `useEffect`, `useQuery`, `useDerived`, `useMutation`, `useQueryPromise`                                                                   | Run an Effect and expose its `AsyncResult` via `.current`                                                |
+| `useStream`, `useLiveStream`, `useSubscriptionRef`, `usePubSub`, `useWritableRef`                                                         | Expose a `Stream`, `SubscriptionRef` or `PubSub` as runes                                                |
+| `reactiveQuery`, `reactiveStream`, `reactiveMutation`, `useInvalidateKeys`                                                                | Keyed invalidation through `effect/reactivity`'s `Reactivity`                                            |
+| `useAtom`, `useAtomResult`, `invalidateAtomKeys`, `makeAtomRegistry`, `provideAtomRegistry`, `getAtomRegistry`, `AtomRegistryUnavailable` | The Svelte binding for Effect's atoms (and the error raised when no registry is reachable on the server) |
+| `useDebouncedSearch`                                                                                                                      | Debounced, latest-wins, interruptible typeahead                                                          |
+| `Store`, `SignalEmitter`                                                                                                                  | Interop with Svelte stores and `$state`                                                                  |
+| `AsyncResult`                                                                                                                             | Effect's native `AsyncResult` namespace, re-exported                                                     |
 
 ### Hooks and explicit runtimes
 
@@ -109,7 +109,7 @@ export const ClientContext = createRuntimeContext<ClientView>("@my/lib client");
 ```svelte
 <script lang="ts">
   // Root.svelte — provide once, like setContext (component init only).
-  import { ClientContext } from "./context.ts";
+  import { ClientContext } from "./context.js";
   ClientContext.provide(myClientRuntime);
 </script>
 ```
@@ -218,12 +218,16 @@ clobber a newer one. Previous results stay visible while the next search is
 
 ### Store interop
 
-To go the other way — Svelte → Effect — `Store.toStream(store)` turns any
+For Svelte → Effect, `Store.toStream(store)` turns any
 Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
 `$state` into a `Stream`. The `Store` namespace also exposes the reverse
 direction (`Store.fromStream`, `Store.fromSubscriptionRef`, `Store.fromPubSub`,
 `Store.fromQueue`, `Store.fromRef`) for surfacing Effect sources as Svelte
 stores.
+
+## Recipes
+
+See the [cookbook](../../docs/cookbook.md) for longer recipes, including loading/error chrome around an atom query and a typeahead on `useDebouncedSearch`.
 
 ## License
 
