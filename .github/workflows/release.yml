@@ -61,4 +61,8 @@ jobs:
           publish-script: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+          # Do NOT set NPM_CONFIG_PROVENANCE (or pass `--provenance`): the npm
+          # CLI, which `pnpm publish` hands the upload to, reads it as an
+          # explicit request and the publish FAILS from a private repository.
+          # With no explicit setting npm attaches provenance by itself when
+          # allowed (public source repo), and publishes without it otherwise.
