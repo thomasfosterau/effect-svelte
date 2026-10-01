@@ -1,11 +1,11 @@
 import { Config, Context, Effect, Layer, Schema } from "effect";
-import * as HttpClient from "effect/unstable/http/HttpClient";
-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
+import * as HttpClient from "effect/http/HttpClient";
+import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import { STORIES_PER_PAGE, type ListKind } from "./lists";
 import { Item, StoryPage, User } from "./schema";
 
 /** Error raised when the Hacker News API call fails. */
-export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()("HackerNewsError", {
+export class HackerNewsError extends Schema.TaggedError<HackerNewsError>()("HackerNewsError", {
   message: Schema.String,
 }) {}
 
@@ -22,7 +22,7 @@ export class HackerNewsError extends Schema.TaggedErrorClass<HackerNewsError>()(
  */
 export class HackerNews extends Context.Service<HackerNews>()("examples/HackerNews", {
   make: Effect.gen(function* () {
-    const API = yield* Config.string("HN_API_BASE").pipe(
+    const API = yield* Config.String("HN_API_BASE").pipe(
       Config.withDefault("https://hn.algolia.com/api/v1"),
     );
 

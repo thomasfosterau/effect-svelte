@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AsyncResult, Atom } from "effect/unstable/reactivity";
+  import { AsyncResult, Atom } from "effect/reactivity";
   import { Effect } from "effect";
   import { useAtom, useAtomResult } from "../../src/atom.svelte.js";
 

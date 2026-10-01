@@ -24,11 +24,11 @@
  */
 
 import { Effect, Layer } from "effect";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
-import type * as HttpClient from "effect/unstable/http/HttpClient";
-import type * as HttpApi from "effect/unstable/httpapi/HttpApi";
-import * as HttpApiClient from "effect/unstable/httpapi/HttpApiClient";
-import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
+import type * as HttpClient from "effect/http/HttpClient";
+import type * as HttpApi from "effect/http-api/HttpApi";
+import * as HttpApiClient from "effect/http-api/HttpApiClient";
+import type * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 
 /** Options for {@link apiClient}. */
 export interface ApiClientOptions {
@@ -52,7 +52,7 @@ export interface ApiClientOptions {
  * via `FetchHttpClient`. Yields the client from an `Effect`; the only remaining
  * requirement is any client middleware the API declares.
  */
-export const apiClient = <ApiId extends string, Groups extends HttpApiGroup.Any>(
+export const apiClient = <ApiId extends string, Groups extends HttpApiGroup.Constraint>(
   api: HttpApi.HttpApi<ApiId, Groups>,
   options?: ApiClientOptions,
 ): Effect.Effect<HttpApiClient.Client<Groups>, never, HttpApiGroup.MiddlewareClient<Groups>> => {

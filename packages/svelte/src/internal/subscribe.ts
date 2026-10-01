@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Option, Stream } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { createSubscriber } from "svelte/reactivity";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 

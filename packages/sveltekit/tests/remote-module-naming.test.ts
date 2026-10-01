@@ -34,7 +34,7 @@ function collect(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
-    const abs = join(entry.parentPath ?? entry.path, entry.name);
+    const abs = join(entry.parentPath, entry.name);
     out.push(
       posix.normalize(
         abs

@@ -15,7 +15,7 @@ Share the `HttpApi` definition between server and client:
 
 ```ts
 // src/lib/api.ts — imported by both the endpoint and the client
-import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/unstable/httpapi";
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { Schema } from "effect";
 
 const User = Schema.Struct({ id: Schema.String, name: Schema.String });
@@ -88,8 +88,8 @@ import { Config, Effect } from "effect";
 const settings = readConfig(
   env,
   Config.all({
-    apiUrl: Config.string("PUBLIC_API_URL"),
-    analytics: Config.string("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
+    apiUrl: Config.String("PUBLIC_API_URL"),
+    analytics: Config.String("PUBLIC_ANALYTICS_KEY").pipe(Config.withDefault("")),
   }),
 );
 // settings: Effect<{ apiUrl: string; analytics: string }, ConfigError>
@@ -104,12 +104,12 @@ import { sveltekitConfig, makeServerRuntime } from "@thomasfosterau/effect-svelt
 import { Layer } from "effect";
 import { Database } from "$lib/server/database";
 
-// Database.layer reads Config.string("DATABASE_URL"), now backed by $env
+// Database.layer reads Config.String("DATABASE_URL"), now backed by $env
 export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
 ```
 
 `ConfigProvider.fromEnv` splits nested keys on `_`, so
-`Config.string("URL").pipe(Config.nested("DATABASE"))` resolves `DATABASE_URL`
+`Config.String("URL").pipe(Config.nested("DATABASE"))` resolves `DATABASE_URL`
 from the record — matching how it behaves against `process.env`.
 
 ## Loading and error chrome around an atom query (`useAtomResult`)

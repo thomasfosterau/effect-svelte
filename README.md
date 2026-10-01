@@ -16,9 +16,10 @@ from this monorepo:
 
 ## Installation
 
-Both packages target **Effect v4 (beta)**. All Effect ecosystem packages share
-a single version number in v4 — keep `effect` and `@effect/platform-node` on
-the same `4.0.0-beta.x` version.
+Both packages target **Effect v4 (release candidate)** and require
+`effect@>=4.0.0-rc.118`. All Effect ecosystem packages share a single version
+number in v4 — keep `effect` and `@effect/platform-node` on the same
+`4.0.0-rc.x` version.
 
 For a plain Svelte 5 app:
 
@@ -29,7 +30,7 @@ npm install @thomasfosterau/effect-svelte effect@beta svelte
 For SvelteKit, install the SvelteKit package (it pulls in
 `@thomasfosterau/effect-svelte` for the runes hooks). The HTTP modules that
 previously lived in `@effect/platform` are part of `effect` itself in v4 (under
-`effect/unstable/http`), so no extra package is needed:
+`effect/http`), so no extra package is needed:
 
 ```bash
 npm install @thomasfosterau/effect-sveltekit effect@beta svelte @sveltejs/kit
@@ -50,7 +51,7 @@ Provide a runtime once at the root of your app, then run Effects from any
 component. Every result-producing hook exposes the current state through a
 `.current` property (the idiomatic Svelte 5 convention, matching `MediaQuery`
 and `fromStore`), typed as Effect's native
-[`AsyncResult`](https://effect.website) (`effect/unstable/reactivity/AsyncResult`):
+[`AsyncResult`](https://effect.website) (`effect/reactivity/AsyncResult`):
 
 ```svelte
 <script lang="ts">
@@ -157,7 +158,7 @@ hydration-mismatching empty first paint.
 </svelte:boundary>
 ```
 
-### Atoms (`effect/unstable/reactivity`)
+### Atoms (`effect/reactivity`)
 
 Effect v4 ships atoms, the registry behind them and keyed invalidation in core;
 this package is the Svelte 5 binding (until an official `@effect/atom-svelte`
@@ -371,7 +372,7 @@ back to building the request services per call, so this is backward compatible.
 
 A SvelteKit [adapter](https://svelte.dev/docs/kit/adapters) (like
 `@sveltejs/adapter-node`) whose production server is an Effect HTTP server
-(`effect/unstable/http` + `@effect/platform-node`) — `Config`-based
+(`effect/http` + `@effect/platform-node`) — `Config`-based
 configuration, request tracing spans, and graceful shutdown through Effect
 scopes:
 
@@ -391,11 +392,11 @@ node build       # PORT, HOST, ORIGIN, PROTOCOL_HEADER, ... read from the env
 
 The build also emits `build/handler.js`, which exports the whole SvelteKit
 app as a composable Effect HTTP app — mount it inside an existing
-`effect/unstable/http` server alongside your other routes:
+`effect/http` server alongside your other routes:
 
 ```ts
 import { handler } from "./build/handler.js";
-import { HttpServer } from "effect/unstable/http";
+import { HttpServer } from "effect/http";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { Effect, Layer } from "effect";
 import { createServer } from "node:http";
@@ -602,7 +603,7 @@ configuration from `$env`:
 import { env } from "$env/dynamic/private";
 import { makeServerRuntime, sveltekitConfig } from "@thomasfosterau/effect-sveltekit/server";
 import { Layer } from "effect";
-import { Database } from "./database"; // its layer reads Config.string("DATABASE_URL")
+import { Database } from "./database"; // its layer reads Config.String("DATABASE_URL")
 
 export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
 ```

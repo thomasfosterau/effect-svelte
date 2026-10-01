@@ -1,5 +1,5 @@
 import type { RemoteResource } from "@sveltejs/kit";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
  * Bridges a SvelteKit remote resource (`query(...)`, `query.live(...)`,

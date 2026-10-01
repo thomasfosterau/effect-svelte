@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Context, Effect, Layer, ManagedRuntime, Option, Queue, Stream } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { resultToPromise } from "../src/internal/await.js";
 import { makeLiveStream, type LiveResultState } from "../src/internal/live-stream.js";
 

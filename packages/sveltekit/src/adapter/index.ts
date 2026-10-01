@@ -2,7 +2,7 @@
  * Effect deployment adapter for SvelteKit.
  *
  * Like `@sveltejs/adapter-node`, but the production server is an
- * `effect/unstable/http` HTTP server: requests are handled by an Effect HTTP
+ * `effect/http` HTTP server: requests are handled by an Effect HTTP
  * handler, configuration is read through `Config`, and startup/shutdown is
  * managed by Effect layers and scopes (SIGINT/SIGTERM trigger a graceful
  * shutdown that runs all finalizers).
@@ -22,7 +22,7 @@
  *
  * - `index.js` — runs the production server: `node build`
  * - `handler.js` — exports the SvelteKit app as a composable Effect HTTP
- *   handler, for mounting inside an existing `effect/unstable/http` server
+ *   handler, for mounting inside an existing `effect/http` server
  * - `client/`, `server/`, `prerendered/`, `manifest.js` — the built app
  *
  * Unlike `adapter-node`, the server output is not bundled: the deployment
@@ -62,7 +62,7 @@ export interface EffectAdapterOptions {
    *   `env.ASSETS` binding via `AssetSource.cloudflareAssets`.
    *
    * Both targets also write `build/handler.js` (the SvelteKit `HttpApp`), so you
-   * can compose your own entry for any `effect/unstable/http` runtime.
+   * can compose your own entry for any `effect/http` runtime.
    *
    * @default "node"
    */
@@ -86,7 +86,7 @@ const dir = dirname(fileURLToPath(import.meta.url));
  * The SvelteKit application as a composable Effect HTTP handler.
  *
  * Serve it with the generated index.js, or mount it inside any
- * \`effect/unstable/http\` HTTP server.
+ * \`effect/http\` HTTP server.
  */
 export const handler = makeHandler({
   Server,

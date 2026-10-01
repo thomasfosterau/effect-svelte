@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit, Stream } from "effect";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 
 /**

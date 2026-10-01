@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { Cause, Effect, Exit, Layer, ManagedRuntime, Option, Queue } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
-import { Reactivity } from "effect/unstable/reactivity";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
+import { Reactivity } from "effect/reactivity";
 import { makeMutation } from "../src/internal/mutation.js";
 import type { ResultState } from "../src/internal/result.svelte.js";
 

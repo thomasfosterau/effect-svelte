@@ -15,7 +15,7 @@
  * ```ts
  * // +page.server.ts
  * import { Effect } from "effect";
- * import * as HttpClient from "effect/unstable/http/HttpClient";
+ * import * as HttpClient from "effect/http/HttpClient";
  *
  * export const load = (event) =>
  *   Effect.gen(function* () {

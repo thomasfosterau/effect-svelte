@@ -35,15 +35,15 @@ import { Context, type Duration, Effect, Layer, Schedule, Stream } from "effect"
 import type { Scope } from "effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as Etag from "effect/unstable/http/Etag";
-import * as HttpEffect from "effect/unstable/http/HttpEffect";
-import * as HttpPlatform from "effect/unstable/http/HttpPlatform";
-import * as HttpRouter from "effect/unstable/http/HttpRouter";
-import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
-import type * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import type * as HttpApi from "effect/unstable/httpapi/HttpApi";
-import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
-import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup";
+import * as Etag from "effect/http/Etag";
+import * as HttpEffect from "effect/http/HttpEffect";
+import * as HttpPlatform from "effect/http/HttpPlatform";
+import * as HttpRouter from "effect/http/HttpRouter";
+import type * as HttpServerRequest from "effect/http/HttpServerRequest";
+import type * as HttpServerResponse from "effect/http/HttpServerResponse";
+import type * as HttpApi from "effect/http-api/HttpApi";
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import type * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import { encodeRetry, encodeSseFrame, HEARTBEAT_FRAME, SSE_HEADERS } from "../internal/sse.js";
 
 /** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
@@ -163,7 +163,7 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
  */
 export const fromApi = <
   Id extends string,
-  Groups extends HttpApiGroup.Any,
+  Groups extends HttpApiGroup.Constraint,
   E,
   LayerRequires = never,
   RequestServices = never,
@@ -224,7 +224,7 @@ export const fromApi = <
  * // src/routes/api/[...path]/+server.ts
  * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
  * import { Effect } from "effect";
- * import { HttpRouter, HttpServerResponse } from "effect/unstable/http";
+ * import { HttpRouter, HttpServerResponse } from "effect/http";
  *
  * const RouterLive = HttpRouter.use((router) =>
  *   router.add("GET", "/hello", Effect.succeed(HttpServerResponse.text("hi"))),
@@ -278,7 +278,7 @@ export const fromRouter = <
  * // src/routes/health/+server.ts
  * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
  * import { Effect } from "effect";
- * import { HttpServerResponse } from "effect/unstable/http";
+ * import { HttpServerResponse } from "effect/http";
  *
  * export const GET = Endpoint.fromHttpEffect(
  *   Effect.succeed(HttpServerResponse.text("ok")),

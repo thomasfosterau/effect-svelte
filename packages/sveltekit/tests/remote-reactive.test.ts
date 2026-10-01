@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useRemoteQuery } from "../src/remote-reactive.js";
 
 // Minimal stand-ins for SvelteKit's reactive RemoteResource shape.

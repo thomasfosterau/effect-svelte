@@ -1,5 +1,5 @@
 import { Option, type Stream } from "effect";
-import * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { resultToPromise } from "./internal/await.js";

@@ -3,7 +3,7 @@
 Effect v4-native integration for **Svelte 5 runes**. Run Effects from
 components and bridge Effect's reactive primitives to runes — results are
 exposed as Effect's native
-[`AsyncResult`](https://effect.website) (`effect/unstable/reactivity/AsyncResult`)
+[`AsyncResult`](https://effect.website) (`effect/reactivity/AsyncResult`)
 with stale-while-revalidate `waiting` semantics.
 
 Part of the [`effect-svelte`](https://github.com/thomasfosterau/effect-svelte)
@@ -45,7 +45,7 @@ npm install @thomasfosterau/effect-svelte effect@beta svelte
   `useQuery`, `useDerived`, `useStream`, `useSubscriptionRef`, `usePubSub`, and
   the keyed-reactivity hooks `reactiveQuery` / `reactiveStream` /
   `reactiveMutation` / `useInvalidateKeys`.
-- **Atoms** (`effect/unstable/reactivity`) — `useAtomResult` / `useAtom`, keyed
+- **Atoms** (`effect/reactivity`) — `useAtomResult` / `useAtom`, keyed
   invalidation with `invalidateAtomKeys`, and `makeAtomRegistry` /
   `provideAtomRegistry` for a configured (e.g. `defaultIdleTTL`) registry.
 - **Typeahead** — `useDebouncedSearch`: debounced, latest-wins, interruptible

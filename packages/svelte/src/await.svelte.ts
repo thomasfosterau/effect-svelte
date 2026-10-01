@@ -1,5 +1,5 @@
 import type { Effect } from "effect";
-import type * as AsyncResult from "effect/unstable/reactivity/AsyncResult";
+import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { resultToPromise } from "./internal/await.js";
 import type { RuntimeLike } from "./internal/run.js";
 import { useQuery } from "./query.svelte.js";

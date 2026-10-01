@@ -35,7 +35,7 @@ pnpm run dev
 
 - `src/lib/runtime.ts` builds the app runtime with `SvelteRuntime.extend`,
   merging the `TodoRepository` layer with `Reactivity.layer` from
-  `effect/unstable/reactivity`.
+  `effect/reactivity`.
 - `src/App.svelte` calls `provideRuntime(appRuntime)` once at the root.
 - `TodoApp.svelte` declares two `reactiveQuery`s over the repository — the
   visible (filtered) todos and the counts. Both depend on the `"todos"` key.

@@ -7,7 +7,7 @@
   shape a real page has, where a query atom's identity is its request.
 -->
 <script lang="ts">
-  import { AsyncResult, type Atom } from "effect/unstable/reactivity";
+  import { AsyncResult, type Atom } from "effect/reactivity";
   import { useAtomResult, type AtomRegistry } from "../../src/atom.svelte.js";
 
   interface Props {

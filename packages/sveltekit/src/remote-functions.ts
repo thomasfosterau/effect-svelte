@@ -17,7 +17,7 @@ import type {
   InvalidField,
 } from "@sveltejs/kit";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as HttpClient from "effect/http/HttpClient";
 import { Effect, type Schema } from "effect";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import {

@@ -128,7 +128,7 @@ export function useDebouncedSearch<T, E = never, R = never>(
         ),
       );
     }),
-    Stream.scan(empty, step),
+    Stream.scan(() => empty, step),
   );
 
   const view = useStream(stream, { runtime });

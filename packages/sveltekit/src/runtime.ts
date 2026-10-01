@@ -1,6 +1,6 @@
 import { Layer, ManagedRuntime, Context, Effect } from "effect";
-import * as HttpClient from "effect/unstable/http/HttpClient";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import * as HttpClient from "effect/http/HttpClient";
+import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type { RequestEvent } from "@sveltejs/kit";
 
 /**
@@ -23,7 +23,7 @@ export class SvelteKitRequestEvent extends Context.Service<SvelteKitRequestEvent
  * ```ts
  * import { SvelteKitRuntime } from '@thomasfosterau/effect-sveltekit/server';
  * import { Effect } from 'effect';
- * import * as HttpClient from 'effect/unstable/http/HttpClient';
+ * import * as HttpClient from 'effect/http/HttpClient';
  *
  * export const load = (event) => {
  *   const runtime = SvelteKitRuntime.forRequest(event);

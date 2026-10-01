@@ -13,7 +13,7 @@
  *    so a paged view names a different atom per window.
  */
 import { Effect } from "effect";
-import { Atom } from "effect/unstable/reactivity";
+import { Atom } from "effect/reactivity";
 import { tick } from "svelte";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { getAtomRegistry, invalidateAtomKeys, makeAtomRegistry } from "../../src/atom.svelte.js";

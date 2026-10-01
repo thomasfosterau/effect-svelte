@@ -75,7 +75,7 @@ export const load = (event) => Effect.succeed({ id: event.params.id });
   namespaces.
 - **Effect deployment adapter** — the generated app is a platform-neutral
   Effect `HttpApp` (`makeHandlerWith`): serve it as a production Node HTTP server
-  (`effect/unstable/http` + `@effect/platform-node`, the default) or as a Web
+  (`effect/http` + `@effect/platform-node`, the default) or as a Web
   `fetch` handler on Cloudflare Workers (`effectAdapter({ target: "fetch" })` /
   `toWebHandler`). Asset serving is a pluggable `AssetSource`
   (`AssetSource.fileSystem` for Node, `AssetSource.cloudflareAssets(env.ASSETS)`
