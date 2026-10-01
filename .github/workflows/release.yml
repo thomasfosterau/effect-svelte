@@ -38,9 +38,11 @@ jobs:
       # npm Trusted Publishing (OIDC) requires npm >= 11.5. `changeset publish`
       # shells out to `pnpm publish`, which on pnpm 10 hands the upload to the
       # npm CLI, so upgrade it for the `id-token` below to be used instead of a
-      # long-lived NPM_TOKEN.
+      # long-lived NPM_TOKEN. Pinned to a major rather than `@latest`, so a new
+      # npm major cannot reach this job, which holds `id-token: write`, without
+      # a reviewed change here (#100).
       - name: Ensure npm supports OIDC trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       # When changesets are pending, this opens/updates a "Version Packages" PR
       # (via `pnpm run version`). Once that PR is merged (no changesets remain),
