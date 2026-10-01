@@ -13,7 +13,7 @@ monorepo. For the SvelteKit integration, see
 ## Installation
 
 ```bash
-npm install @thomasfosterau/effect-svelte effect@beta svelte
+npm install @thomasfosterau/effect-svelte effect@rc svelte
 ```
 
 ## Usage

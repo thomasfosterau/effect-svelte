@@ -13,9 +13,9 @@ for the Svelte runes hooks.
 ## Installation
 
 ```bash
-npm install @thomasfosterau/effect-sveltekit effect@beta svelte @sveltejs/kit
+npm install @thomasfosterau/effect-sveltekit effect@rc svelte @sveltejs/kit
 # the Effect deployment adapter additionally needs:
-npm install @effect/platform-node@beta
+npm install @effect/platform-node@rc
 ```
 
 ## Entry points
