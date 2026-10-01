@@ -23,15 +23,13 @@ In an agent session the committed SessionStart hook ([.claude/hooks/session-star
 
 ## Development workflow
 
-| Command                                 | Description                                                                                                                                                                           |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vp check`                              | Format check (Oxfmt), lint (Oxlint) and type-check (tsgolint), configured in the root `vite.config.ts`. `vp check --fix` applies the fixes. There is no separate `vp run check` task. |
-| `vp fmt` / `vp lint`                    | Either half on its own.                                                                                                                                                               |
-| `vp run -r test`                        | Every package's Vitest suite. `vp test` inside a package for one suite; `vp test run tests/<file>.test.ts` for one file.                                                              |
-| `vp run -r build`                       | `vp pack` (tsdown) into each package's `dist/`, then the example apps' `vp build`.                                                                                                    |
-| `vp run --filter "example-*" typecheck` | svelte-check every example app. Needs the packages' `dist/`, so build first.                                                                                                          |
-| `vp run --filter "example-*" build`     | Build every example app.                                                                                                                                                              |
-| `pnpm changeset`                        | Add a changeset (see below).                                                                                                                                                          |
+The gate commands are listed in [AGENTS.md § Commands](AGENTS.md#commands). Beyond those:
+
+| Command                                        | Description                               |
+| ---------------------------------------------- | ----------------------------------------- |
+| `vp check --fix`                               | Apply format and lint fixes.              |
+| `vp fmt` / `vp lint`                           | Either half of `vp check` on its own.     |
+| `vp test` / `vp test run tests/<file>.test.ts` | Inside a package: one suite, or one file. |
 
 Lint and format are configured once at the workspace root (`vite.config.ts`, which excludes `examples/**` from the type-aware lint because the examples only resolve after a build); each package's own `vite.config.ts` holds its `pack` and `test` config.
 
@@ -59,9 +57,9 @@ The changeset file is committed with your change. Releases happen when the owner
 ## Pre-PR checklist
 
 1. Run every gate in [AGENTS.md § Verification](AGENTS.md#verification) and note each result in the PR body.
-2. Add a changeset (`pnpm changeset`) for every change to a published package.
+2. Add a changeset where [AGENTS.md § Branches and pull requests](AGENTS.md#branches-and-pull-requests) requires one.
 3. `git fetch origin main && git rebase origin/main` — never merge `main` into your branch.
-4. Update the docs: the API reference in the READMEs for any exported change, `examples/README.md` if an example's coverage changed, `AGENTS.md` for a new invariant.
+4. Update the docs: the package `README.md` (the npm API reference) for any exported change, `examples/README.md` if an example's coverage changed, `AGENTS.md` for a new invariant.
 
 ## Commit messages
 

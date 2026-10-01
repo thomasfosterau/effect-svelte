@@ -4,7 +4,7 @@
 
 | Package                            | Directory            | Purpose / boundary                                                                                                                |
 | ---------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `@thomasfosterau/effect-svelte`    | `packages/svelte`    | Svelte 5 runes bindings. Peers `effect`, `svelte`; no SvelteKit.                                                                  |
+| `@thomasfosterau/effect-svelte`    | `packages/svelte`    | Effect integration for Svelte 5 runes. Peers `effect`, `svelte`; no SvelteKit.                                                    |
 | `@thomasfosterau/effect-sveltekit` | `packages/sveltekit` | SvelteKit wrappers, remote functions, the `effectKit()` Vite plugin and an Effect deployment adapter. Depends on `effect-svelte`. |
 
 ## Common pitfalls
@@ -47,7 +47,7 @@ If a gate can't run here, say which and why in the PR body; never imply it ran.
 ## Branches and pull requests
 
 - Branch off `main`; PR against `main`; squash-merge. Name branches `issue-<n>-<slug>` for issue work. Rebase onto `origin/main` before opening or updating a PR; never merge `main` into your branch (GitHub's Update-branch button merges).
-- Every change to a published package carries a changeset (`pnpm changeset`); CI-, tooling- and example-only changes need none. Never publish or version by hand: the Release workflow opens the "Version Packages" PR and the owner merges it ([docs/RELEASING.md](docs/RELEASING.md)).
+- Every change to a published package's behaviour, TSDoc or `README.md` (both ship to npm) carries a changeset (`pnpm changeset`); docs-, CI-, tooling- and example-only changes elsewhere need none. Never publish or version by hand: the Release workflow opens the "Version Packages" PR and the owner merges it ([docs/RELEASING.md](docs/RELEASING.md)).
 - Open a PR once a branch is pushed, watch it until it merges or closes (CI failures, review comments, conflicts), and keep its body current with what the branch does.
 - GitHub writes go to `thomasfosterau/effect-svelte` only; pass `-R thomasfosterau/effect-svelte` whenever the cwd might be another checkout. Use the `gh` CLI for GitHub operations, even when GitHub MCP tools are available.
 
@@ -84,7 +84,7 @@ The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's
 
 ## Documentation surfaces
 
-- Root `README.md` — the API guide for both packages; package `README.md`s — the npm landing pages.
+- Package `README.md`s — the npm API reference (npm shows only these; links into the repo stay relative, but a consumer must not need them); root `README.md` — the landing page.
 - `docs/cookbook.md` — recipes; `examples/README.md` — which export each example exercises.
 - `CONTRIBUTING.md` — setup and the pre-PR checklist; `SECURITY.md` — reporting and supply-chain posture; `docs/RELEASING.md` — the release pipeline and one-time owner setup.
 - Decisions — issue comments.

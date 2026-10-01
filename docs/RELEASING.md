@@ -83,15 +83,6 @@ configuring outside the repo:
 
 If the workflow can't open the PR (e.g. setting #1 above is still off), the
 `changeset-release/main` branch is still pushed with the correct version bump —
-open the "Version Packages" PR from that branch by hand. You can also run the
-version step locally:
-
-```bash
-pnpm run version        # apply pending changesets -> bumps + CHANGELOGs
-git switch -c version-packages
-git commit -am "Version Packages"
-# open a PR; merging it triggers the publish
-```
-
-Never run `pnpm run release` locally: publishing works only from the Release
-workflow, which holds the OIDC identity npm trusts.
+open the "Version Packages" PR from that branch by hand. Don't run
+`pnpm run version` or `pnpm run release` locally: versioning and publishing
+happen only in the Release workflow, which holds the OIDC identity npm trusts.
