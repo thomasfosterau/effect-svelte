@@ -3,10 +3,10 @@
 Effect v4 integrations for Svelte 5 runes and SvelteKit, published as two npm
 packages from this monorepo.
 
-| Package                                                           | Directory            | Purpose                                                                                                                         |
-| ----------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| [`@thomasfosterau/effect-svelte`](./packages/svelte#readme)       | `packages/svelte`    | Svelte 5 runes bindings: a runtime context, hooks that expose an `AsyncResult` via `.current`, atoms, and store interop.        |
-| [`@thomasfosterau/effect-sveltekit`](./packages/sveltekit#readme) | `packages/sveltekit` | SvelteKit load/action/endpoint/hook wrappers, remote functions, the `effectKit()` Vite plugin and an Effect deployment adapter. |
+| Package                                                           | Directory            | Purpose                                                                                                                                |
+| ----------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@thomasfosterau/effect-svelte`](./packages/svelte#readme)       | `packages/svelte`    | Effect integration for Svelte 5 runes: a runtime context, hooks that expose an `AsyncResult` via `.current`, atoms, and store interop. |
+| [`@thomasfosterau/effect-sveltekit`](./packages/sveltekit#readme) | `packages/sveltekit` | SvelteKit load/action/endpoint/hook wrappers, remote functions, the `effectKit()` Vite plugin and an Effect deployment adapter.        |
 
 Each package's README is its API reference; [`docs/cookbook.md`](./docs/cookbook.md)
 holds longer recipes.
