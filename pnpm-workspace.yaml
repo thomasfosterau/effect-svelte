@@ -24,14 +24,14 @@ catalog:
   "@effect/language-service": ^0.87.3
   "@effect/platform-node": 4.0.0
   "@standard-schema/spec": ^1.1.0
-  "@sveltejs/kit": ^2.70.2
-  "@sveltejs/vite-plugin-svelte": ^7.1.2
+  "@sveltejs/kit": ^2.70.3
+  "@sveltejs/vite-plugin-svelte": ^7.3.1
   "@types/node": ^26.6.3
   effect: 4.0.0
   happy-dom: ^20.14.5
   magic-string: ^1.4.2
-  svelte: ^5.46.4
-  svelte-check: ^4.0.0
+  svelte: ^5.57.1
+  svelte-check: ^4.7.6
   todomvc-app-css: ^2.4.3
   # TypeScript 6/7 side-by-side: TS7 (the native Go compiler) ships no JS API
   # until 7.1, so JS-API consumers (@effect/language-service, svelte-check, the
