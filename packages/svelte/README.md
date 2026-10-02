@@ -15,7 +15,7 @@ pnpm add @thomasfosterau/effect-svelte effect@rc svelte
 `effect` (`>=4.0.0-rc.118`) and `svelte` (`^5.40.0`) are required peers. Keep a
 single copy of `effect` in your app — two copies break `Context` / `Layer` /
 `Schema` identity — and keep every `@effect/*` package on the same
-`4.0.0-rc.x` version as `effect`.
+exact version as `effect`.
 
 ## Usage
 

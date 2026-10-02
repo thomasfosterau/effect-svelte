@@ -21,7 +21,7 @@ pnpm add @effect/platform-node@rc
 HTTP modules that lived in `@effect/platform` in v3 are part of `effect` itself
 in v4 (`effect/http`), so no other Effect package is needed. Keep a single copy
 of `effect`, and keep `effect` and `@effect/platform-node` on the same
-`4.0.0-rc.x` version.
+exact version.
 
 ## Usage
 

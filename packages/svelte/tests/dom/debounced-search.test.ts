@@ -63,8 +63,20 @@ describe("useDebouncedSearch", () => {
   });
 
   it("keeps the previous results while the next search is pending, and resets on an empty query", async () => {
+    // The "beta" search is held on a gate the test opens, so the pending state
+    // lasts exactly until the assertions have run. A fixed sleep here raced
+    // `expect.poll`'s 50 ms sampling interval: the pending window (debounce plus
+    // sleep) ended right as the second sample fired, so a loaded runner sampled
+    // only "idle".
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const { target, emit, runtime } = setup(
-      (q) => Effect.sleep(Duration.millis(40)).pipe(Effect.map(() => filter(q))),
+      (q) =>
+        (q === "beta" ? Effect.promise(() => gate) : Effect.sleep(Duration.millis(5))).pipe(
+          Effect.map(() => filter(q)),
+        ),
       10,
     );
     await flush();
@@ -75,6 +87,7 @@ describe("useDebouncedSearch", () => {
     emit("beta");
     await expect.poll(() => text(target, "pending")).toBe("pending");
     expect(results(target)).toEqual(["Parent Issue alpha"]);
+    release();
     await expect.poll(() => results(target)).toEqual(["Parent Issue beta"]);
 
     emit("   ");
