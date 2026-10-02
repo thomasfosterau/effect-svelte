@@ -12,7 +12,7 @@
 # installs with `--frozen-lockfile`, so a stale lockfile fails at once.
 #
 # Shape copied from the library standard (effect-drizzle-ext / effect-jsonapi).
-# The Effect line is the programme-wide `4.0.0` (peer floor stays `>=4.0.0-rc.118`) (website#2015).
+# The Effect line is the programme-wide `4.0.0` (website#2015); the peer floor stays `>=4.0.0-rc.118`.
 packages:
   - "packages/*"
   - "examples/*"
