@@ -82,6 +82,7 @@
     "magic-string": "catalog:"
   },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

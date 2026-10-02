@@ -12,7 +12,7 @@
 # installs with `--frozen-lockfile`, so a stale lockfile fails at once.
 #
 # Shape copied from the library standard (effect-drizzle-ext / effect-jsonapi).
-# The Effect line is the programme-wide `4.0.0-rc.118` (website#2015).
+# The Effect line is the programme-wide `4.0.0` (peer floor stays `>=4.0.0-rc.118`) (website#2015).
 packages:
   - "packages/*"
   - "examples/*"
@@ -22,12 +22,12 @@ catalogMode: strict
 catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.3
-  "@effect/platform-node": 4.0.0-rc.118
+  "@effect/platform-node": 4.0.0
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^2.70.2
   "@sveltejs/vite-plugin-svelte": ^7.1.2
   "@types/node": ^26.6.3
-  effect: 4.0.0-rc.118
+  effect: 4.0.0
   happy-dom: ^20.14.5
   magic-string: ^1.4.2
   svelte: ^5.46.4
@@ -68,7 +68,7 @@ overrides:
   vite: "catalog:"
   vitest: "catalog:"
   # Keep the transitive `platform-node-shared` on the same release as effect.
-  "@effect/platform-node-shared": 4.0.0-rc.118
+  "@effect/platform-node-shared": 4.0.0
   # `effect` MUST be a singleton (see the header): force every resolution to
   # the catalog version so a hoisting reshuffle cannot introduce a second copy.
   effect: "catalog:"
