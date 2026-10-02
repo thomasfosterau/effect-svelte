@@ -1,5 +1,13 @@
 # @thomasfosterau/effect-svelte
 
+## 0.4.1
+
+### Patch Changes
+
+- d8b1fc7: Docs: every exported option and return type now has a TSDoc summary, the `Remote.call*` / `submitForm*` helpers and the standalone remote-function exports (`query`, `form`, `command`, `prerender`, `requested`, `RemoteFunction`) are documented, including that a rejected remote call surfaces as a defect (#101), and the `effect-svelte` module header describes the package.
+- 3ad9c87: Tested against effect 4.0.0 (and `@effect/platform-node` 4.0.0); peer floor unchanged at `>=4.0.0-rc.118`. README: the version guidance now says to keep `effect` and its companions on the same exact version rather than the same `4.0.0-rc.x` one.
+- 52734ab: Docs: the package README is now the full API reference (moved from the monorepo README), including every published entry point (`./testing`, `./adapter/handler`, `./adapter/serve`) and the hooks the summary had left out.
+
 ## 0.4.0
 
 ### Minor Changes
