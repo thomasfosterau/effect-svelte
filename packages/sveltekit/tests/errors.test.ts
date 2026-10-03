@@ -7,7 +7,7 @@
  */
 import { error, isHttpError, isRedirect } from "@sveltejs/kit";
 import { Cause, Effect, Layer, Schema } from "effect";
-import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import * as Errors from "../src/errors.js";
 import { EffectCauseError } from "../src/internal/error.js";
 import { KitError } from "../src/kit.js";
@@ -64,6 +64,10 @@ const captureThrow = (cause: Cause.Cause<unknown>): Thrown => {
 };
 
 describe("Errors.toSvelteKit", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("maps NotFound to a 404 with the catalogue's message", () => {
     const thrown = captureThrow(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
     expect(isHttpError(thrown)).toBe(true);
@@ -132,8 +136,6 @@ describe("Errors.toSvelteKit", () => {
       withCode(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
     } catch (caught) {
       thrown = caught;
-    } finally {
-      warn.mockRestore();
     }
     expect(isHttpError(thrown, 404)).toBe(true);
     expect((thrown as { body: unknown }).body).toEqual({

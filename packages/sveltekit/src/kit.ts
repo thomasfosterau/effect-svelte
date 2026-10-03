@@ -129,7 +129,7 @@ const baseTranslate: KitErrorTranslator = (cause) => {
   }
 
   if (squashed instanceof KitError) {
-    // error() is typed as () => never — throws internally.
+    // throwKitError() is typed as never: it always throws Kit's HttpError.
     throwKitError(squashed.status, squashed.body);
   }
 
