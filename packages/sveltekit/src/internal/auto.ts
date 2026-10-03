@@ -15,18 +15,14 @@
  * This module is internal — the public Vite plugin generates references to it.
  */
 
+import type { Action, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import type {
-  Action,
-  Actions,
   Handle,
   HandleClientError,
   HandleFetch,
   HandleServerError,
-  Load,
-  RequestEvent,
   Reroute,
-  ServerLoad,
-} from "@sveltejs/kit";
+} from "@sveltejs/kit/hooks";
 import { Effect, Exit } from "effect";
 import {
   makeServerRuntime,

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import CommentThread from "$lib/components/CommentThread.svelte";
-  import { hostname, timeAgo } from "$lib/format";
-  import type { Item } from "$lib/hn/schema";
+  import CommentThread from "#lib/components/CommentThread.svelte";
+  import { hostname, timeAgo } from "#lib/format.ts";
+  import type { Item } from "#lib/hn/schema.ts";
 
   // The explicit serverLoad wrapper preserves the load's return type, so
   // PageProps from ./$types would work here too; the prop is typed

@@ -12,17 +12,8 @@
  * deduplication, relative URLs) keep working as expected.
  */
 
-import type {
-  Action,
-  Actions,
-  Handle,
-  HandleFetch,
-  HandleServerError,
-  Load,
-  RequestEvent,
-  ServerInit,
-  ServerLoad,
-} from "@sveltejs/kit";
+import type { Action, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type { Handle, HandleFetch, HandleServerError, ServerInit } from "@sveltejs/kit/hooks";
 import { Context, Effect, type Fiber, Exit, Layer, ManagedRuntime, Scope } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -313,9 +304,9 @@ export interface ServerRuntime<R = never, E = never> {
  *
  * ```ts
  * // src/routes/items/+page.server.ts
- * import { runtime } from '$lib/server/runtime';
+ * import { runtime } from '#lib/server/runtime.ts';
  * import { Effect } from 'effect';
- * import { Database } from '$lib/server/database';
+ * import { Database } from '#lib/server/database.ts';
  *
  * export const load = runtime.serverLoad((event) =>
  *   Effect.gen(function* () {
@@ -513,16 +504,16 @@ export interface UniversalRuntime<R = never, E = never> {
  * ```ts
  * // src/lib/runtime.ts
  * import { makeUniversalRuntime } from '@thomasfosterau/effect-sveltekit';
- * import { ApiClient } from '$lib/api';
+ * import { ApiClient } from '#lib/api.ts';
  *
  * export const runtime = makeUniversalRuntime(ApiClient.layer);
  * ```
  *
  * ```ts
  * // src/routes/+page.ts
- * import { runtime } from '$lib/runtime';
+ * import { runtime } from '#lib/runtime.ts';
  * import { Effect } from 'effect';
- * import { ApiClient } from '$lib/api';
+ * import { ApiClient } from '#lib/api.ts';
  *
  * export const load = runtime.load((event) =>
  *   Effect.gen(function* () {

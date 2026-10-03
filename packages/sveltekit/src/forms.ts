@@ -30,7 +30,7 @@
  */
 
 import { applyAction as kitApplyAction, deserialize as kitDeserialize } from "$app/forms";
-import type { ActionResult } from "@sveltejs/kit";
+import type { ActionResult } from "$app/forms";
 import { Effect } from "effect";
 import { makeSubmitFunction } from "./internal/enhance.js";
 

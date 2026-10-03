@@ -22,7 +22,7 @@
  * ```
  */
 
-import type { ClientInit, HandleClientError } from "@sveltejs/kit";
+import type { ClientInit, HandleClientError } from "@sveltejs/kit/hooks";
 import { Effect, Exit } from "effect";
 import { causeToThrowable } from "../internal/error.js";
 

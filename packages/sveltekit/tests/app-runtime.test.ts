@@ -124,10 +124,9 @@ describe("makeServerRuntime", () => {
       Effect.map(Greeter, (g) => ({ message: g.greet(String((error as Error).message)) })),
     );
     const appError = await handleError({
+      kind: "unknown",
       error: new Error("boom"),
       event: mockEvent(),
-      status: 500,
-      message: "Internal Error",
     });
     expect(appError).toEqual({ message: "hello boom" });
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import StoryItem from "$lib/components/StoryItem.svelte";
-  import { LIST_TITLES, STORIES_PER_PAGE, type ListKind } from "$lib/hn/lists";
-  import type { StoryPage } from "$lib/hn/schema";
+  import StoryItem from "#lib/components/StoryItem.svelte";
+  import { LIST_TITLES, STORIES_PER_PAGE, type ListKind } from "#lib/hn/lists.ts";
+  import type { StoryPage } from "#lib/hn/schema.ts";
 
   // The load for this route is a bare Effect wrapped by the effectKit()
   // plugin, so SvelteKit's generated $types cannot describe the data shape.

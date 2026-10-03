@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { SubmitFunction } from "@sveltejs/kit";
+import type { SubmitFunction } from "$app/forms";
 import { Context, Effect } from "effect";
 import { makeSubmitFunction } from "../src/internal/enhance.js";
 

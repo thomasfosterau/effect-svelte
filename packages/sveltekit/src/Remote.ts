@@ -5,7 +5,7 @@ import type {
   RemoteQuery,
   RemoteQueryFunction,
   RemoteQueryOverride,
-} from "@sveltejs/kit";
+} from "$app/server";
 import { Effect, Stream } from "effect";
 
 function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unknown, never> {

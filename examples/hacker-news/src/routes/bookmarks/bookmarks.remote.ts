@@ -1,12 +1,12 @@
 import { Effect, Schema } from "effect";
 import { RemoteFunction } from "@thomasfosterau/effect-sveltekit/server";
-import { Bookmarks } from "$lib/server/bookmarks";
+import { Bookmarks } from "#lib/server/bookmarks.ts";
 
 /**
  * SvelteKit remote functions
  * (https://svelte.dev/docs/kit/remote-functions) written as Effects via
- * `RemoteFunction`. Requires `kit.experimental.remoteFunctions: true` in
- * svelte.config.js.
+ * `RemoteFunction`. Requires `experimental.remoteFunctions: true` in the
+ * `sveltekit()` options in vite.config.ts.
  *
  * Effect Schema doubles as the Standard Schema validator for inputs via
  * `Schema.toStandardSchemaV1`.

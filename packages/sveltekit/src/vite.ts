@@ -258,7 +258,7 @@ export interface EffectKitPluginOptions {
    * `+layout.server.ts`, `+server.ts`, `hooks.server.ts`) have access to the
    * services of that runtime's layer.
    *
-   * @example "$lib/server/runtime"
+   * @example "#lib/server/runtime.ts"
    */
   serverRuntime?: string;
 
@@ -270,7 +270,7 @@ export interface EffectKitPluginOptions {
    * `+layout.ts`, `hooks.client.ts`) have access to the services of that
    * runtime's layer. The module must be safe to import in the browser.
    *
-   * @example "$lib/runtime"
+   * @example "#lib/runtime.ts"
    */
   clientRuntime?: string;
 }

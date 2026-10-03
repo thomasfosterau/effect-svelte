@@ -1,8 +1,8 @@
 /**
  * Runtime handler for the Effect SvelteKit adapter.
  *
- * `makeHandler` turns a built SvelteKit app (the `Server` class and manifest
- * emitted by `vite build`) into an Effect HTTP application that serves
+ * `makeHandler` turns a built SvelteKit app (the `server` instance the adapter
+ * generates with `builder.generateServerInstance`) into an Effect HTTP application that serves
  * static client assets, prerendered pages, and server-side rendered routes from
  * disk — the Node default.
  *
@@ -17,7 +17,7 @@
  * (see {@link toWebHandler}).
  */
 
-import type { SSRManifest, Server as SvelteKitServer } from "@sveltejs/kit";
+import type { Server as SvelteKitServer } from "@sveltejs/kit";
 import * as FileSystem from "effect/FileSystem";
 import * as HttpMethod from "effect/http/HttpMethod";
 import * as HttpEffect from "effect/http/HttpEffect";
@@ -50,10 +50,15 @@ export type SvelteKitHttpApp<R = SvelteKitHttpAppServices> = Effect.Effect<
 
 /** The SvelteKit build output {@link makeHandler} serves. */
 export interface SvelteKitHandlerOptions {
-  /** The SvelteKit `Server` class exported by the build output (`./server/index.js`). */
-  readonly Server: typeof SvelteKitServer;
-  /** The SSR manifest exported by the build output (`./manifest.js`). */
-  readonly manifest: SSRManifest;
+  /** The SvelteKit `server` instance exported by the build output (`./server.js`). */
+  readonly server: SvelteKitServer;
+  /**
+   * The application path, including any `paths.base` without its leading
+   * slash (`"_app"`, or `"my-app/_app"` under a base), exported by the build
+   * output (`./manifest.js`). Its `immutable/` subtree gets immutable cache
+   * headers.
+   */
+  readonly appPath: string;
   /** The set of prerendered paths exported by the build output (`./manifest.js`). */
   readonly prerendered: ReadonlySet<string>;
   /** The configured `paths.base`, exported by the build output (`./manifest.js`). */
@@ -68,10 +73,8 @@ export interface SvelteKitHandlerOptions {
 
 /** Options for the platform-neutral SSR core, {@link makeHandlerWith}. */
 export interface SvelteKitNeutralHandlerOptions<RAssets> {
-  /** The SvelteKit `Server` class exported by the build output. */
-  readonly Server: typeof SvelteKitServer;
-  /** The SSR manifest exported by the build output. */
-  readonly manifest: SSRManifest;
+  /** The SvelteKit `server` instance exported by the build output (`./server.js`). */
+  readonly server: SvelteKitServer;
   /** Environment variables passed to the SvelteKit server. */
   readonly env?: Record<string, string | undefined> | undefined;
   /** Prefix for the runtime configuration environment variables (ORIGIN, ...). */
@@ -194,8 +197,7 @@ export const makeHandler = (
     const serverDir = path.join(options.dir, "server");
 
     return yield* makeHandlerWith<SvelteKitHttpAppServices>({
-      Server: options.Server,
-      manifest: options.manifest,
+      server: options.server,
       env: options.env,
       envPrefix: options.envPrefix,
       // `read` backs the `read()` helper from `$app/server`, streaming server
@@ -203,7 +205,7 @@ export const makeHandler = (
       read: (file) => Stream.toReadableStreamWith(fs.stream(path.join(serverDir, file)), context),
       assets: AssetSource.fileSystem({
         dir: options.dir,
-        appPath: options.manifest.appPath,
+        appPath: options.appPath,
         prerendered: options.prerendered,
       }),
     });
@@ -225,14 +227,13 @@ export const makeHandler = (
  * ```ts
  * // Workers: a fetch handler with assets from env.ASSETS
  * import { makeHandlerWith, AssetSource, toWebHandler } from "...adapter/handler";
- * import { Server } from "./server/index.js";
- * import { manifest } from "./manifest.js";
+ * import { server } from "./server.js";
  *
  * export default {
  *   fetch: (request, env, ctx) =>
  *     toWebHandler(
  *       makeHandlerWith({
- *         Server, manifest, env,
+ *         server, env,
  *         assets: AssetSource.cloudflareAssets(env.ASSETS),
  *         read: () => { throw new Error("read() not supported on this deployment"); },
  *       }),
@@ -247,10 +248,10 @@ export const makeHandlerWith = <RAssets = never>(
     const config = yield* handlerConfig(options.envPrefix ?? "").pipe(Effect.orDie);
 
     // Initialise the SvelteKit server. `read` backs `read()` from `$app/server`.
-    const server = new options.Server(options.manifest);
+    const server = options.server;
     yield* Effect.promise(() =>
       server.init({
-        env: (options.env ?? {}) as Record<string, string>,
+        env: options.env ?? {},
         read: options.read,
       }),
     );

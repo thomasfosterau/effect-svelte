@@ -16,7 +16,7 @@ pnpm add @effect/platform-node@rc
 ```
 
 `effect` (`>=4.0.0-rc.118`) and `svelte` (`^5.40.0`) are required peers;
-`@sveltejs/kit` (`^2.0.0 || ^3.0.0-next.0`), `vite` (for `./vite`) and
+`@sveltejs/kit` (`^3.0.0`), `vite` (for `./vite`) and
 `@effect/platform-node` (`>=4.0.0-rc.118`, for `./adapter`) are optional. The
 HTTP modules that lived in `@effect/platform` in v3 are part of `effect` itself
 in v4 (`effect/http`), so no other Effect package is needed. Keep a single copy
@@ -153,9 +153,9 @@ export const runtime = makeServerRuntime(Database.layer);
 
 ```ts
 // src/routes/items/+page.server.ts
-import { runtime } from "$lib/server/runtime";
+import { runtime } from "#lib/server/runtime.ts";
 import { Effect } from "effect";
-import { Database } from "$lib/server/database";
+import { Database } from "#lib/server/database.ts";
 
 export const load = runtime.serverLoad((event) =>
   Effect.gen(function* () {
@@ -175,7 +175,7 @@ Vite plugin, point the plugin at the runtime module:
 
 ```ts
 // vite.config.ts
-effectKit({ serverRuntime: "$lib/server/runtime" });
+effectKit({ serverRuntime: "#lib/server/runtime.ts" });
 ```
 
 #### One runtime per request
@@ -187,7 +187,7 @@ built once and sharing a single request scope — and stores it on `event.locals
 
 ```ts
 // src/hooks.server.ts
-import { runtime } from "$lib/server/runtime";
+import { runtime } from "#lib/server/runtime.ts";
 import { Effect } from "effect";
 
 export const handle = runtime.handle(({ event, resolve }) =>
@@ -223,13 +223,15 @@ A SvelteKit [adapter](https://svelte.dev/docs/kit/adapters) (like
 configuration, request tracing spans, and graceful shutdown through Effect
 scopes:
 
-```js
-// svelte.config.js
+```ts
+// vite.config.ts
+import { sveltekit } from "@sveltejs/kit/vite";
 import adapter from "@thomasfosterau/effect-sveltekit/adapter";
+import { defineConfig } from "vite";
 
-export default {
-  kit: { adapter: adapter() },
-};
+export default defineConfig({
+  plugins: [sveltekit({ adapter: adapter() })],
+});
 ```
 
 ```bash
@@ -297,7 +299,7 @@ import {
   RequestRuntime,
 } from "@thomasfosterau/effect-sveltekit/server";
 import { error } from "@sveltejs/kit";
-import type { AppError } from "$lib/errors"; // NotFound | Unauthorized | Forbidden | Redirect | HttpError | JsonapiError
+import type { AppError } from "#lib/errors.ts"; // NotFound | Unauthorized | Forbidden | Redirect | HttpError | JsonapiError
 
 export const { serverLoad, endpoint } = makeRuntimeAdapter(
   RequestRuntime.fromLocals((event) => event.locals.runtime),
@@ -334,8 +336,8 @@ paths line up:
 ```ts
 // src/routes/api/[...path]/+server.ts
 import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
-import { api } from "$lib/server/api";
-import { ApiLive } from "$lib/server/handlers"; // HttpApiBuilder.group(...) + your services
+import { api } from "#lib/server/api.ts";
+import { ApiLive } from "#lib/server/handlers.ts"; // HttpApiBuilder.group(...) + your services
 
 export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
 ```
@@ -367,7 +369,7 @@ import {
   Hooks,
 } from "@thomasfosterau/effect-sveltekit/client";
 
-// e.g. Navigation.goto('/done'), Navigation.invalidateAll(),
+// e.g. Navigation.goto('/done'), Navigation.refreshAll(),
 //      Remote.callQuery(getTodos), State.page()
 ```
 
@@ -423,7 +425,7 @@ export const transport = Hooks.transport({ ResponseHeaders: Hooks.responseHeader
 
 // src/hooks.server.ts
 import { ResponseHeaders } from "@thomasfosterau/effect-sveltekit";
-import type { Handle } from "@sveltejs/kit";
+import type { Handle } from "@sveltejs/kit/hooks";
 
 export const handle: Handle = async ({ event, resolve }) => {
   event.locals.headers = new ResponseHeaders();

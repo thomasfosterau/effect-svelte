@@ -2,7 +2,7 @@
   import { Effect } from "effect";
   import { AsyncResult, useEffect, useQuery } from "@thomasfosterau/effect-svelte";
   import { Remote } from "@thomasfosterau/effect-sveltekit";
-  import { timeAgo } from "$lib/format";
+  import { timeAgo } from "#lib/format.ts";
   import { addBookmark, getBookmarks, removeBookmark } from "./bookmarks.remote";
 
   // -- Reading -------------------------------------------------------------

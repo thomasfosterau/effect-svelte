@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { timeAgo } from "$lib/format";
-  import type { User } from "$lib/hn/schema";
+  import { timeAgo } from "#lib/format.ts";
+  import type { User } from "#lib/hn/schema.ts";
 
   let { data }: { data: { user: User } } = $props();
 </script>

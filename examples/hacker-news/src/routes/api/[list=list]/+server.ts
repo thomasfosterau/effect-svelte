@@ -1,8 +1,8 @@
 import { error, json } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { runtime } from "$lib/server/runtime";
-import { isListKind } from "$lib/hn/lists";
-import { HackerNews } from "$lib/hn/service";
+import { runtime } from "#lib/server/runtime.ts";
+import { isListKind } from "#lib/hn/lists.ts";
+import { HackerNews } from "#lib/hn/service.ts";
 
 /**
  * A JSON API endpoint using the app-wide runtime's `endpoint` wrapper:

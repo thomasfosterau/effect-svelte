@@ -4,6 +4,9 @@
   "private": true,
   "description": "Hacker News reader built with SvelteKit, Effect, and @thomasfosterau/effect-svelte",
   "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import StoryItem from "$lib/components/StoryItem.svelte";
-  import type { StoryPage } from "$lib/hn/schema";
+  import StoryItem from "#lib/components/StoryItem.svelte";
+  import type { StoryPage } from "#lib/hn/schema.ts";
 
   // The shape of the `search` action's result (success or fail(400, ...)).
   interface SearchForm {

@@ -178,9 +178,11 @@ describe("effectKit() runtime module options", () => {
 
   it("injects the serverRuntime module into server route files", () => {
     const result = runTransform(serverCode, "/app/src/routes/foo/+page.server.ts", {
-      serverRuntime: "$lib/server/runtime",
+      serverRuntime: "#lib/server/runtime.ts",
     });
-    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/server/runtime";');
+    expect(result.code).toContain(
+      'import * as __effect_kit_runtime from "#lib/server/runtime.ts";',
+    );
     expect(result.code).toContain(
       "export const load = wrapServerLoad(__effect_kit_orig_load, __effect_kit_runtime);",
     );
@@ -190,28 +192,30 @@ describe("effectKit() runtime module options", () => {
     const result = runTransform(
       `export const handle = ({ event, resolve }) => resolve(event);\n`,
       "/app/src/hooks.server.ts",
-      { serverRuntime: "$lib/server/runtime" },
+      { serverRuntime: "#lib/server/runtime.ts" },
     );
-    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/server/runtime";');
+    expect(result.code).toContain(
+      'import * as __effect_kit_runtime from "#lib/server/runtime.ts";',
+    );
     expect(result.code).toContain("wrapHandle(__effect_kit_orig_handle, __effect_kit_runtime)");
   });
 
   it("injects the clientRuntime module into universal route files", () => {
     const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
-      serverRuntime: "$lib/server/runtime",
-      clientRuntime: "$lib/runtime",
+      serverRuntime: "#lib/server/runtime.ts",
+      clientRuntime: "#lib/runtime.ts",
     });
-    expect(result.code).toContain('import * as __effect_kit_runtime from "$lib/runtime";');
+    expect(result.code).toContain('import * as __effect_kit_runtime from "#lib/runtime.ts";');
     expect(result.code).toContain(
       "export const load = wrapLoad(__effect_kit_orig_load, __effect_kit_runtime);",
     );
     // The server runtime must never leak into universal (client-reachable) files.
-    expect(result.code).not.toContain("$lib/server/runtime");
+    expect(result.code).not.toContain("#lib/server/runtime.ts");
   });
 
   it("does not inject the serverRuntime into universal files when no clientRuntime is set", () => {
     const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
-      serverRuntime: "$lib/server/runtime",
+      serverRuntime: "#lib/server/runtime.ts",
     });
     expect(result.code).not.toContain("__effect_kit_runtime");
     expect(result.code).toContain("export const load = wrapLoad(__effect_kit_orig_load);");

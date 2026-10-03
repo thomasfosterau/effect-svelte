@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Builder } from "@sveltejs/kit";
@@ -27,22 +27,17 @@ const mockBuilder = (calls: BuilderCall[]): Builder => {
       error: record("log.error"),
       warn: record("log.warn"),
     }),
-    rimraf: (dir: string) => {
-      calls.push({ method: "rimraf", args: [dir] });
-      rmSync(dir, { recursive: true, force: true });
-    },
-    mkdirp: (dir: string) => {
-      calls.push({ method: "mkdirp", args: [dir] });
-      mkdirSync(dir, { recursive: true });
-    },
-    config: { kit: { paths: { base: "" } } },
+    config: { paths: { base: "" } },
     prerendered: { paths: ["/about", "/"] },
     writeClient: record("writeClient", []),
     writePrerendered: record("writePrerendered", []),
     writeServer: record("writeServer", []),
     compress: record("compress", Promise.resolve()),
-    generateManifest: ({ relativePath }: { relativePath: string }) =>
-      `{"mock":true,"relativePath":${JSON.stringify(relativePath)}}`,
+    getAppPath: () => "_app",
+    generateServerInstance: (dest: string, opts?: { serverDirectory?: string }) => {
+      calls.push({ method: "generateServerInstance", args: [dest, opts] });
+      writeFileSync(dest, "export const server = {};");
+    },
   } as unknown as Builder;
 };
 
@@ -75,16 +70,30 @@ describe("effectAdapter", () => {
     rmSync(out, { recursive: true, force: true });
   });
 
-  it("generates manifest.js with the manifest, prerendered paths, and base", async () => {
+  it("generates server.js from the server output", async () => {
+    const out = makeOutDir();
+    const calls: BuilderCall[] = [];
+    const adapter = effectAdapter({ out, precompress: false });
+
+    await adapter.adapt(mockBuilder(calls));
+
+    const generate = calls.find((call) => call.method === "generateServerInstance");
+    expect(generate?.args).toEqual([`${out}/server.js`, { serverDirectory: `${out}/server` }]);
+    expect(existsSync(join(out, "server.js"))).toBe(true);
+
+    rmSync(out, { recursive: true, force: true });
+  });
+
+  it("generates manifest.js with the prerendered paths, base, and app path", async () => {
     const out = makeOutDir();
     const adapter = effectAdapter({ out, precompress: false });
 
     await adapter.adapt(mockBuilder([]));
 
     const manifest = readFileSync(join(out, "manifest.js"), "utf8");
-    expect(manifest).toContain('"relativePath":"./server"');
     expect(manifest).toContain('export const prerendered = new Set(["/about","/"]);');
     expect(manifest).toContain('export const base = "";');
+    expect(manifest).toContain('export const appPath = "_app";');
 
     rmSync(out, { recursive: true, force: true });
   });
@@ -102,8 +111,8 @@ describe("effectAdapter", () => {
     expect(handler).toContain(
       'import { makeHandler } from "@thomasfosterau/effect-sveltekit/adapter/handler"',
     );
-    expect(handler).toContain('import { Server } from "./server/index.js"');
-    expect(handler).toContain('import { manifest, prerendered, base } from "./manifest.js"');
+    expect(handler).toContain('import { server } from "./server.js"');
+    expect(handler).toContain('import { prerendered, base, appPath } from "./manifest.js"');
     expect(handler).toContain('envPrefix: "MY_"');
 
     const entry = readFileSync(join(out, "index.js"), "utf8");
@@ -173,7 +182,7 @@ describe("effectAdapter", () => {
     const out = makeOutDir();
     const calls: BuilderCall[] = [];
     const builder = mockBuilder(calls);
-    (builder.config.kit.paths as { base: string }).base = "/my-app";
+    (builder.config.paths as { base: string }).base = "/my-app";
 
     const adapter = effectAdapter({ out, precompress: false });
     await adapter.adapt(builder);
