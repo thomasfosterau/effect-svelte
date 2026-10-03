@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
 import { Cause, Effect, Exit, Layer } from "effect";
 import { KitActionFailure, KitError, KitRedirect, SvelteKit } from "../src/kit.js";
@@ -289,5 +289,60 @@ describe("endpoint with Kit errors", () => {
     const response = await handler(mockEvent());
     expect(response.status).toBe(500);
     expect((await response.json()).error).toContain("boom");
+  });
+});
+
+// ─── SvelteKit.translate → error(status, message, properties) ────────────────
+
+describe("SvelteKit.translate KitError bodies", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const translated = (failure: KitError): { status: number; body: Record<string, unknown> } => {
+    try {
+      SvelteKit.translate(Cause.fail(failure));
+    } catch (thrown) {
+      expect(isHttpError(thrown)).toBe(true);
+      return thrown as { status: number; body: Record<string, unknown> };
+    }
+    throw new Error("SvelteKit.translate did not throw");
+  };
+
+  it("passes a string body as the message", () => {
+    expect(translated(new KitError(404, "Not found")).body).toEqual({
+      status: 404,
+      message: "Not found",
+    });
+  });
+
+  it("uses Kit's default message when there is no body", () => {
+    expect(translated(new KitError(500)).body).toEqual({ status: 500, message: "Error: 500" });
+  });
+
+  it("splits an object body into the message and the extra App.Error properties", () => {
+    const thrown = translated(new KitError(409, { message: "Taken", code: "EMAIL_TAKEN" }));
+    expect(thrown.status).toBe(409);
+    expect(thrown.body).toEqual({ status: 409, message: "Taken", code: "EMAIL_TAKEN" });
+  });
+
+  it("keeps the KitError status over a status field in the body, and defaults the message", () => {
+    const thrown = translated(new KitError(422, { status: 400, code: "INVALID" }));
+    expect(thrown.status).toBe(422);
+    expect(thrown.body).toEqual({ status: 422, message: "Error: 422", code: "INVALID" });
+  });
+
+  it("drops a non-string message field in favour of Kit's default message", () => {
+    expect(translated(new KitError(500, { message: 42, code: "X" })).body).toEqual({
+      status: 500,
+      message: "Error: 500",
+      code: "X",
+    });
+  });
+
+  it("never reaches the deprecated error(status, body) overload", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    translated(new KitError(409, { message: "Taken", code: "EMAIL_TAKEN" }));
+    expect(warn).not.toHaveBeenCalled();
   });
 });

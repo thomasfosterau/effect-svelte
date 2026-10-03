@@ -51,8 +51,9 @@
  * @module
  */
 
-import { error as kitError, redirect as kitRedirect } from "@sveltejs/kit";
+import { redirect as kitRedirect } from "@sveltejs/kit";
 import { Cause, Predicate } from "effect";
+import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
 /** Any value carrying a string `_tag` — `Schema.TaggedError`, `Data.TaggedError`, … */
@@ -136,8 +137,7 @@ const defaultBody = (error: AnyTagged): string =>
     : error._tag;
 
 const throwError = (status: number, body: string | App.Error): never =>
-  // `error()`'s overloads split `App.Error` from `string`; both are valid bodies.
-  kitError(status, body as App.Error);
+  throwKitError(status, body as string | Readonly<Record<string, unknown>>);
 
 const apply = (entry: CatalogueEntry<AnyTagged>, error: AnyTagged): never => {
   if (Predicate.isNumber(entry)) return throwError(entry, defaultBody(error));
