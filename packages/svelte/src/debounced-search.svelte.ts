@@ -74,7 +74,7 @@ const defaultErrorMessage = (error: unknown): string =>
  * ```svelte
  * <script lang="ts">
  *   import { useDebouncedSearch } from "@thomasfosterau/effect-svelte";
- *   import { searchUsers } from "$lib/api";
+ *   import { searchUsers } from "#lib/api";
  *
  *   let query = $state("");
  *   const search = useDebouncedSearch({ search: searchUsers, debounce: "200 millis" });

@@ -29,7 +29,7 @@ export default defineConfig({
     deps: {
       // SvelteKit virtual modules are provided by the consumer's app.
       // Node builtins are only imported by the adapter modules, which run
-      // exclusively in Node (svelte.config.js / the production server).
+      // exclusively in Node (vite.config.ts / the production server).
       neverBundle: [/^\$app\//, /^node:/],
     },
   },

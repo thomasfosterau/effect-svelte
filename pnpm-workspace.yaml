@@ -24,7 +24,7 @@ catalog:
   "@effect/language-service": ^0.87.3
   "@effect/platform-node": 4.0.0
   "@standard-schema/spec": ^1.1.0
-  "@sveltejs/kit": 3.0.0
+  "@sveltejs/kit": ^3.0.0
   "@sveltejs/vite-plugin-svelte": ^7.3.1
   "@types/node": ^26.6.3
   effect: 4.0.0
