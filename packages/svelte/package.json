@@ -45,6 +45,7 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "svelte": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
