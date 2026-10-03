@@ -7,7 +7,7 @@
  */
 import { error, isHttpError, isRedirect } from "@sveltejs/kit";
 import { Cause, Effect, Layer, Schema } from "effect";
-import { describe, expect, expectTypeOf, it } from "vite-plus/test";
+import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import * as Errors from "../src/errors.js";
 import { EffectCauseError } from "../src/internal/error.js";
 import { KitError } from "../src/kit.js";
@@ -116,6 +116,33 @@ describe("Errors.toSvelteKit", () => {
     const document = JSON.parse(thrown.body?.message ?? "{}");
     expect(document.errors).toHaveLength(1);
     expect(document.jsonapi.version).toBe("1.1");
+  });
+
+  it("splits an App.Error message into error(status, message, properties)", () => {
+    const withCode = Errors.toSvelteKit<NotFound>({
+      NotFound: {
+        status: 404,
+        message: (e) =>
+          ({ message: `${e.resource} missing`, code: "NOT_FOUND" }) as unknown as App.Error,
+      },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let thrown: unknown;
+    try {
+      withCode(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
+    } catch (caught) {
+      thrown = caught;
+    } finally {
+      warn.mockRestore();
+    }
+    expect(isHttpError(thrown, 404)).toBe(true);
+    expect((thrown as { body: unknown }).body).toEqual({
+      status: 404,
+      message: "notes missing",
+      code: "NOT_FOUND",
+    });
+    // Kit warns once per call to the deprecated `error(status, body)` overload.
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("matches a tagged error that surfaced as a defect", () => {

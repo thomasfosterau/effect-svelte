@@ -42,9 +42,9 @@
  * ```
  */
 
-import { error as kitError, fail as kitFail, redirect as kitRedirect } from "@sveltejs/kit";
+import { fail as kitFail, redirect as kitRedirect } from "@sveltejs/kit";
 import { Cause, Effect } from "effect";
-import { causeToThrowable } from "./internal/error.js";
+import { causeToThrowable, throwKitError } from "./internal/error.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ const baseTranslate: KitErrorTranslator = (cause) => {
 
   if (squashed instanceof KitError) {
     // error() is typed as () => never — throws internally.
-    kitError(squashed.status as Parameters<typeof kitError>[0], squashed.body as any);
+    throwKitError(squashed.status, squashed.body);
   }
 
   if (squashed instanceof KitActionFailure) {
