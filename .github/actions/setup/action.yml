@@ -10,9 +10,10 @@ name: Setup toolchain
 description: Set up Node.js and pnpm, restore the package cache and install dependencies against the lockfile.
 inputs:
   node-version:
+    # CI tests one Node version, the latest stable release (#114).
     description: The Node.js version to set up.
     required: false
-    default: 22.x
+    default: latest
 runs:
   using: composite
   steps:

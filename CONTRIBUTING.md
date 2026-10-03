@@ -6,7 +6,7 @@ This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and 
 
 ### Prerequisites
 
-- Node.js `^20.19.0 || >=22.12.0` (`engines.node`); CI runs 22.x.
+- Node.js `^20.19.0 || >=22.12.0` (`engines.node`); CI runs the latest stable Node (`node-version: latest`).
 - [pnpm](https://pnpm.io) 10 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
 - Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`, or the root scripts (`pnpm run check`, `pnpm run test`, `pnpm run build`).
 
@@ -52,7 +52,7 @@ The changeset file is committed with your change. Releases happen when the owner
 
 ## CI expectations
 
-[ci.yml](.github/workflows/ci.yml) runs one job on Node 22.x for every push to and pull request against `main`: the gates listed in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `main` under the protected `release` environment.
+[ci.yml](.github/workflows/ci.yml) runs one job on the latest stable Node (`latest`) for every push to and pull request against `main`: the gates listed in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `main` under the protected `release` environment.
 
 ## Pre-PR checklist
 
