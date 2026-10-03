@@ -269,7 +269,7 @@ export function useAtom<R, W>(
  * ```svelte
  * <script lang="ts">
  *   import { AsyncResult, useAtomResult } from "@thomasfosterau/effect-svelte";
- *   import { commentsAtom } from "$lib/api/atoms";
+ *   import { commentsAtom } from "#lib/api/atoms";
  *
  *   let { postId } = $props();
  *   const comments = useAtomResult(() => commentsAtom(postId));
