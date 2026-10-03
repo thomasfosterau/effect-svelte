@@ -83,6 +83,8 @@
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
+    "@sveltejs/kit": "catalog:",
+    "svelte": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

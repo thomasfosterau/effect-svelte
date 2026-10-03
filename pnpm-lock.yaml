@@ -51,13 +51,6 @@ catalogs:
     vite-plus:
       specifier: 0.3.0
       version: 0.3.0
-  peers:
-    '@sveltejs/kit':
-      specifier: ^2.0.0 || ^3.0.0-next.0
-      version: 2.70.2
-    svelte:
-      specifier: ^5.40.0
-      version: 5.56.4
 
 overrides:
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
@@ -207,10 +200,10 @@ importers:
       effect:
         specifier: 4.0.0
         version: 4.0.0
-      svelte:
-        specifier: catalog:peers
-        version: 5.56.4
     devDependencies:
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.1
       typescript:
         specifier: 'catalog:'
         version: '@typescript/typescript6@6.0.2'
@@ -220,9 +213,6 @@ importers:
       '@standard-schema/spec':
         specifier: 'catalog:'
         version: 1.1.0
-      '@sveltejs/kit':
-        specifier: catalog:peers
-        version: 2.70.2(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4)
       '@thomasfosterau/effect-svelte':
         specifier: workspace:^
         version: link:../svelte
@@ -232,9 +222,6 @@ importers:
       magic-string:
         specifier: 'catalog:'
         version: 1.4.2
-      svelte:
-        specifier: catalog:peers
-        version: 5.56.4
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@0.3.0
         version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0)'
@@ -242,6 +229,12 @@ importers:
       '@effect/platform-node':
         specifier: 'catalog:'
         version: 4.0.0(effect@4.0.0)(redis@6.2.1)
+      '@sveltejs/kit':
+        specifier: 'catalog:'
+        version: 2.70.3(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1)
+      svelte:
+        specifier: 'catalog:'
+        version: 5.57.1
       typescript:
         specifier: 'catalog:'
         version: '@typescript/typescript6@6.0.2'
@@ -358,9 +351,6 @@ packages:
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
     engines: {node: '>=6.0.0'}
-
-  '@jridgewell/sourcemap-codec@1.5.5':
-    resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
@@ -711,31 +701,10 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@sveltejs/acorn-typescript@1.0.12':
-    resolution: {integrity: sha512-J1jNYG23QWd67UfrQSFHtjhV37r9mVi0gdc12A3MWPldOjRK35Xk+um+qACPVjgw3AleiqoyEAhok8Wm3q46NA==}
-    peerDependencies:
-      acorn: ^8.9.0
-
   '@sveltejs/acorn-typescript@1.0.13':
     resolution: {integrity: sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ==}
     peerDependencies:
       acorn: ^8.9.0
-
-  '@sveltejs/kit@2.70.2':
-    resolution: {integrity: sha512-RzRoRpuR2KXqc5yMO0akQHDZeT4AslOlznGITURsqHaVbtyYP4Wn3eE3gxj9JcDyNYO0crkxhdwFHc+2vkVm6w==}
-    engines: {node: '>=18.13'}
-    hasBin: true
-    peerDependencies:
-      '@opentelemetry/api': ^1.0.0
-      '@sveltejs/vite-plugin-svelte': ^3.0.0 || ^4.0.0-next.1 || ^5.0.0 || ^6.0.0-next.0 || ^7.0.0
-      svelte: ^4.0.0 || ^5.0.0-next.0
-      typescript: ^5.3.3 || ^6.0.0
-      vite: ^5.0.3 || ^6.0.0 || ^7.0.0-beta.0 || ^8.0.0
-    peerDependenciesMeta:
-      '@opentelemetry/api':
-        optional: true
-      typescript:
-        optional: true
 
   '@sveltejs/kit@2.70.3':
     resolution: {integrity: sha512-UDvEYuZqAMbfB/oXIoqKvbKcb7YczK5zYrzmsGV1zRJk03jntwp8dXiYoIJotxAndsKvcPFtx9H1GRSKFdSHgg==}
@@ -791,9 +760,6 @@ packages:
 
   '@types/node@26.6.3':
     resolution: {integrity: sha512-dsqMQQoeTLqu9wynDD00q573mNzso3IdQOAfHRJqLCcmCFPoGo9A1bDpUcv/9tnKpErQWv9uKeGfl37EIS02Yg==}
-
-  '@types/trusted-types@2.0.7':
-    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
   '@types/whatwg-mimetype@3.0.2':
     resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
@@ -1077,123 +1043,145 @@ packages:
     resolution: {integrity: sha512-yo96Oef12WzqnphInfz/eexVse3+kWgfGS5g2S3rFS3dcGn1ENW9xLFDZUP9rh+yP76DOq38wBoFi1+I9+6qBg==}
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-darwin-x64@0.5.48':
     resolution: {integrity: sha512-aRCTw0EZC4bVosmw//0OMYP5tGWFE0Cu5yUBFkUbhXx/iBzvORcJ2xPNlOp/vtCCo9Ys4vp8b0DigJV6uOVb2g==}
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-freebsd-x64@0.5.48':
     resolution: {integrity: sha512-CA0AQAEApDkbw51PdLWMtKPJ41/7rvXsS3SJs+phG7fHJI+MuFzWuLbkucZfZoEOiDscmcsfYIdgL8BsfuyKKQ==}
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm-gnu@0.5.48':
     resolution: {integrity: sha512-DuSQlk8bH4gpmW3/00P0NLagAcMv8jOxjT40cQmxKRkktr+SUOALCfkT89tdDq3qtY95NR2GXOZ7AjNh7KKqCw==}
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm-musl@0.5.48':
     resolution: {integrity: sha512-bxj4Ee+wlaJcWJwft2ReJXWw5sfl1qavDz6+dlRdU1xfTEtjPSNiAWhiCHnJR0R4Ygd57DnzSQmAVGvFv6RcGw==}
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm64-gnu@0.5.48':
     resolution: {integrity: sha512-mk5JVWh+0JOe5ue8k17kbYX8uGBoKt3ZqoCyxNh4nYAAcX7+X1tFUiU7jbjctu4vHeejCBFSTdQ021+V31cUCQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm64-musl@0.5.48':
     resolution: {integrity: sha512-4q3vkrNghbllyxOm2KesFLxCPKHF7r3JyQ7BWZccY1j2Y05yKoIFhoWCqIuQ2W/dpte9RI0+OVfwyxnrKg6fkA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-x64-gnu@0.5.48':
     resolution: {integrity: sha512-csd4M1EVrGaohM8acM6gq1zpUA/Rwe2ulUMBKUcwQXm/k6n7cq1A++qdew78SOVb4do3JH1WE+WFwoGQAcWc1w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-x64-musl@0.5.48':
     resolution: {integrity: sha512-KcDuEOT+GFoVKdvAWOv1v9iYjwnmvMZlO+j1Rw+5PYdeFLGWGzv/DD11y4SAAdwXIFcil4T0hibeIaF82WStMg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-win32-arm64@0.5.48':
     resolution: {integrity: sha512-HI8qNrI8dWM5BuqIMKsqornRvTNFrE6sm5zToIJ9YIa9zt5+29P7fJ7Nr39EVf6dAWSb6q7JSpScJnRsQ+FgZA==}
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-win32-x64@0.5.48':
     resolution: {integrity: sha512-X5YWJLO6EfBZpeBqO0AYESnUizbpFDWArcvVD61w0PEWQ3CaFRLnbQXs+kpM4ZZfGMfIE22zfA08QSY67q7TNQ==}
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-parser/binding-darwin-arm64@0.5.48':
     resolution: {integrity: sha512-If8mb7HH3vqghJ2NNZ8SuHfhsnjVzOxJpB8xcNOXS5WjYrs2mUhHIh5KOIvK13hDOzh0htGeGK3A6MsiEqE7HQ==}
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-darwin-x64@0.5.48':
     resolution: {integrity: sha512-EimvPXfspzxf1K11eB6tCW5oiQEXB8g84T2wP1TwzQagdDKo33bkmmVF0B32vTIpXnk/Ifu5IB61izZ1MylljA==}
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-freebsd-x64@0.5.48':
     resolution: {integrity: sha512-0GcUMrumLHheThY9r5Tp46gaZYzn0irWPS1Zba6WY+vVQfhUtzGiWgXxI6tuXX0N32kEaaEVRpkKctvo6Kx3aQ==}
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm-gnu@0.5.48':
     resolution: {integrity: sha512-8S5T5wjCC73dmmpQeZ49aYsSunIUM3D4Fc6rdK96c+Ayg/p3FmeSPF3xuLZHejcTmqJIIvnbfPlUF+rB6DITjQ==}
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm-musl@0.5.48':
     resolution: {integrity: sha512-tTmbxvnUHcK2/crS9547vk2SMmsajH1yqJ8ltXhIuHJgqR1v+d9n9KT+kSayo/5CS76LegeYxhMFjEivBH2hFA==}
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm64-gnu@0.5.48':
     resolution: {integrity: sha512-KGYCBMqI2zfwyhgq5tpPVNe7jpUeYTBm8DhjdS+zqWNumde/PEC170QE5RHxcOAlsirIDeIUk0jqx+r/axoFSw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm64-musl@0.5.48':
     resolution: {integrity: sha512-2wTSMsCSXLTc2lZUjMAuU5X4cje55u205WJqfV5NWNF6j9pW/tXyxr15dJeekj8ziLqBXzIsj4DbRh4sY/WcjA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-x64-gnu@0.5.48':
     resolution: {integrity: sha512-d/6v9UnGglVu1WC2JQyv/5aWSi5fXZeGSlidCfmHp4+N65N1GDKUnFtys5MK5eAPeAjTgSHGGtOc/yCcKTlv3A==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-x64-musl@0.5.48':
     resolution: {integrity: sha512-gX19gw6u4ApPy7SYMPKfFlEkrtj6WlORvrTKK3sBQqjyV+8+mUAkQgxXNjHw4RnOiAmVYg7TOlZcg8d+Qqod9A==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-win32-arm64@0.5.48':
     resolution: {integrity: sha512-w6cQQLbqj3Jcom5Q7ifm103NUOQ9d+Cb4VU5lkrZDjMnwVJ9Hzzg1vCQR7miJuF44vhCXldbme5UryE3giEKlA==}
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-win32-x64@0.5.48':
     resolution: {integrity: sha512-4gO0HmG7fzFxrw1rs0dUdnnaY9YgennjETqDWrTSp7x9fmTUOAoN4VsMfP7YyliQeG1WJJHc55O+rOhmsLppow==}
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-toolchain/types@0.5.43':
     resolution: {integrity: sha512-kSpvPntnXw5+lYjO71ffBEnQ5ycQ74KGIYknh0TS4xeyCuBkOqxyJumxZkMhLBBUCLjDAbx2+Icnr3Zh4ftjpQ==}
@@ -1269,9 +1257,6 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  devalue@5.9.0:
-    resolution: {integrity: sha512-RWrqdArjvPbsATEhOPUo6Wndc/iWnkWKlhIrdlF3zMMYo/c3CVtoaVAyLtWxz5h8nSlkHzxnzV2uLydPXmtF+A==}
-
   devalue@5.9.4:
     resolution: {integrity: sha512-sPAT4pztbu6586/hrhOnMKS17IJrvg12mXiSPSS3W5qDeN2RGgvZ0diZCm31dBbnevfVmujNO3IM2wrS4Y2Rhg==}
 
@@ -1290,14 +1275,6 @@ packages:
 
   esm-env@1.2.2:
     resolution: {integrity: sha512-Epxrv+Nr/CaL4ZcFGPJIYLWFom+YeV1DqMLHJoEd9SYRxNbaFruBwfEX/kkHUJf55j2+TUbmDcmuilbP1TmXHA==}
-
-  esrap@2.2.13:
-    resolution: {integrity: sha512-m8jH5hZgJE2RRUK/jjkGPcJEDAV+dYnZYFkosQaPTcE+Yw4xynXHOo6FUdwaWBtdR3b1MMa7wEDTSHeR2VWsGA==}
-    peerDependencies:
-      '@typescript-eslint/types': ^8.2.0
-    peerDependenciesMeta:
-      '@typescript-eslint/types':
-        optional: true
 
   esrap@2.4.0:
     resolution: {integrity: sha512-CQPcneEHw/czj32uwQC52nYnax8H4SXt25FCM+LIwGZ49cMIxpOj3bP8wmzcI+Z0HIy5KkClaPhRLfCySzwHPA==}
@@ -1584,10 +1561,6 @@ packages:
     peerDependencies:
       svelte: ^4.0.0 || ^5.0.0-next.0
       typescript: ^5.0.0 || ^6.0.0
-
-  svelte@5.56.4:
-    resolution: {integrity: sha512-/d0QHehmRuJW8gVz395MTkPcPozxzdjBMBE8oEYGz8O3b9KTMzzQ9ZHJQLuFKOHOPQbU6kx/X4iid/EBBzH7iw==}
-    engines: {node: '>=18'}
 
   svelte@5.57.1:
     resolution: {integrity: sha512-Uqj49lWKB+iSSnneuwiYYJ7MZgkB+eXr0LXBhv4uDuAkXqnWmq65Sxflfvp0Lc6MdKjMUxGaeOKWJqz5SNiVIA==}
@@ -1913,8 +1886,6 @@ snapshots:
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
-  '@jridgewell/sourcemap-codec@1.5.5': {}
-
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
   '@jridgewell/trace-mapping@0.3.31':
@@ -2101,43 +2072,19 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@sveltejs/acorn-typescript@1.0.12(acorn@8.18.0)':
-    dependencies:
-      acorn: 8.18.0
-
   '@sveltejs/acorn-typescript@1.0.13(acorn@8.18.0)':
     dependencies:
       acorn: 8.18.0
 
-  '@sveltejs/kit@2.70.2(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@sveltejs/acorn-typescript': 1.0.12(acorn@8.18.0)
-      '@sveltejs/vite-plugin-svelte': 7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4)
-      '@types/cookie': 0.6.0
-      acorn: 8.18.0
-      cookie: 0.6.0
-      devalue: 5.9.0
-      esm-env: 1.2.2
-      kleur: 4.1.5
-      magic-string: 0.30.21
-      mrmime: 2.0.1
-      set-cookie-parser: 3.1.2
-      sirv: 3.0.2
-      svelte: 5.56.4
-      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0)'
-    optionalDependencies:
-      typescript: '@typescript/typescript6@6.0.2'
-
   '@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      '@sveltejs/acorn-typescript': 1.0.12(acorn@8.18.0)
+      '@sveltejs/acorn-typescript': 1.0.13(acorn@8.18.0)
       '@sveltejs/vite-plugin-svelte': 7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1)
       '@types/cookie': 0.6.0
       acorn: 8.18.0
       cookie: 0.6.0
-      devalue: 5.9.0
+      devalue: 5.9.4
       esm-env: 1.2.2
       kleur: 4.1.5
       magic-string: 0.30.21
@@ -2150,15 +2097,6 @@ snapshots:
       typescript: '@typescript/typescript6@6.0.2'
 
   '@sveltejs/load-config@0.2.3': {}
-
-  '@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.56.4)':
-    dependencies:
-      deepmerge: 4.3.1
-      magic-string: 1.4.2
-      obug: 2.1.3
-      svelte: 5.56.4
-      vite: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0)'
-      vitefu: 1.1.3(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))
 
   '@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.1)':
     dependencies:
@@ -2200,8 +2138,6 @@ snapshots:
   '@types/node@26.6.3':
     dependencies:
       undici-types: 8.9.0
-
-  '@types/trusted-types@2.0.7': {}
 
   '@types/whatwg-mimetype@3.0.2': {}
 
@@ -2499,8 +2435,6 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  devalue@5.9.0: {}
-
   devalue@5.9.4: {}
 
   dom-accessibility-api@0.5.16: {}
@@ -2512,10 +2446,6 @@ snapshots:
   es-module-lexer@2.3.2: {}
 
   esm-env@1.2.2: {}
-
-  esrap@2.2.13:
-    dependencies:
-      '@jridgewell/sourcemap-codec': 1.6.0
 
   esrap@2.4.0:
     dependencies:
@@ -2787,27 +2717,6 @@ snapshots:
       typescript: '@typescript/typescript6@6.0.2'
     transitivePeerDependencies:
       - picomatch
-
-  svelte@5.56.4:
-    dependencies:
-      '@jridgewell/remapping': 2.3.5
-      '@jridgewell/sourcemap-codec': 1.5.5
-      '@sveltejs/acorn-typescript': 1.0.12(acorn@8.18.0)
-      '@types/estree': 1.0.9
-      '@types/trusted-types': 2.0.7
-      acorn: 8.18.0
-      aria-query: 5.3.1
-      axobject-query: 4.1.0
-      clsx: 2.1.1
-      devalue: 5.9.0
-      esm-env: 1.2.2
-      esrap: 2.2.13
-      is-reference: 3.0.3
-      locate-character: 3.0.0
-      magic-string: 0.30.21
-      zimmerframe: 1.1.4
-    transitivePeerDependencies:
-      - '@typescript-eslint/types'
 
   svelte@5.57.1:
     dependencies:
