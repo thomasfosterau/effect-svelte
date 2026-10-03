@@ -6,7 +6,7 @@ This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and 
 
 ### Prerequisites
 
-- Node.js `>=22.17` (`engines.node`; SvelteKit 3 requires it); CI runs the latest stable Node (`node-version: latest`).
+- Node.js `^22.19.0 || ^24.11.0 || >=26` (the root `engines.node`: the intersection of the dev toolchain's floors — SvelteKit 3, vite-plus, `@changesets/cli` and undici via `@effect/platform-node`); CI runs the latest stable Node (`node-version: latest`).
 - [pnpm](https://pnpm.io) 10 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
 - Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`, or the root scripts (`pnpm run check`, `pnpm run test`, `pnpm run build`).
 

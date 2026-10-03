@@ -262,6 +262,10 @@ together with `package.json` and production `node_modules` (which must
 include `@thomasfosterau/effect-sveltekit`, `effect`, and
 `@effect/platform-node`).
 
+The adapter's optional `@effect/platform-node` peer pulls in `undici`, which
+needs Node `>=22.19`, so the production server needs Node `>=22.19` even
+though the package itself (like SvelteKit 3) declares `>=22.17`.
+
 ### SvelteKit universal load
 
 ```ts
