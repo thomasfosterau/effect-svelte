@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { timeAgo } from "$lib/format";
-  import type { Comment } from "$lib/hn/schema";
+  import { timeAgo } from "#lib/format.ts";
+  import type { Comment } from "#lib/hn/schema.ts";
   import CommentThread from "./CommentThread.svelte";
 
   let { comment }: { comment: Comment } = $props();

@@ -13,7 +13,7 @@
  * // src/routes/+page.ts — a universal load
  * import { apiClient } from "@thomasfosterau/effect-sveltekit";
  * import { Effect } from "effect";
- * import { api } from "$lib/api"; // the shared HttpApi definition
+ * import { api } from "#lib/api.ts"; // the shared HttpApi definition
  *
  * export const load = (event) =>
  *   Effect.gen(function* () {

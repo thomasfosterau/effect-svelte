@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
-import { runtime } from "$lib/server/runtime";
-import { HackerNews } from "$lib/hn/service";
+import { runtime } from "#lib/server/runtime.ts";
+import { HackerNews } from "#lib/hn/service.ts";
 
 /**
  * Server load using the app-wide runtime's `serverLoad` wrapper.

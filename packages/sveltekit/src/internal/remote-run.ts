@@ -5,7 +5,7 @@
  * in `remote-functions.ts`; this module only deals in `Exit`s.
  */
 
-import type { InvalidField } from "@sveltejs/kit";
+import type { RemoteFormInvalidField as InvalidField } from "$app/server";
 import { Cause, type Effect, Exit } from "effect";
 import type { ErrorTranslator } from "../request-runtime.js";
 import { SvelteKit } from "../kit.js";

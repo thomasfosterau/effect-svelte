@@ -36,7 +36,9 @@ export interface PageSnapshot<P extends ReadonlyPage = ReadonlyPage> {
  * `PageSnapshot<P>` recovers the precise field types from `P`.
  */
 export interface ReadonlyPage {
-  readonly url: URL;
+  // SvelteKit 3 types `page.url` as an immutable `ReadonlyURL` (from
+  // `$app/state`); everything but `searchParams` is enough here.
+  readonly url: Readonly<Omit<URL, "searchParams">>;
   readonly params: Record<string, string | undefined>;
   readonly route: { readonly id: string | null };
   readonly status: number;

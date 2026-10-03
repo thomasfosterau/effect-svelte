@@ -8,14 +8,14 @@
  * shutdown that runs all finalizers).
  *
  * ```js
- * // svelte.config.js
+ * // vite.config.ts
+ * import { sveltekit } from "@sveltejs/kit/vite";
  * import adapter from "@thomasfosterau/effect-sveltekit/adapter";
+ * import { defineConfig } from "vite";
  *
- * const config = {
- *   kit: { adapter: adapter() },
- * };
- *
- * export default config;
+ * export default defineConfig({
+ *   plugins: [sveltekit({ adapter: adapter() })],
+ * });
  * ```
  *
  * The build output (`build/` by default) contains:
@@ -23,7 +23,9 @@
  * - `index.js` — runs the production server: `node build`
  * - `handler.js` — exports the SvelteKit app as a composable Effect HTTP
  *   handler, for mounting inside an existing `effect/http` server
- * - `client/`, `server/`, `prerendered/`, `manifest.js` — the built app
+ * - `client/`, `server/`, `prerendered/`, `server.js` (the SvelteKit
+ *   `server` instance), `manifest.js` (prerendered paths, base and app path) —
+ *   the built app
  *
  * Unlike `adapter-node`, the server output is not bundled: the deployment
  * needs `node_modules` with the app's production dependencies installed
@@ -31,7 +33,7 @@
  * `@effect/platform-node`).
  */
 
-import { writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import type { Adapter } from "@sveltejs/kit";
 
 /** Options for {@link effectAdapter}. */
@@ -78,8 +80,8 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { makeHandler } from "${PACKAGE}/adapter/handler";
-import { Server } from "./server/index.js";
-import { manifest, prerendered, base } from "./manifest.js";
+import { server } from "./server.js";
+import { prerendered, base, appPath } from "./manifest.js";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 
@@ -90,8 +92,8 @@ const dir = dirname(fileURLToPath(import.meta.url));
  * \`effect/http\` HTTP server.
  */
 export const handler = makeHandler({
-  Server,
-  manifest,
+  server,
+  appPath,
   prerendered,
   base,
   dir,
@@ -118,8 +120,7 @@ serve(handler, { envPrefix: ${JSON.stringify(envPrefix)} });
 const fetchEntryTemplate = (envPrefix: string): string => `\
 import { Layer } from "effect";
 import { makeHandlerWith, AssetSource, toWebHandler } from "${PACKAGE}/adapter/handler";
-import { Server } from "./server/index.js";
-import { manifest } from "./manifest.js";
+import { server } from "./server.js";
 
 let fetchHandler;
 
@@ -128,8 +129,7 @@ export default {
   fetch(request, env, ctx) {
     fetchHandler ??= toWebHandler(
       makeHandlerWith({
-        Server,
-        manifest,
+        server,
         env,
         envPrefix: ${JSON.stringify(envPrefix)},
         // Static assets come from the Workers ASSETS binding (configure it to
@@ -157,10 +157,10 @@ export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
     name: `${PACKAGE}/adapter`,
 
     async adapt(builder) {
-      const base = builder.config.kit.paths.base;
+      const base = builder.config.paths.base;
 
-      builder.rimraf(out);
-      builder.mkdirp(out);
+      rmSync(out, { recursive: true, force: true });
+      mkdirSync(out, { recursive: true });
 
       builder.log.minor("Copying assets");
       builder.writeClient(`${out}/client${base}`);
@@ -176,13 +176,16 @@ export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
 
       builder.log.minor("Building server");
       builder.writeServer(`${out}/server`);
+      // `<out>/server.js` exports the SvelteKit `server` instance, with the
+      // manifest of the (non-prerendered) routes baked in.
+      builder.generateServerInstance(`${out}/server.js`, { serverDirectory: `${out}/server` });
 
       writeFileSync(
         `${out}/manifest.js`,
         [
-          `export const manifest = ${builder.generateManifest({ relativePath: "./server" })};`,
           `export const prerendered = new Set(${JSON.stringify(builder.prerendered.paths)});`,
           `export const base = ${JSON.stringify(base)};`,
+          `export const appPath = ${JSON.stringify(builder.getAppPath())};`,
         ].join("\n\n"),
       );
 

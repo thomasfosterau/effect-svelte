@@ -1,4 +1,4 @@
-import type { RemoteResource } from "@sveltejs/kit";
+import type { RemoteResource } from "$app/server";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**

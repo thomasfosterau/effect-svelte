@@ -66,7 +66,7 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 | `load` (universal wrapper)                                                     | `src/routes/user/[name]/+page.ts`                        |
 | `serverLoad` / `actions` / `endpoint` (standalone)                             | available; the app-runtime forms are shown instead       |
 | `handle` (explicit wrapper)                                                    | available; the plugin form is shown in `hooks.server.ts` |
-| `effectAdapter` (Effect deployment adapter)                                    | `svelte.config.js` (`node build` to run it)              |
+| `effectAdapter` (Effect deployment adapter)                                    | `vite.config.ts` (`node build` to run it)                |
 | `SvelteKitRuntime` (`forRequest`/`forFetch`/`extend`)                          | used by every wrapper; see `+layout.server.ts`           |
 | `runWithSvelteKitRuntime`                                                      | `src/routes/+layout.server.ts`                           |
 | `SvelteKitRequestEvent`                                                        | `src/routes/[list=list]/[page]/+page.server.ts`          |

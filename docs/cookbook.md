@@ -32,8 +32,8 @@ Serve it (see `Endpoint.fromApi`):
 ```ts
 // src/routes/api/[...path]/+server.ts
 import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
-import { api } from "$lib/api";
-import { ApiLive } from "$lib/server/handlers";
+import { api } from "#lib/api.ts";
+import { ApiLive } from "#lib/server/handlers.ts";
 
 export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
 ```
@@ -46,7 +46,7 @@ credentials, dedupe):
 // src/routes/users/[id]/+page.ts — a universal load
 import { apiClient } from "@thomasfosterau/effect-sveltekit";
 import { Effect } from "effect";
-import { api } from "$lib/api";
+import { api } from "#lib/api.ts";
 
 export const load = (event) =>
   Effect.gen(function* () {
@@ -102,7 +102,7 @@ with `sveltekitConfig(env)` — typically the runtime private env on the server:
 import { env } from "$env/dynamic/private";
 import { sveltekitConfig, makeServerRuntime } from "@thomasfosterau/effect-sveltekit/server";
 import { Layer } from "effect";
-import { Database } from "$lib/server/database";
+import { Database } from "#lib/server/database.ts";
 
 // Database.layer reads Config.String("DATABASE_URL"), now backed by $env
 export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(sveltekitConfig(env))));
@@ -152,7 +152,7 @@ wrapped around whatever loading/error visuals your design system provides:
 ```svelte
 <script lang="ts">
   import { useAtomResult } from "@thomasfosterau/effect-svelte";
-  import QueryBoundary from "$lib/QueryBoundary.svelte";
+  import QueryBoundary from "#lib/QueryBoundary.svelte";
 
   const proposals = useAtomResult(() => proposalsAtom({ page }));
 </script>

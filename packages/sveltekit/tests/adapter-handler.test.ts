@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SSRManifest, Server } from "@sveltejs/kit";
+import type { Server } from "@sveltejs/kit";
 import * as HttpBody from "effect/http/HttpBody";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpServer from "effect/http/HttpServer";
@@ -17,8 +17,6 @@ import { makeHandler, type SvelteKitHandlerOptions } from "../src/adapter/handle
 let lastInitOptions: { env: Record<string, string> } | undefined;
 
 class FakeServer {
-  constructor(_manifest: SSRManifest) {}
-
   async init(options: { env: Record<string, string> }): Promise<void> {
     lastInitOptions = options;
   }
@@ -36,14 +34,6 @@ class FakeServer {
     );
   }
 }
-
-const manifest = {
-  appDir: "_app",
-  appPath: "_app",
-  assets: new Set<string>(),
-  mimeTypes: {},
-  _: {},
-} as unknown as SSRManifest;
 
 /** Create a fake build output directory with client assets and prerendered pages. */
 const makeBuildDir = (): string => {
@@ -66,8 +56,8 @@ const makeBuildDir = (): string => {
 const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
   Effect.gen(function* () {
     const app = yield* makeHandler({
-      Server: FakeServer as unknown as typeof Server,
-      manifest,
+      server: new FakeServer() as unknown as Server,
+      appPath: "_app",
       prerendered: new Set(["/about", "/", "/blog/"]),
       base: "",
       dir: makeBuildDir(),

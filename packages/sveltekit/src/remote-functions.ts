@@ -14,8 +14,8 @@ import type {
   RemoteFormInput,
   RemotePrerenderFunction,
   RemoteQueryFunction,
-  InvalidField,
-} from "@sveltejs/kit";
+  RemoteFormInvalidField as InvalidField,
+} from "$app/server";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/http/HttpClient";
 import { Effect, type Schema } from "effect";

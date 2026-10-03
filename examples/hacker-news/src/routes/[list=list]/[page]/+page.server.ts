@@ -1,8 +1,8 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
 import { SvelteKitRequestEvent } from "@thomasfosterau/effect-sveltekit/server";
-import { isListKind } from "$lib/hn/lists";
-import { HackerNews } from "$lib/hn/service";
+import { isListKind } from "#lib/hn/lists.ts";
+import { HackerNews } from "#lib/hn/service.ts";
 
 /**
  * Server load written as a bare Effect — no function, no wrapper.
@@ -11,7 +11,7 @@ import { HackerNews } from "$lib/hn/service";
  * SvelteKit Effect runtime. The current request is read from the
  * `SvelteKitRequestEvent` service instead of a parameter, and `HackerNews`
  * is resolved from the app-wide runtime configured with
- * `effectKit({ serverRuntime: "$lib/server/runtime" })` — no per-route
+ * `effectKit({ serverRuntime: "#lib/server/runtime.ts" })` — no per-route
  * `Effect.provide` needed.
  *
  * Note: because the export is an Effect rather than a function, SvelteKit's

@@ -13,8 +13,8 @@
  * ```ts
  * // src/routes/api/[...path]/+server.ts
  * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
- * import { api } from "$lib/server/api";
- * import { ApiLive } from "$lib/server/handlers"; // HttpApiBuilder.group(...) + your services
+ * import { api } from "#lib/server/api.ts";
+ * import { ApiLive } from "#lib/server/handlers.ts"; // HttpApiBuilder.group(...) + your services
  *
  * // `prefix` strips the SvelteKit mount path so the API's own paths
  * // (e.g. "/users") match.
@@ -155,8 +155,8 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
  * ```ts
  * // src/routes/api/[...path]/+server.ts
  * import { Endpoint } from "@thomasfosterau/effect-sveltekit/server";
- * import { api } from "$lib/server/api";
- * import { ApiLive } from "$lib/server/handlers";
+ * import { api } from "#lib/server/api.ts";
+ * import { ApiLive } from "#lib/server/handlers.ts";
  *
  * export const fallback = Endpoint.fromApi(api, ApiLive, { prefix: "/api" });
  * ```

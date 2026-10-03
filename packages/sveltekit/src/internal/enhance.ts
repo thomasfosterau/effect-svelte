@@ -3,7 +3,7 @@
  * `$app/*` import so it can be unit-tested outside a SvelteKit app build.
  */
 
-import type { SubmitFunction } from "@sveltejs/kit";
+import type { SubmitFunction } from "$app/forms";
 import { Context, Effect, ManagedRuntime } from "effect";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */

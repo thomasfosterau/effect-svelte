@@ -21,7 +21,7 @@
  *     runtime.runPromise(
  *       Effect.gen(function* () {
  *         yield* doSave();
- *         yield* Navigation.invalidateAll();
+ *         yield* Navigation.refreshAll();
  *         yield* Navigation.goto('/done');
  *       }),
  *     );
@@ -40,12 +40,16 @@ import {
   preloadData as kitPreloadData,
   refreshAll as kitRefreshAll,
 } from "$app/navigation";
-import type { AfterNavigate, BeforeNavigate, OnNavigate } from "@sveltejs/kit";
+import type { AfterNavigate, BeforeNavigate, OnNavigate } from "$app/navigation";
 import { Effect } from "effect";
 import type { Stream } from "effect";
 import { onNavigateWith, registeredStream } from "./internal/navigation-events.js";
 
-/** Navigate to `url`. Wraps `$app/navigation`'s `goto`. */
+/**
+ * Navigate to `url`. Wraps `$app/navigation`'s `goto`. SvelteKit rejects a URL
+ * outside the app (external, or not matching a route); a rejection surfaces as
+ * a defect.
+ */
 export const goto = (...args: Parameters<typeof kitGoto>): Effect.Effect<void> =>
   Effect.promise(() => kitGoto(...args));
 
@@ -53,7 +57,12 @@ export const goto = (...args: Parameters<typeof kitGoto>): Effect.Effect<void> =
 export const invalidate = (...args: Parameters<typeof kitInvalidate>): Effect.Effect<void> =>
   Effect.promise(() => kitInvalidate(...args));
 
-/** Re-run every `load` function for the active page. Wraps `invalidateAll`. */
+/**
+ * Re-run every `load` function for the active page. Wraps `invalidateAll`.
+ *
+ * @deprecated SvelteKit 3 deprecates `invalidateAll`; use {@link refreshAll},
+ * which also refreshes active remote functions and keeps `page.state`.
+ */
 export const invalidateAll = (): Effect.Effect<void> => Effect.promise(() => kitInvalidateAll());
 
 /** Refresh active remote functions (and, by default, `load`s). Wraps `refreshAll`. */
@@ -66,9 +75,12 @@ export const preloadData = (
 ): Effect.Effect<Awaited<ReturnType<typeof kitPreloadData>>> =>
   Effect.promise(() => kitPreloadData(href));
 
-/** Preload the code for routes matching `pathname`. Wraps `preloadCode`. */
-export const preloadCode = (pathname: string): Effect.Effect<void> =>
-  Effect.promise(() => kitPreloadCode(pathname));
+/**
+ * Preload the code for the route `id` (e.g. `/blog/[slug]`, without
+ * `paths.base`). Wraps `preloadCode`.
+ */
+export const preloadCode = (...args: Parameters<typeof kitPreloadCode>): Effect.Effect<void> =>
+  Effect.promise(() => kitPreloadCode(...args));
 
 /**
  * Registers a `beforeNavigate` callback and exposes every navigation about to

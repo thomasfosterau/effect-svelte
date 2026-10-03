@@ -6,7 +6,7 @@ import type {
   RemoteFormInput,
   RemotePrerenderFunction,
   RemoteQueryFunction,
-} from "@sveltejs/kit";
+} from "$app/server";
 import { Effect, Schema } from "effect";
 import type { CommandFn, FormFn, PrerenderFn, QueryFn } from "../src/remote-functions.js";
 

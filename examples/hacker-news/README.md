@@ -33,7 +33,7 @@ pnpm run dev
 | App runtime `serverLoad` wrapper              | `src/routes/item/[id]/+page.server.ts`                                                                      |
 | App runtime `actions` wrapper + `fail()`      | `src/routes/search/+page.server.ts`                                                                         |
 | App runtime `endpoint` wrapper                | `src/routes/api/[list=list]/+server.ts`                                                                     |
-| `effectAdapter` (Effect deployment adapter)   | `svelte.config.js`; run the production build with `node build`                                              |
+| `effectAdapter` (Effect deployment adapter)   | `vite.config.ts` (`sveltekit({ adapter })`); run the production build with `node build`                     |
 | `load` (explicit universal wrapper)           | `src/routes/user/[name]/+page.ts`                                                                           |
 | `runWithSvelteKitRuntime` (manual)            | `src/routes/+layout.server.ts`                                                                              |
 | `SvelteKitRequestEvent` service               | `src/routes/[list=list]/[page]/+page.server.ts`                                                             |
@@ -53,7 +53,7 @@ per server process and shared by every request:
 - Routes using explicit wrappers import `runtime` and call
   `runtime.serverLoad(...)` / `runtime.actions(...)` / `runtime.endpoint(...)`.
 - Routes that export bare Effects get the same services through the
-  `effectKit({ serverRuntime: "$lib/server/runtime" })` plugin option.
+  `effectKit({ serverRuntime: "#lib/server/runtime.ts" })` plugin option.
 
 ## Plugin form vs. explicit wrappers
 
@@ -69,7 +69,7 @@ Both styles run through the same runtime; they differ in ergonomics:
 
 ## Production build (Effect adapter)
 
-`svelte.config.js` uses the Effect deployment adapter. `pnpm run build`
+`vite.config.ts` passes the Effect deployment adapter to `sveltekit()`. `pnpm run build`
 produces a `build/` directory whose server runs on Effect's
 `NodeHttpServer` (from `effect/http`):
 
@@ -87,5 +87,5 @@ node build            # or: pnpm run preview
 - The story lists, item pages, and search hit the live Algolia API at request
   time; you need network access to browse the app.
 - `/bookmarks` uses SvelteKit's experimental remote functions
-  (`kit.experimental.remoteFunctions` in `svelte.config.js`). Bookmarks are
+  (`experimental.remoteFunctions` in the `sveltekit()` options in `vite.config.ts`). Bookmarks are
   stored in server memory and reset when the dev server restarts.

@@ -3,7 +3,7 @@ import { Effect, Schema } from "effect";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { apiClient } from "../src/api-client.js";
 
-// A small shared API definition (as a consumer would keep in $lib).
+// A small shared API definition (as a consumer would keep in `src/lib`).
 const User = Schema.Struct({ id: Schema.String, name: Schema.String });
 const api = HttpApi.make("app").add(
   HttpApiGroup.make("users").add(

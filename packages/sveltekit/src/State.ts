@@ -44,7 +44,7 @@
 
 import { afterNavigate as kitAfterNavigate } from "$app/navigation";
 import { page as kitPage } from "$app/state";
-import type { Page } from "@sveltejs/kit";
+import type { Page } from "$app/state";
 import type { Stream } from "effect";
 import { type PageSnapshot, pageSnapshotStream } from "./internal/app-state.js";
 

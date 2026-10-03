@@ -15,10 +15,9 @@ describe("client Hooks.handleError", () => {
       Effect.succeed({ message: `${(error as Error).message} @ ${event.url.pathname}` }),
     );
     const result = await hook({
+      kind: "unknown",
       error: new Error("boom"),
       event: navigationEvent("/items"),
-      status: 500,
-      message: "Internal Error",
     });
     expect(result).toEqual({ message: "boom @ /items" });
   });
@@ -26,10 +25,9 @@ describe("client Hooks.handleError", () => {
   it("allows returning nothing (void)", async () => {
     const hook = handleError(() => Effect.void);
     const result = await hook({
+      kind: "unknown",
       error: new Error("boom"),
       event: navigationEvent(),
-      status: 500,
-      message: "Internal Error",
     });
     expect(result).toBeUndefined();
   });
@@ -38,10 +36,9 @@ describe("client Hooks.handleError", () => {
     const hook = handleError(() => Effect.fail("nope"));
     await expect(
       hook({
+        kind: "unknown",
         error: new Error("boom"),
         event: navigationEvent(),
-        status: 500,
-        message: "Internal Error",
       }),
     ).rejects.toThrow();
   });

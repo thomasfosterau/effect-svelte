@@ -25,7 +25,7 @@
  * ```
  */
 
-import type { Transport, Transporter } from "@sveltejs/kit";
+import type { Transport, Transporter } from "@sveltejs/kit/hooks";
 import { Schema } from "effect";
 
 /**

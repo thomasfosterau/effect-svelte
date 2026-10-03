@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit";
 import { Effect } from "effect";
 import { load as effectLoad } from "@thomasfosterau/effect-sveltekit";
-import { HackerNews } from "$lib/hn/service";
+import { HackerNews } from "#lib/hn/service.ts";
 
 /**
  * Universal load using the explicit `load` wrapper.
