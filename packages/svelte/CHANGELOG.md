@@ -1,5 +1,11 @@
 # @thomasfosterau/effect-svelte
 
+## 0.4.2
+
+### Patch Changes
+
+- 4d2b3be: Docs: the `useDebouncedSearch` and `useAtomResult` TSDoc examples import app modules through `#lib/…` (SvelteKit 3 replaced the `$lib` alias).
+
 ## 0.4.1
 
 ### Patch Changes
