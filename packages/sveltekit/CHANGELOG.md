@@ -1,5 +1,26 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.5.0
+
+### Minor Changes
+
+- 0527a63: **Breaking:** require SvelteKit 3. The `@sveltejs/kit` peer range moves from `^2.0.0 || ^3.0.0-next.0` to `^3.0.0`, so apps on SvelteKit 2 or a `3.0.0-next` prerelease must upgrade `@sveltejs/kit` first (Kit 3 itself needs Node 22.17, Vite 8, `@sveltejs/vite-plugin-svelte` 7 and Svelte 5.57.1). The published types now import SvelteKit's types from their Kit 3 homes (`@sveltejs/kit/hooks`, `$app/server`, `$app/navigation`, `$app/state`, `$app/forms`).
+
+  - Adapter: the generated `build/server.js` exports the SvelteKit `server` instance (from `builder.generateServerInstance`), and `build/manifest.js` now exports `prerendered`, `base` and `appPath` instead of the SSR manifest. `makeHandler` / `makeHandlerWith` (`./adapter/handler`) take that `server` instead of the `Server` class and `manifest`, and `makeHandler` takes `appPath`. Configure the adapter in `vite.config.ts` (`sveltekit({ adapter: adapter() })`); Kit 3 no longer reads `svelte.config.js`.
+  - `Navigation.preloadCode` takes a route ID (e.g. `/blog/[slug]`), as Kit 3's `preloadCode` does. `Navigation.invalidateAll` is deprecated in favour of `Navigation.refreshAll`, following Kit 3.
+  - `Hooks.handleError` (server and client) passes Kit 3's `handleError` input through unchanged: it carries `kind` (`"app"`, `"framework"`, `"unknown"`, or `"validation"` on the server) and no longer `status` / `message`.
+  - Docs: examples import app modules through `#lib/…` (Kit 3 replaced the `$lib` alias), including the `effectKit({ serverRuntime })` specifier.
+
+### Patch Changes
+
+- f0474d8: `SvelteKit.translate` and `Errors.toSvelteKit` no longer call SvelteKit 3's deprecated `error(status, body)` overload, so they stop triggering Kit's `error_body_deprecated` warning in development. An object body (a `KitError` body, or an `App.Error` returned by a catalogue entry's `message`) is now passed as `error(status, message, properties)`; the resulting `HttpError` is unchanged for every body that fits `App.Error` (a non-string `message` field now yields Kit's default `Error: <status>` message).
+- 4d2b3be: Raise `engines.node` from `^20.19.0 || >=22.12.0` to `>=22.17`, matching SvelteKit 3's own requirement.
+
+  Docs: the adapter section of the README notes that the optional `@effect/platform-node` peer pulls in `undici`, which needs Node `>=22.19`.
+
+- Updated dependencies [4d2b3be]
+  - @thomasfosterau/effect-svelte@0.4.2
+
 ## 0.4.1
 
 ### Patch Changes
