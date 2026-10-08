@@ -1,5 +1,6 @@
 import { Effect, Fiber, Option } from "effect";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
+import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
@@ -9,6 +10,8 @@ export interface UseEffectOptions<R = never> {
   /**
    * If true, the effect will run immediately on mount.
    * If false, the effect will only run when manually triggered via run().
+   * Like a manual `run()`, the mount run is untracked: reactive state the
+   * effect reads does not re-run it.
    * @default false
    */
   immediate?: boolean;
@@ -121,7 +124,10 @@ export function useEffect<A, E, R>(
   // Set up effect lifecycle
   $effect(() => {
     if (immediate) {
-      run();
+      // Untracked, like a `run()` from an event handler: nothing read while
+      // starting the run (the result state, or state the Effect reads
+      // synchronously) becomes a dependency that would restart it.
+      untrack(run);
     }
 
     // Cleanup: interrupt any running fiber on unmount
@@ -131,7 +137,9 @@ export function useEffect<A, E, R>(
   });
 
   const setData = (updater: A | ((previous: A | undefined) => A)): void => {
-    const previous = Option.getOrUndefined(AsyncResult.value(state.current));
+    // Untracked, so calling `setData` from an `$effect` does not make that
+    // effect depend on the result it is about to write.
+    const previous = Option.getOrUndefined(AsyncResult.value(untrack(() => state.current)));
     const next =
       typeof updater === "function"
         ? (updater as (previous: A | undefined) => A)(previous)

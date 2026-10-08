@@ -1,5 +1,6 @@
 import { Cause, Exit, Option } from "effect";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
+import { untrack } from "svelte";
 
 /**
  * A reactive holder for an {@link AsyncResult.AsyncResult}, used by the hooks
@@ -11,6 +12,12 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
  * follow Effect's native stale-while-revalidate semantics: marking a result as
  * waiting preserves the previous value, and settling a failure carries the last
  * success forward so the UI never has to flash back to a spinner.
+ *
+ * Only the `current` getter tracks. The transitions read the previous result
+ * untracked, because the hooks call them from inside their own `$effect` (and a
+ * synchronous Effect settles before `runFork` returns): a tracked read there
+ * would make the effect depend on the state it writes, re-running it on every
+ * transition until Svelte throws `effect_update_depth_exceeded`.
  */
 export interface ResultState<A, E> {
   /** The current result. Read this inside an effect or template to track it. */
@@ -48,27 +55,29 @@ export interface ResultState<A, E> {
  */
 export function makeResult<A, E>(): ResultState<A, E> {
   let current = $state<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial<A, E>());
+  // The previous result, read without making the caller's effect depend on it.
+  const previous = (): AsyncResult.AsyncResult<A, E> => untrack(() => current);
 
   return {
     get current() {
       return current;
     },
     startWaiting() {
-      current = AsyncResult.waiting(current);
+      current = AsyncResult.waiting(previous());
     },
     reset() {
       current = AsyncResult.initial<A, E>();
     },
     settle(exit) {
       if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) return;
-      current = AsyncResult.fromExitWithPrevious(exit, Option.some(current));
+      current = AsyncResult.fromExitWithPrevious(exit, Option.some(previous()));
     },
     succeed(value) {
       current = AsyncResult.success<A, E>(value);
     },
     failCause(cause) {
       if (Cause.hasInterrupts(cause)) return;
-      current = AsyncResult.failureWithPrevious<A, E>(cause, { previous: Option.some(current) });
+      current = AsyncResult.failureWithPrevious<A, E>(cause, { previous: Option.some(previous()) });
     },
   };
 }
