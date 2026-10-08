@@ -31,6 +31,7 @@ const failureOf = async (effect: Effect.Effect<unknown, unknown, never>): Promis
 };
 
 const redirect: ActionResult = { type: "redirect", status: 303, location: "/done" };
+const success: ActionResult = { type: "success", status: 200, location: "/" };
 
 describe("Forms.applyAction", () => {
   it("passes the result to SvelteKit and succeeds", async () => {
@@ -94,11 +95,21 @@ describe("Forms.enhance with failing handlers", () => {
     return { input, cancelled: () => cancelled };
   };
 
-  /** Runs `submit` through both phases with `result`, as `use:enhance` would. */
-  const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<void> => {
+  /**
+   * Runs `submit` through both phases with `result`, as `use:enhance` would,
+   * resolving with how many times the result callback called SvelteKit's
+   * `update()`.
+   */
+  const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
     const callback = await submit(submitInput().input);
     if (typeof callback !== "function") throw new Error("expected a result callback");
-    await callback({ result, update: () => Promise.resolve() } as Parameters<typeof callback>[0]);
+    let updates = 0;
+    const update = () => {
+      updates++;
+      return Promise.resolve();
+    };
+    await callback({ result, update } as Parameters<typeof callback>[0]);
+    return updates;
   };
 
   it("routes a failed applyAction returned from onResult to onError", async () => {
@@ -110,10 +121,23 @@ describe("Forms.enhance with failing handlers", () => {
       { onError: (error) => Effect.sync(() => seen.push(error)) },
     );
 
-    await runEnhanced(submit, redirect);
+    // onError replaces SvelteKit's default result behaviour: `update()` is not
+    // called in its place.
+    expect(await runEnhanced(submit, redirect)).toBe(0);
     expect(seen).toHaveLength(1);
     expect(seen[0]).toBeInstanceOf(Forms.ApplyActionError);
     expect(seen[0]).toMatchObject({ _tag: "ApplyActionError", cause });
+  });
+
+  it("calls update() only when a successful onResult calls it", async () => {
+    const seen: Array<unknown> = [];
+    const submit = Forms.enhance(
+      { onResult: ({ update }) => Effect.promise(() => update()) },
+      { onError: (error) => Effect.sync(() => seen.push(error)) },
+    );
+
+    expect(await runEnhanced(submit, success)).toBe(1);
+    expect(seen).toEqual([]);
   });
 
   it("does not call onError when onResult succeeds or recovers", async () => {
