@@ -23,7 +23,9 @@ function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unk
  * Calls a SvelteKit remote `query` as an Effect that succeeds with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function callQuery<Output>(
   query: RemoteQueryFunction<void, Output>,
@@ -33,7 +35,9 @@ export function callQuery<Output>(
  * with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function callQuery<Input, Output>(
   query: RemoteQueryFunction<Input, Output>,
@@ -57,7 +61,9 @@ export function callQuery<Input, Output>(
  * output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; commands may not `redirect()`, and SvelteKit
+ * rejects one with an `Error`.
  */
 export function callCommand<Output>(
   command: RemoteCommand<void, Output>,
@@ -67,7 +73,9 @@ export function callCommand<Output>(
  * with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; commands may not `redirect()`, and SvelteKit
+ * rejects one with an `Error`.
  */
 export function callCommand<Input, Output>(
   command: RemoteCommand<Input, Output>,
@@ -93,7 +101,9 @@ export function callCommand<Input, Output>(
  * `query.refresh()` afterwards) for their cached values to update.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; commands may not `redirect()`, and SvelteKit
+ * rejects one with an `Error`.
  */
 export function callCommandWithUpdates<Input, Output>(
   command: RemoteCommand<Input, Output>,
@@ -108,7 +118,9 @@ export function callCommandWithUpdates<Input, Output>(
  * with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function callPrerender<Output>(
   prerender: RemotePrerenderFunction<void, Output>,
@@ -118,7 +130,9 @@ export function callPrerender<Output>(
  * that succeeds with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function callPrerender<Input, Output>(
   prerender: RemotePrerenderFunction<Input, Output>,
@@ -150,7 +164,9 @@ export type RemoteSubmit = () => PromiseLike<unknown> & {
  * Runs an enhanced remote form's `submit()` as an Effect.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function submitForm(
   submit: () => PromiseLike<unknown>,
@@ -163,7 +179,9 @@ export function submitForm(
  * the same round trip (SvelteKit's single-flight mutations).
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
- * through unchanged (including a thrown `error()` / `redirect()`).
+ * through unchanged. On the client, a server-side `error()` arrives as
+ * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
+ * failing.
  */
 export function submitFormWithUpdates(
   submit: RemoteSubmit,
