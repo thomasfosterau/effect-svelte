@@ -1,5 +1,6 @@
 import { Duration, Effect, Fiber } from "effect";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
+import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
@@ -35,8 +36,17 @@ export interface DerivedReturn<A, E> {
 
 /**
  * Re-run an effect whenever reactive dependencies change.
- * The function parameter is called inside $effect, so it automatically tracks dependencies.
- * When dependencies change, the previous fiber is interrupted and a new one starts.
+ *
+ * `fn` is called inside `$effect`, so the reactive state it reads while
+ * building the Effect is tracked; when that state changes, the previous fiber
+ * is interrupted and a new one starts. Only `fn`'s own reads are dependencies:
+ * the Effect runs untracked, so state it reads while running (even
+ * synchronously, e.g. inside `Effect.sync` or `Effect.gen`) does not restart
+ * it. Read anything that should restart the run in `fn` itself, as in
+ * `() => search(query)`.
+ *
+ * Nothing is thrown: the Effect's failures and defects settle `current` to a
+ * `Failure`, and interruption (a dependency change or unmount) leaves it as is.
  *
  * Pass `{ debounce }` to coalesce rapid dependency changes (e.g. a search box):
  * interrupting the previous fiber cancels its pending debounce sleep, so only
@@ -80,37 +90,42 @@ export function useDerived<A, E, R>(
       interruptFiber(currentFiber);
     }
 
-    // Get the effect (this tracks reactive dependencies).
+    // Get the effect: the reads `fn` makes are the only tracked dependencies.
     const effect = fn();
 
-    let runningFiber: Fiber.Fiber<A, E>;
-    if (debounce === undefined) {
-      // Mark as waiting, preserving the previous value if there is one.
-      state.startWaiting();
-      runningFiber = runFork(runtime)(effect);
-    } else {
-      // Wait out the debounce window first; only then flip to waiting and run,
-      // so the previous value stays visible until the run actually begins.
-      runningFiber = runFork(runtime)(
+    // Start the run untracked. `runFork` runs an Effect synchronously until its
+    // first async boundary, so a tracked fork would subscribe this `$effect` to
+    // whatever state the Effect happens to read on the way.
+    untrack(() => {
+      let runningFiber: Fiber.Fiber<A, E>;
+      if (debounce === undefined) {
+        // Mark as waiting, preserving the previous value if there is one.
+        state.startWaiting();
+        runningFiber = runFork(runtime)(effect);
+      } else {
+        // Wait out the debounce window first; only then flip to waiting and
+        // run, so the previous value stays visible until the run begins.
+        runningFiber = runFork(runtime)(
+          Effect.gen(function* () {
+            yield* Effect.sleep(debounce);
+            yield* Effect.sync(() => state.startWaiting());
+            return yield* effect;
+          }),
+        );
+      }
+      currentFiber = runningFiber;
+
+      // Settle the result when the fiber completes, unless deps changed first.
+      runFork(runtime)(
         Effect.gen(function* () {
-          yield* Effect.sleep(debounce);
-          yield* Effect.sync(() => state.startWaiting());
-          return yield* effect;
+          const exit = yield* Fiber.await(runningFiber);
+          if (currentFiber === runningFiber) {
+            state.settle(exit);
+            currentFiber = null;
+          }
         }),
       );
-    }
-    currentFiber = runningFiber;
-
-    // Settle the result when the fiber completes, unless deps changed first.
-    runFork(runtime)(
-      Effect.gen(function* () {
-        const exit = yield* Fiber.await(runningFiber);
-        if (currentFiber === runningFiber) {
-          state.settle(exit);
-          currentFiber = null;
-        }
-      }),
-    );
+    });
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
     return () => {

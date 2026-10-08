@@ -74,7 +74,12 @@ function makeLiveResult<A, E>(seed: Option.Option<A>): LiveResultState<A, E> {
       current = AsyncResult.success<A, E>(value);
     },
     failCause(cause) {
-      current = AsyncResult.failureWithPrevious<A, E>(cause, { previous: Option.some(current) });
+      // Untracked like `startWaiting`, so this read can never make the hook's
+      // `$effect` depend on the state it writes. (Today `failCause` only runs
+      // after `Effect.yieldNow`, outside the effect, so this is for
+      // consistency rather than a fix.)
+      const previous = untrack(() => current);
+      current = AsyncResult.failureWithPrevious<A, E>(cause, { previous: Option.some(previous) });
     },
   };
 }

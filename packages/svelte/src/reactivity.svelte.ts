@@ -1,6 +1,7 @@
 import { Effect, Fiber, Stream } from "effect";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
+import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
@@ -25,10 +26,20 @@ export interface ReactiveOptions<R> {
 /**
  * Creates a reactive query that automatically re-runs when the specified keys are invalidated.
  *
+ * `keys` and `effectFn` are called inside `$effect`, so the reactive state they
+ * read is tracked: when it changes, the running query is interrupted and a new
+ * one starts. Only those two thunks' reads are dependencies: the Effect runs
+ * untracked, so state it reads while running (even synchronously, e.g. inside
+ * `Effect.sync` or `Effect.gen`) does not restart it. Read anything that should
+ * restart the query in a thunk, as `userId` is below.
+ *
+ * Nothing is thrown: the Effect's failures and defects settle `current` to a
+ * `Failure`, and interruption (a dependency change or unmount) leaves it as is.
+ *
  * Note: Make sure your runtime includes `Reactivity.layer` from `effect/reactivity`.
  *
  * @param keys - Reactivity keys that this query depends on
- * @param effectFn - The Effect to run when keys are invalidated
+ * @param effectFn - Builds the Effect to run initially and whenever the keys are invalidated
  *
  * @example
  * ```svelte
@@ -64,12 +75,10 @@ export function reactiveQuery<A, E, R>(
   let fiber: Fiber.Fiber<void, never> | null = null;
 
   $effect(() => {
-    // Get the current keys (tracks Svelte dependencies)
+    // Get the current keys and effect: the reads these thunks make are the
+    // only tracked dependencies.
     const currentKeys = keys();
     const effect = effectFn();
-
-    // Mark as waiting, preserving any previous value.
-    state.startWaiting();
 
     // Run the reactive query inside a scope so that the registered
     // invalidation handlers are cleaned up when the fiber is interrupted.
@@ -90,8 +99,15 @@ export function reactiveQuery<A, E, R>(
       ),
     );
 
-    const runningFiber = runFork(runtime)(queryEffect);
-    fiber = runningFiber;
+    // Start the query untracked. `runFork` (and `Reactivity.query`'s own fork)
+    // run the Effect synchronously until its first async boundary, so a
+    // tracked fork would subscribe this `$effect` to whatever state the Effect
+    // happens to read on the way.
+    fiber = untrack(() => {
+      // Mark as waiting, preserving any previous value.
+      state.startWaiting();
+      return runFork(runtime)(queryEffect);
+    });
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
     return () => {
