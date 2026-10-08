@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import { AsyncResult, reactiveMutation } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, useReactiveMutation } from "@thomasfosterau/effect-svelte";
   import { TodoRepository, type TodoStorageError } from "../todo-repository";
   import type { TodoStats } from "../model";
 
@@ -8,9 +8,9 @@
 
   let title = $state("");
 
-  // The thunk passed to reactiveMutation is evaluated synchronously inside
+  // The thunk passed to useReactiveMutation is evaluated synchronously inside
   // run(), so it can capture the current input value before we clear it.
-  const addTodo = reactiveMutation(["todos"], () => {
+  const addTodo = useReactiveMutation(["todos"], () => {
     const value = title.trim();
     return Effect.flatMap(TodoRepository, (repo) => repo.add(value));
   });

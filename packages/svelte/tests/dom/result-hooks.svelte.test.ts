@@ -1,6 +1,6 @@
 /**
  * The hooks that start a run from inside their own `$effect` (`useEffect` with
- * `immediate: true`, `useQuery`, `useDerived`, `reactiveQuery`) must not make
+ * `immediate: true`, `useQuery`, `useDerived`, `useReactiveQuery`) must not make
  * that effect depend on their own result state (#127).
  *
  * Starting a run reads the result (`startWaiting` keeps the previous value),
@@ -9,11 +9,11 @@
  * result re-runs the effect — which interrupts and restarts the Effect — until
  * Svelte throws `effect_update_depth_exceeded`.
  *
- * Only the hook's thunk (`useDerived`'s `fn`, `reactiveQuery`'s `keys` and
+ * Only the hook's thunk (`useDerived`'s `fn`, `useReactiveQuery`'s `keys` and
  * `effectFn`) is tracked: state an Effect reads synchronously while it starts
  * is not a dependency, matching `useEffect({ immediate: true })`.
  *
- * `reactiveStream` starts its run from a `createSubscriber` start callback,
+ * `useReactiveStream` starts its run from a `createSubscriber` start callback,
  * which Svelte runs untracked, so it reads its thunks in a `$derived` instead;
  * the same split applies (#140). `useInvalidateKeys` re-runs queries on the
  * spot, so calling it from an `$effect` must not track their reads either.
@@ -31,7 +31,11 @@ import { useDerived } from "../../src/derived.svelte.js";
 import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
 import { useQuery } from "../../src/query.svelte.js";
-import { reactiveQuery, reactiveStream, useInvalidateKeys } from "../../src/reactivity.svelte.js";
+import {
+  useReactiveQuery,
+  useReactiveStream,
+  useInvalidateKeys,
+} from "../../src/reactivity.svelte.js";
 import ResultProbe from "./ResultProbe.svelte";
 import { makeMounter, text } from "./helpers.js";
 
@@ -306,7 +310,7 @@ describe("useDerived", () => {
   });
 });
 
-describe("reactiveQuery", () => {
+describe("useReactiveQuery", () => {
   it("runs once on mount and renders its Success", async () => {
     const managed = ManagedRuntime.make(Reactivity.layer);
     const reactivity = await managed.context();
@@ -314,7 +318,7 @@ describe("reactiveQuery", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveQuery(
+        useReactiveQuery(
           () => ["probe"],
           () => Effect.sync(() => ++starts),
           { runtime: reactivity },
@@ -342,7 +346,7 @@ describe("reactiveQuery", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveQuery(
+        useReactiveQuery(
           () => ["probe", dep.n],
           () => {
             const n = dep.n;
@@ -389,7 +393,7 @@ describe("reactiveQuery", () => {
     let starts = 0;
     mountProbe({
       use: () =>
-        reactiveQuery(
+        useReactiveQuery(
           () => ["probe"],
           () => {
             const n = dep.n;
@@ -423,7 +427,7 @@ describe("reactiveQuery", () => {
     let starts = 0;
     mountProbe({
       use: () =>
-        reactiveQuery(
+        useReactiveQuery(
           () => ["probe", dep.n],
           () => Effect.sync(() => ++starts),
           { runtime: reactivity },
@@ -450,7 +454,7 @@ describe("reactiveQuery", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveQuery(
+        useReactiveQuery(
           () => ["probe"],
           () =>
             Effect.suspend(() => {
@@ -474,8 +478,8 @@ describe("reactiveQuery", () => {
   });
 });
 
-describe("reactiveStream", () => {
-  // `reactiveStream` is built on `createSubscriber`, whose `start` runs
+describe("useReactiveStream", () => {
+  // `useReactiveStream` is built on `createSubscriber`, whose `start` runs
   // untracked: the thunks must be tracked some other way (#140).
 
   /** A `Reactivity` runtime plus a synchronous `invalidate` for the tests. */
@@ -500,7 +504,7 @@ describe("reactiveStream", () => {
     // readers, one fiber.
     const target = mountProbe({
       use: () =>
-        reactiveStream(
+        useReactiveStream(
           () => ["probe"],
           () => Effect.sync(() => ++starts),
           { runtime: reactivity.runtime },
@@ -529,7 +533,7 @@ describe("reactiveStream", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveStream(
+        useReactiveStream(
           // Each key is invalidated on its own, so each run gets a distinct one.
           () => [`probe-${dep.n}`],
           () => Effect.sync(() => ++starts),
@@ -562,7 +566,7 @@ describe("reactiveStream", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveStream(
+        useReactiveStream(
           () => ["probe"],
           () => {
             const n = dep.n;
@@ -592,7 +596,7 @@ describe("reactiveStream", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveStream(
+        useReactiveStream(
           () => ["probe"],
           () =>
             Effect.sync(() => {
@@ -625,7 +629,7 @@ describe("reactiveStream", () => {
     let starts = 0;
     const target = mountProbe({
       use: () =>
-        reactiveStream(
+        useReactiveStream(
           () => ["probe"],
           () => {
             const n = dep.n;
@@ -668,7 +672,7 @@ describe("reactiveStream", () => {
       target,
       props: {
         use: () =>
-          reactiveStream(
+          useReactiveStream(
             () => ["probe", dep.n],
             () => {
               const gate = interrupted[dep.n - 1]!;
@@ -708,7 +712,7 @@ describe("useInvalidateKeys", () => {
     let runs = 0;
     mountProbe({
       use: () => {
-        const query = reactiveQuery(
+        const query = useReactiveQuery(
           () => ["probe"],
           () =>
             Effect.sync(() => {
@@ -759,5 +763,17 @@ describe("makeResult", () => {
 
     expect(runs).toBe(1);
     expect(text(target, "tag")).toBe("Failure");
+  });
+});
+
+describe("deprecated reactiveX aliases", () => {
+  it("are the useReactiveX hooks under their old names, exported from the package root", async () => {
+    // Import the root entry to check the published names, not just the module.
+    const root = await import("../../src/index.js");
+    expect(root.reactiveQuery).toBe(root.useReactiveQuery);
+    expect(root.reactiveStream).toBe(root.useReactiveStream);
+    expect(root.reactiveMutation).toBe(root.useReactiveMutation);
+    expect(root.useReactiveQuery).toBe(useReactiveQuery);
+    expect(root.useReactiveStream).toBe(useReactiveStream);
   });
 });

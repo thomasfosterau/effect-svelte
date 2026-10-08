@@ -1,6 +1,6 @@
 <!--
   Minimal harness for the hooks that hold an `AsyncResult` (`useEffect`,
-  `useQuery`, `useDerived`, `reactiveQuery`, ...): `use` calls the hook during
+  `useQuery`, `useDerived`, `useReactiveQuery`, ...): `use` calls the hook during
   component initialisation and the result renders as text.
 
   `onSuccess` fires from an `$effect` whenever the result is a `Success` (and

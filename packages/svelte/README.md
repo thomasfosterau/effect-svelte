@@ -60,17 +60,32 @@ and `fromStore`), typed as Effect's native
 | `useScope` / `useScopeCallback`                                                                                                           | A `Scope` tied to the component lifecycle                                                                |
 | `useEffect`, `useQuery`, `useDerived`, `useMutation`, `useQueryPromise`                                                                   | Run an Effect and expose its `AsyncResult` via `.current`                                                |
 | `useStream`, `useLiveStream`, `useSubscriptionRef`, `usePubSub`, `useWritableRef`                                                         | Expose a `Stream`, `SubscriptionRef` or `PubSub` as runes                                                |
-| `reactiveQuery`, `reactiveStream`, `reactiveMutation`, `useInvalidateKeys`                                                                | Keyed invalidation through `effect/reactivity`'s `Reactivity`                                            |
+| `useReactiveQuery`, `useReactiveStream`, `useReactiveMutation`, `useInvalidateKeys`                                                       | Keyed invalidation through `effect/reactivity`'s `Reactivity`                                            |
 | `useAtom`, `useAtomResult`, `invalidateAtomKeys`, `makeAtomRegistry`, `provideAtomRegistry`, `getAtomRegistry`, `AtomRegistryUnavailable` | The Svelte binding for Effect's atoms (and the error raised when no registry is reachable on the server) |
 | `useDebouncedSearch`                                                                                                                      | Debounced, latest-wins, interruptible typeahead                                                          |
 | `Store`, `SignalEmitter`                                                                                                                  | Interop with Svelte stores and `$state`                                                                  |
 | `AsyncResult`                                                                                                                             | Effect's native `AsyncResult` namespace, re-exported                                                     |
 
+### Hook naming
+
+Every hook is named `useX` and is called during component initialisation,
+where it reads the ambient runtime and ties its work to the component's
+lifecycle. The `useReactive*` hooks (`useReactiveQuery`,
+`useReactiveStream`, `useReactiveMutation`) are the ones that take
+`Reactivity` keys: a query or stream re-runs whenever one of its keys is
+invalidated, and a mutation invalidates its keys when it succeeds.
+`useInvalidateKeys` invalidates keys by hand. Their runtime must provide
+`Reactivity.layer` from `effect/reactivity`.
+
+`reactiveQuery`, `reactiveStream` and `reactiveMutation` are deprecated
+aliases of the `useReactive*` hooks, kept for one minor release and removed in
+the next.
+
 ### Hooks and explicit runtimes
 
 The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useLiveStream`,
-`useSubscriptionRef`, `usePubSub`, `reactiveQuery`, `reactiveStream`,
-`reactiveMutation`) all return a handle with `.current` (plus
+`useSubscriptionRef`, `usePubSub`, `useReactiveQuery`, `useReactiveStream`,
+`useReactiveMutation`) all return a handle with `.current` (plus
 `values`/`latest`/`run`/`refetch`/`promise` where relevant). `AsyncResult` and
 its combinators (`match`, `isSuccess`, `isWaiting`, `getOrElse`, ...) are
 re-exported from the package root.

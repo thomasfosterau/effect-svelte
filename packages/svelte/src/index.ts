@@ -50,10 +50,13 @@ export {
 
 // Layer 4: Effect Reactivity Integration (effect/reactivity)
 export {
+  useReactiveQuery,
+  useReactiveStream,
+  useReactiveMutation,
+  useInvalidateKeys,
   reactiveQuery,
   reactiveStream,
   reactiveMutation,
-  useInvalidateKeys,
   type ReactiveOptions,
   type ReactiveQueryReturn,
   type ReactiveStreamReturn,

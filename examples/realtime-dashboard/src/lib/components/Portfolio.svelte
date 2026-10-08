@@ -2,8 +2,8 @@
   import { Effect, SubscriptionRef } from "effect";
   import {
     AsyncResult,
-    reactiveMutation,
-    reactiveStream,
+    useReactiveMutation,
+    useReactiveStream,
     useSubscriptionRef,
   } from "@thomasfosterau/effect-svelte";
   import { MarketData } from "../market";
@@ -18,19 +18,19 @@
   let symbol = $state("BTC");
   let units = $state(1);
 
-  // Placing a trade is a reactiveMutation keyed on "portfolio": on success
+  // Placing a trade is a useReactiveMutation keyed on "portfolio": on success
   // the value-history stream below re-runs. The trade itself updates the
   // SubscriptionRef and publishes to the trade PubSub.
-  const trade = reactiveMutation(["portfolio"], () => {
+  const trade = useReactiveMutation(["portfolio"], () => {
     const currentSide = side;
     const currentSymbol = symbol;
     const currentUnits = units;
     return placeTrade(currentSide, currentSymbol, currentUnits);
   });
 
-  // Portfolio value history: reactiveStream re-runs this snapshot effect
+  // Portfolio value history: useReactiveStream re-runs this snapshot effect
   // every time the "portfolio" key is invalidated, accumulating the results.
-  const history = reactiveStream(["portfolio"], () =>
+  const history = useReactiveStream(["portfolio"], () =>
     Effect.gen(function* () {
       const market = yield* MarketData;
       const current = yield* SubscriptionRef.get(portfolioRef);
@@ -47,7 +47,7 @@
 </script>
 
 <section class="panel">
-  <h2>Portfolio — useSubscriptionRef + reactiveMutation</h2>
+  <h2>Portfolio — useSubscriptionRef + useReactiveMutation</h2>
 
   <dl class="stats">
     <dt>Cash</dt>
@@ -96,7 +96,7 @@
     <p class="error">Trade failed — insufficient funds.</p>
   {/if}
 
-  <h2>Value history — reactiveStream</h2>
+  <h2>Value history — useReactiveStream</h2>
   <ul class="feed">
     {#each [...history.values].reverse() as snapshot (snapshot.at)}
       <li>

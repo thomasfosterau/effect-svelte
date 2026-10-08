@@ -31,14 +31,14 @@ pnpm run dev
 | `useScope` / `useScopeCallback`                                     | `Connection.svelte` (acquire/release on mount/unmount)           |
 | `useDerived`                                                        | `QuoteCard.svelte` (re-runs on selection change)                 |
 | `AsyncResult.match`                                                 | `QuoteCard.svelte`                                               |
-| `reactiveMutation` / `reactiveStream`                               | `Portfolio.svelte` (trade → value history)                       |
+| `useReactiveMutation` / `useReactiveStream`                         | `Portfolio.svelte` (trade → value history)                       |
 | `getRuntime` (custom hooks)                                         | `lib/use-clock.svelte.ts`                                        |
 | `provideRuntime` / `SvelteRuntime.extend`                           | `App.svelte`, `lib/runtime.ts`                                   |
 | Effect services, `Random`, `Schedule`, `Stream` operators, `Result` | `lib/market.ts`, `lib/stores.ts`, components                     |
 
 ## How one trade exercises three reactive primitives
 
-Pressing **Trade** in the portfolio panel runs a single `reactiveMutation`
+Pressing **Trade** in the portfolio panel runs a single `useReactiveMutation`
 whose effect:
 
 1. updates the portfolio inside a `SubscriptionRef` → the holdings table
@@ -46,4 +46,4 @@ whose effect:
 2. publishes the executed trade to a `PubSub` → the trade feed (`usePubSub`)
    appends it;
 3. invalidates the `"portfolio"` reactivity key → the value-history panel
-   (`reactiveStream`) recomputes the portfolio value.
+   (`useReactiveStream`) recomputes the portfolio value.

@@ -93,7 +93,7 @@ function makeLiveResult<A, E>(seed: Option.Option<A>): LiveResultState<A, E> {
  * the previous subscription is interrupted and a new one starts, keeping the
  * previous value visible as a waiting `Success` (stale-while-revalidate). This
  * is distinct from {@link useStream} (accumulates a static stream) and
- * `reactiveStream` (re-runs an *Effect* on Reactivity-key invalidation).
+ * `useReactiveStream` (re-runs an *Effect* on Reactivity-key invalidation).
  *
  * @example
  * ```svelte
