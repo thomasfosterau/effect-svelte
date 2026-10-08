@@ -10,7 +10,9 @@ import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
  * This is the Svelte→Effect counterpart to the `from*` helpers in this module
  * (which go Effect→Svelte): it lets store-based state — including third-party
  * libraries that expose Svelte stores — feed Effect pipelines. The subscription
- * is opened when the stream is run and closed when its scope closes.
+ * is opened when the stream is run and closed when its scope closes (the
+ * stream ends, e.g. via `Stream.take`, or its fiber is interrupted). The stream
+ * never fails and does not end on its own.
  *
  * @example
  * ```ts
@@ -24,12 +26,19 @@ import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
  * ```
  */
 export function toStream<A>(store: Readable<A>): Stream.Stream<A> {
-  return Stream.callback<A>((queue) => {
-    const unsubscribe = store.subscribe((value) => {
-      Queue.offerUnsafe(queue, value);
-    });
-    return Effect.sync(() => unsubscribe());
-  });
+  // Effect v4's `Stream.callback` runs the returned Effect as the stream's
+  // setup, inside the stream's scope; it is not a cleanup. Register the
+  // unsubscribe as a finalizer on that scope instead.
+  return Stream.callback<A>((queue) =>
+    Effect.acquireRelease(
+      Effect.sync(() =>
+        store.subscribe((value) => {
+          Queue.offerUnsafe(queue, value);
+        }),
+      ),
+      (unsubscribe) => Effect.sync(() => unsubscribe()),
+    ),
+  );
 }
 
 /**

@@ -34,7 +34,10 @@ class FakeSocket {
     (this.listeners[type] ??= []).push(fn);
   }
 
+  closeCalls = 0;
+
   close(): void {
+    this.closeCalls++;
     this.readyState = 3;
   }
 
@@ -88,6 +91,51 @@ describe("Realtime.fromWebSocket", () => {
     const exit = await Effect.runPromise(Effect.exit(Fiber.join(fiber)));
     expect(exit._tag).toBe("Failure");
   });
+  it("closes the socket when the stream ends", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+        Stream.take(1),
+        Stream.runCollect,
+      ),
+    );
+    const socket = await awaitSocket();
+    expect(socket.closeCalls).toBe(0);
+    socket.emit("message", { data: "a" });
+
+    await Effect.runPromise(Fiber.join(fiber));
+    expect(socket.closeCalls).toBe(1);
+  });
+
+  it("closes the socket when the stream is interrupted", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+        Stream.runCollect,
+      ),
+    );
+    const socket = await awaitSocket();
+    expect(socket.closeCalls).toBe(0);
+
+    // `Fiber.interrupt` waits for the stream's scope to close.
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    expect(socket.closeCalls).toBe(1);
+  });
+
+  it("does not close a socket that has already closed", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+        Stream.runCollect,
+      ),
+    );
+    const socket = await awaitSocket();
+    socket.readyState = 3;
+    socket.emit("close", { wasClean: true, code: 1000, reason: "" });
+
+    await Effect.runPromise(Fiber.join(fiber));
+    expect(socket.closeCalls).toBe(0);
+  });
 });
 
 describe("Realtime.fromEventSource", () => {
@@ -119,5 +167,36 @@ describe("Realtime.fromEventSource", () => {
 
     const result = await Effect.runPromise(Fiber.join(fiber));
     expect(result).toEqual([{ event: "tick", data: "1", lastEventId: "" }]);
+  });
+
+  it("closes the source when the stream ends", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromEventSource("/events", { implementation: FakeSocket as never }).pipe(
+        Stream.take(1),
+        Stream.runCollect,
+      ),
+    );
+    const source = await awaitSocket();
+    expect(source.closeCalls).toBe(0);
+    source.emit("message", { type: "message", data: "hi", lastEventId: "" });
+
+    await Effect.runPromise(Fiber.join(fiber));
+    expect(source.closeCalls).toBe(1);
+  });
+
+  it("closes the source when the stream is interrupted", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromEventSource("/events", { implementation: FakeSocket as never }).pipe(
+        Stream.runCollect,
+      ),
+    );
+    const source = await awaitSocket();
+    expect(source.closeCalls).toBe(0);
+
+    // `Fiber.interrupt` waits for the stream's scope to close.
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    expect(source.closeCalls).toBe(1);
   });
 });
