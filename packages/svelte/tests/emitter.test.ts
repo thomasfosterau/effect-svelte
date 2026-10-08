@@ -1,38 +1,36 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Fiber, Option, PubSub, Queue, Stream } from "effect";
+import { Effect, Fiber, PubSub, Queue, Stream } from "effect";
 import { SignalEmitter } from "../src/emitter.js";
 
 /**
  * Runs `emitter.stream` in a child fiber that forwards each element into a
- * queue, and returns once the stream is connected to the emitter.
+ * queue, and returns once that run is connected to the emitter. `next` takes
+ * the run's next value, starting with any it took from the buffer.
  *
- * The emitter has no "connected" signal, so this emits negative probe values,
- * yielding between each, until one arrives. A bounded loop of `yieldNow`s keeps
- * it deterministic: no wall-clock sleep. `next` skips any probes still in
- * flight (or received by another run) and returns the next real (non-negative)
- * value.
+ * White-box: this waits for the emitter's count of connected runs to grow
+ * rather than emitting probe values, because a probe emitted before the run
+ * connects would itself be buffered and, with a small `bufferSize`, displace
+ * the values a test buffered (and a received probe would hide whether those
+ * arrived). A bounded loop of `yieldNow`s keeps it deterministic: no
+ * wall-clock sleep.
  */
 const connect = (emitter: SignalEmitter<number>) =>
   Effect.gen(function* () {
+    const connectedRuns = (): number => emitter["_connected"];
+    const before = connectedRuns();
     const received = yield* Queue.unbounded<number>();
     const fiber = yield* Effect.forkChild(
       Stream.runForEach(emitter.stream, (value) => Queue.offer(received, value)),
     );
 
-    let connected = false;
-    for (let probe = 1; probe <= 1_000 && !connected; probe++) {
-      emitter.emit(-probe);
-      yield* Effect.yieldNow;
-      connected = Option.isSome(yield* Queue.poll(received));
+    for (let i = 0; i < 1_000 && connectedRuns() === before; i++) yield* Effect.yieldNow;
+    if (connectedRuns() === before) {
+      return yield* Effect.die(new Error("the stream never connected"));
     }
-    if (!connected) return yield* Effect.die(new Error("the stream never connected"));
 
-    const take: Effect.Effect<number> = Queue.take(received).pipe(
-      Effect.flatMap((value) => (value < 0 ? take : Effect.succeed(value))),
-    );
     // Bounded only so a regression fails fast instead of hanging the suite;
     // the passing path never waits on the clock.
-    const next = take.pipe(Effect.timeout("2 seconds"));
+    const next = Queue.take(received).pipe(Effect.timeout("2 seconds"));
     return { fiber, next };
   });
 
@@ -65,8 +63,27 @@ describe("SignalEmitter", () => {
     expect(values).toEqual([1, 2, 3]);
   });
 
-  it("delivers values emitted before any run connects to the first run, in order", async () => {
+  it("keeps only the latest value emitted while no run is connected by default", async () => {
     const emitter = new SignalEmitter<number>();
+    emitter.emit(1);
+    emitter.emit(2);
+    emitter.emit(3);
+
+    const value = await Effect.runPromise(
+      Effect.gen(function* () {
+        const { fiber, next } = yield* connect(emitter);
+        emitter.emit(4);
+        const received = [yield* next, yield* next];
+        yield* Fiber.interrupt(fiber);
+        return received;
+      }),
+    );
+
+    expect(value).toEqual([3, 4]);
+  });
+
+  it("delivers values emitted before any run connects to the next run, in order", async () => {
+    const emitter = new SignalEmitter<number>({ bufferSize: 3 });
     emitter.emit(1);
     emitter.emit(2);
     emitter.emit(3);
@@ -100,6 +117,31 @@ describe("SignalEmitter", () => {
     );
 
     expect(value).toBe(2);
+  });
+
+  it("rounds a fractional `bufferSize` down and treats a negative one as 0", async () => {
+    const fractional = new SignalEmitter<number>({ bufferSize: 2.7 });
+    for (const value of [1, 2, 3]) fractional.emit(value);
+    const negative = new SignalEmitter<number>({ bufferSize: -1 });
+    negative.emit(1);
+
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fromFractional = yield* collect(fractional, 2);
+        const { fiber, next } = yield* connect(negative);
+        negative.emit(2);
+        const fromNegative = yield* next;
+        yield* Fiber.interrupt(fiber);
+        return { fromFractional, fromNegative };
+      }),
+    );
+
+    expect(values).toEqual({ fromFractional: [2, 3], fromNegative: 2 });
+  });
+
+  it("throws a RangeError for a non-finite `bufferSize`", () => {
+    expect(() => new SignalEmitter<number>({ bufferSize: Number.NaN })).toThrow(RangeError);
+    expect(() => new SignalEmitter<number>({ bufferSize: Infinity })).toThrow(RangeError);
   });
 
   it("delivers every value to every concurrently running run", async () => {

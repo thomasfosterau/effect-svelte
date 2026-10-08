@@ -44,10 +44,10 @@ describe("SignalEmitter in a component", () => {
     await runtime.dispose();
   });
 
-  it("delivers values emitted before the consumer first renders once it does", async () => {
+  it("delivers the latest value emitted before the consumer first renders once it does", async () => {
     const { target, runtime, controls } = setup(true);
     // The `$effect` emits `count` 0, then 1, while nothing reads the stream:
-    // both are buffered.
+    // the default buffer keeps only the latest, 1.
     flushSync();
     controls().increment();
     flushSync();
@@ -55,11 +55,11 @@ describe("SignalEmitter in a component", () => {
 
     controls().show();
     flushSync();
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("0,2");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("2");
 
     controls().increment();
     flushSync();
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("0,2,4");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("2,4");
 
     await runtime.dispose();
   });

@@ -5,10 +5,32 @@ export interface SignalEmitterOptions {
   /**
    * How many values to keep while no run of the stream is connected; the next
    * run to connect receives them first. Once full, each new value drops the
-   * oldest. `0` drops values emitted while no run is connected. Defaults to 16.
+   * oldest. Defaults to 1: only the latest value is kept, which suits an
+   * emitter that bridges state. `0` drops values emitted while no run is
+   * connected. A fractional size is rounded down and a negative one is treated
+   * as `0`; a non-finite size (`NaN`, `Infinity`) makes the constructor throw a
+   * `RangeError`. This limits only the buffer kept while no run is connected:
+   * once a run is connected, values it has yet to take queue without bound.
    */
   readonly bufferSize?: number | undefined;
 }
+
+/** The default {@link SignalEmitterOptions.bufferSize}: the latest value only. */
+const defaultBufferSize = 1;
+
+/**
+ * Normalises {@link SignalEmitterOptions.bufferSize} to a non-negative integer.
+ * Throws a `RangeError` for a non-finite size.
+ */
+const normaliseBufferSize = (bufferSize: number | undefined): number => {
+  if (bufferSize === undefined) return defaultBufferSize;
+  if (!Number.isFinite(bufferSize)) {
+    throw new RangeError(
+      `SignalEmitter: bufferSize must be a finite number, received ${String(bufferSize)}`,
+    );
+  }
+  return Math.max(0, Math.floor(bufferSize));
+};
 
 /**
  * A bridge that converts Svelte reactive state into Effect streams.
@@ -19,11 +41,15 @@ export interface SignalEmitterOptions {
  * example by two `useStream` consumers). A run connects when it starts and
  * disconnects when its scope closes (the stream ends or its fiber is
  * interrupted). Connecting is asynchronous, so values emitted while no run is
- * connected are buffered, by default the most recent 16 (see
+ * connected are buffered, by default only the latest one (see
  * {@link SignalEmitterOptions.bufferSize}), and delivered first to the next run
  * that connects. Only that run receives them; a run that connects while
- * another is already connected starts with the next emitted value. The stream
- * never fails and does not end on its own.
+ * another is already connected starts with the next emitted value. A connected
+ * run that falls behind queues values without bound: `bufferSize` limits only
+ * the buffer kept while no run is connected. The stream never fails and does
+ * not end on its own.
+ *
+ * The constructor throws a `RangeError` if `bufferSize` is not finite.
  *
  * @example
  * ```svelte
@@ -34,7 +60,7 @@ export interface SignalEmitterOptions {
  *   let count = $state(0);
  *   const emitter = new SignalEmitter<number>();
  *
- *   // Runs before `useStream` connects; the emitter buffers the first value.
+ *   // Runs before `useStream` connects; the emitter buffers the latest value.
  *   $effect(() => {
  *     emitter.emit(count);
  *   });
@@ -57,7 +83,7 @@ export class SignalEmitter<A> {
   private _connected = 0;
 
   constructor(options: SignalEmitterOptions = {}) {
-    this._bufferSize = options.bufferSize ?? 16;
+    this._bufferSize = normaliseBufferSize(options.bufferSize);
     // `PubSub.unbounded` is pure allocation (an `Effect.sync`), so this
     // cannot suspend and needs no runtime.
     this._pubsub = Effect.runSync(PubSub.unbounded<A>());

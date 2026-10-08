@@ -221,8 +221,9 @@ clobber a newer one. Previous results stay visible while the next search is
 For Svelte → Effect, `Store.toStream(store)` turns any
 Svelte readable store into a `Stream`, and `SignalEmitter` bridges reactive
 `$state` into a `Stream`: call `emit` from a `$effect`, and every running
-consumer of `emitter.stream` receives each value, while values emitted before
-any consumer has connected are buffered for the first one. The `Store` namespace also exposes the reverse
+consumer of `emitter.stream` receives each value; the latest value emitted
+when no consumer is connected is buffered for the next one to connect
+(`new SignalEmitter({ bufferSize })` keeps more). The `Store` namespace also exposes the reverse
 direction (`Store.fromStream`, `Store.fromSubscriptionRef`, `Store.fromPubSub`,
 `Store.fromQueue`, `Store.fromRef`) for surfacing Effect sources as Svelte
 stores.
