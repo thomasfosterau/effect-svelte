@@ -1,8 +1,17 @@
 import { sveltekit } from "@sveltejs/kit/vite";
-import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import { svelte, vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import adapter from "@thomasfosterau/effect-sveltekit/adapter";
 import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite-plus";
+
+/** Svelte compiler options shared by the app and the smoke test. */
+const compilerOptions = {
+  experimental: {
+    // Required by SvelteKit's remote functions (used on /bookmarks).
+    async: true,
+  },
+};
 
 export default defineConfig({
   // effectKit() must run before sveltekit() so that route exports written as
@@ -17,12 +26,7 @@ export default defineConfig({
     // longer read.
     sveltekit({
       preprocess: vitePreprocess(),
-      compilerOptions: {
-        experimental: {
-          // Required by SvelteKit's remote functions (used on /bookmarks).
-          async: true,
-        },
-      },
+      compilerOptions,
       // The Effect deployment adapter: the production server (node build) runs
       // on @effect/platform's NodeHttpServer with Effect-managed lifecycle.
       adapter: adapter(),
@@ -32,4 +36,35 @@ export default defineConfig({
       },
     }),
   ],
+
+  /**
+   * `vp test` — the runtime smoke test (`pnpm run smoke`, #136). It mounts the
+   * layout and the /bookmarks page in happy-dom against the packages'
+   * `dist/`, so it runs after `vp run -r build` (it is not a `test` script,
+   * which `vp run -r test` would run before the build).
+   *
+   * The project does not extend the plugins above: it compiles components
+   * with the plain Svelte plugin (same compiler options, `browser` condition
+   * for Svelte's client build), points `$app/state` at a stub, and the test
+   * mocks the page's remote functions, so nothing touches the network or a
+   * SvelteKit server.
+   */
+  test: {
+    projects: [
+      {
+        plugins: [svelte({ configFile: false, preprocess: vitePreprocess(), compilerOptions })],
+        resolve: {
+          conditions: ["browser"],
+          alias: {
+            "$app/state": fileURLToPath(new URL("tests/stubs/app-state.ts", import.meta.url)),
+          },
+        },
+        test: {
+          name: "smoke",
+          include: ["tests/**/*.test.ts"],
+          environment: "happy-dom",
+        },
+      },
+    ],
+  },
 });

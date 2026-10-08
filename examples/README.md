@@ -22,8 +22,13 @@ cd examples/<name>
 pnpm run dev
 ```
 
-Each example also has `typecheck` (svelte-check) and `build` scripts, which CI
-runs for every example (`vp run --filter "example-*" typecheck|build`).
+Each example also has `typecheck` (svelte-check), `build` and `smoke` scripts,
+which CI runs for every example (`vp run --filter "example-*" typecheck|build|smoke`).
+`smoke` mounts the app in happy-dom (`tests/`) and fails on an uncaught error,
+a Svelte runtime error or an effect that keeps re-running: todomvc and
+realtime-dashboard mount `App.svelte` with their real runtime (the dashboard on
+fake timers); hacker-news mounts `/bookmarks` inside the root layout, with its
+remote functions stubbed and `$app/state` pointed at `tests/stubs/`.
 
 ## API coverage
 

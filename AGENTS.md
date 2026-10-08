@@ -20,7 +20,7 @@
 
 - **Relative imports use the `.js` extension** (`./runtime.js`), not `.ts`.
 - **`exactOptionalPropertyTypes` is on**: an optional option a caller may forward `undefined` to is declared `?: T | undefined`.
-- **Tests import from `vite-plus/test`.** In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects. In `packages/sveltekit`, tests that need runes or `$app/*` stand-ins on the client go in `tests/client/` (happy-dom plus the Svelte plugin), everything else in `tests/` (Node); `packages/sveltekit/vite.config.ts` defines the two projects.
+- **Tests import from `vite-plus/test`.** In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects. In `packages/sveltekit`, tests that need runes or `$app/*` stand-ins on the client go in `tests/client/` (happy-dom plus the Svelte plugin), everything else in `tests/` (Node); `packages/sveltekit/vite.config.ts` defines the two projects. The example apps' smoke tests live in `examples/*/tests/` and run through each example's `smoke` script.
 - **Every export has a TSDoc summary** that stands alone in a hover, and documents the Effect error channel ("fails with …", or "a rejection surfaces as a defect").
 
 ## Commands
@@ -30,6 +30,7 @@
 - `vp run -r test` — every package's Vitest suite; `vp test` inside one package. The task is `test`, not `test:unit`.
 - `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`, then the example apps.
 - `vp run --filter "example-*" typecheck` / `build` — svelte-check / build the example apps; run after `vp run -r build`, because they consume `dist/`.
+- `vp run --filter "example-*" smoke` — mount each example app in happy-dom (`examples/*/tests/`) and fail on an uncaught error, a Svelte runtime error or a runaway effect (#136). Also after `vp run -r build`; it is deliberately not a `test` script, so `vp run -r test` (which runs before the build) skips it.
 - `pnpm changeset` — add a changeset.
 
 ## Verification
@@ -41,6 +42,7 @@ Before you report work as done, run these in CI's order (`.github/workflows/ci.y
 3. `vp run -r build`
 4. `vp run --filter "example-*" typecheck`
 5. `vp run --filter "example-*" build`
+6. `vp run --filter "example-*" smoke`
 
 If a gate can't run here, say which and why in the PR body; never imply it ran.
 
