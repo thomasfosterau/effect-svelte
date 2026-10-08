@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Fiber, Stream } from "effect";
+import { Cause, Effect, Exit, Fiber, Stream } from "effect";
 import * as Realtime from "../src/realtime.js";
 
 /**
@@ -46,7 +46,48 @@ class FakeSocket {
   }
 }
 
+/** A constructor that throws as `new WebSocket(url)` / `new EventSource(url)` do for an invalid URL. */
+const invalidUrl = new SyntaxError("The URL 'x' is invalid.");
+class ThrowingSocket {
+  static attempts = 0;
+  constructor() {
+    ThrowingSocket.attempts++;
+    throw invalidUrl;
+  }
+}
+
+/**
+ * Run a stream that is expected to fail and return its typed error, asserting
+ * the failure is that error alone: no defect (such as a release run on a
+ * resource that was never acquired) and no interruption. The timeout only
+ * guards against a hang, so it fails the test rather than passing it.
+ */
+const runToError = async <E>(stream: Stream.Stream<unknown, E>): Promise<E> => {
+  const exit = await Effect.runPromise(
+    stream.pipe(Stream.runCollect, Effect.timeout("2 seconds"), Effect.exit),
+  );
+  if (Exit.isSuccess(exit)) throw new Error("expected the stream to fail");
+  const [reason, ...rest] = exit.cause.reasons;
+  expect(rest).toEqual([]);
+  if (reason === undefined || !Cause.isFailReason(reason)) {
+    throw new Error(`expected a typed failure, got ${Cause.pretty(exit.cause)}`);
+  }
+  return reason.error as E;
+};
+
 describe("Realtime.fromWebSocket", () => {
+  it("fails with WebSocketError carrying the cause when the constructor throws", async () => {
+    ThrowingSocket.attempts = 0;
+    const error = await runToError(
+      Realtime.fromWebSocket("x", { implementation: ThrowingSocket as never }),
+    );
+    expect(error).toBeInstanceOf(Realtime.WebSocketError);
+    expect(error._tag).toBe("WebSocketError");
+    expect(error.url).toBe("x");
+    expect(error.cause).toBe(invalidUrl);
+    expect(ThrowingSocket.attempts).toBe(1);
+  });
+
   it("emits each message's data as a stream element", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
@@ -157,6 +198,21 @@ describe("Realtime.fromWebSocket", () => {
 });
 
 describe("Realtime.fromEventSource", () => {
+  it("fails with EventSourceError carrying the cause when the constructor throws", async () => {
+    ThrowingSocket.attempts = 0;
+    const error = await runToError(
+      Realtime.fromEventSource("x", {
+        withCredentials: true,
+        implementation: ThrowingSocket as never,
+      }),
+    );
+    expect(error).toBeInstanceOf(Realtime.EventSourceError);
+    expect(error._tag).toBe("EventSourceError");
+    expect(error.url).toBe("x");
+    expect(error.cause).toBe(invalidUrl);
+    expect(ThrowingSocket.attempts).toBe(1);
+  });
+
   it("emits decoded SSE messages", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
