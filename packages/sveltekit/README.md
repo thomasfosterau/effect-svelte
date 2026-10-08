@@ -46,7 +46,7 @@ per-request runtime or on your own services (see
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace, `Hooks` (`reroute`, `transport`), `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                               |
 | `…/server`                         | Server wrappers (`serverLoad`, `action`, `actions`, `endpoint`), `Hooks`, `Endpoint`, `makeServerRuntime`, the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `Errors`, `RemoteFunction`, request decoding (`decodeParams`, `decodeJson`, …) |
-| `…/client`                         | Browser-only `Navigation`, `State`, `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery`                                                                                                                                                    |
+| `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery`                                                                                                                  |
 | `…/vite`                           | The `effectKit()` Vite plugin (auto-wraps bare-Effect route exports)                                                                                                                                                                                              |
 | `…/adapter`                        | The Effect HTTP deployment adapter (`effectAdapter`)                                                                                                                                                                                                              |
 | `…/adapter/handler`                | The SvelteKit app as an Effect HTTP app (`makeHandler`, `makeHandlerWith`, `AssetSource`, `toWebHandler`)                                                                                                                                                         |
@@ -81,8 +81,9 @@ per-request runtime or on your own services (see
   `Hooks.markerTransporter` for non-round-tripping wrappers) and **`$env` ⇄
   Effect `Config`**.
 - **Client navigation/state** — the `Navigation` (`goto`/`invalidate`/… plus
-  `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`)
-  namespaces.
+  `beforeNavigate`/`afterNavigate`/`onNavigate` streams) and `State` (`page`,
+  `navigating` and `updated` streams, `checkForUpdate`, and the `CurrentPage`
+  service) namespaces.
 - **Effect deployment adapter** — the generated app is a platform-neutral
   Effect `HttpApp` (`makeHandlerWith`): serve it as a production Node HTTP server
   (`effect/http` + `@effect/platform-node`, the default) or as a Web
@@ -363,7 +364,8 @@ import {
   // $app/navigation: promise wrappers (goto, invalidate, ...) and lifecycle
   // events as Effect Streams (beforeNavigate/afterNavigate/onNavigate)
   Navigation,
-  // $app/state: the current page as a Stream of snapshots
+  // $app/state: page / navigating / updated as Streams, plus the
+  // CurrentPage service
   State,
   // remote-function helpers (callQuery, callCommand, liveQueryStream, ...)
   Remote,
@@ -384,6 +386,31 @@ any cleanup the Effect yields), and `State.page()` emits a shallow snapshot of
 `$app/state`'s `page` initially and after each navigation. Like the bare
 SvelteKit functions they wrap, these must be called during component
 initialization (at the top of `<script>`).
+
+The rest of `State` watches `$app/state` directly, so it works anywhere on the
+client (not only during component initialization):
+
+| Export                   | What it is                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `State.navigating()`     | `Stream<Option<NavigatingSnapshot>>` — `Some` while a navigation is in flight (`type`, `from`, `to`, `willUnload`, `delta`, `complete`), `None` when idle    |
+| `State.updated()`        | `Stream<boolean>` — `updated.current`: whether a new app version has been deployed                                                                           |
+| `State.checkForUpdate()` | `Effect<boolean, UpdateCheckError>` — `updated.check()` now; fails with `UpdateCheckError` if the check rejects                                              |
+| `State.CurrentPage`      | A `Context` service: `get` (snapshot the page now) and `changes` (a stream that also emits on shallow routing and form results); provide `CurrentPage.layer` |
+
+Each stream emits the current value on the next Svelte flush, then on every
+change, and stops watching when it ends or is interrupted. None of them fail.
+
+```ts
+import { State } from "@thomasfosterau/effect-sveltekit/client";
+import { Effect } from "effect";
+
+// Any client Effect can read the page once CurrentPage.layer is provided
+// (e.g. in the layer behind your client runtime).
+const logPath = Effect.gen(function* () {
+  const page = yield* (yield* State.CurrentPage).get;
+  yield* Effect.logInfo(`at ${page.url.pathname}`);
+}).pipe(Effect.provide(State.CurrentPage.layer));
+```
 
 ### `transport` hook from Effect Schema
 
