@@ -20,7 +20,7 @@
 
 - **Relative imports use the `.js` extension** (`./runtime.js`), not `.ts`.
 - **`exactOptionalPropertyTypes` is on**: an optional option a caller may forward `undefined` to is declared `?: T | undefined`.
-- **Tests import from `vite-plus/test`.** In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects.
+- **Tests import from `vite-plus/test`.** In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects. In `packages/sveltekit`, tests that need runes or `$app/*` stand-ins on the client go in `tests/client/` (happy-dom plus the Svelte plugin), everything else in `tests/` (Node); `packages/sveltekit/vite.config.ts` defines the two projects.
 - **Every export has a TSDoc summary** that stands alone in a hover, and documents the Effect error channel ("fails with …", or "a rejection surfaces as a defect").
 
 ## Commands

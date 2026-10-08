@@ -37,6 +37,7 @@ Lint and format are configured once at the workspace root (`vite.config.ts`, whi
 
 - Tests live in each package's `tests/` directory and import from `vite-plus/test`.
 - `packages/svelte` splits its suite into three Vitest projects: `tests/dom/` mounts components under happy-dom, `tests/ssr/` renders them with `svelte/server`, and everything else in `tests/` runs in plain Node.
+- `packages/sveltekit` has two projects: `tests/client/` runs rune-backed client code (with `$app/*` stand-ins) under happy-dom and the Svelte plugin, and everything else in `tests/` runs in plain Node.
 - Add tests for new behaviour; to exercise the published shape, add or extend an example app and its row in [examples/README.md](examples/README.md).
 
 ## Changesets
