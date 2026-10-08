@@ -1,4 +1,9 @@
+import { fileURLToPath } from "node:url";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
+
+const fixture = (path: string): string =>
+  fileURLToPath(new URL(`./tests/client/fixtures/${path}`, import.meta.url));
 
 export default defineConfig({
   /**
@@ -34,8 +39,44 @@ export default defineConfig({
     },
   },
 
-  /** `vp test` (Vitest) */
+  /**
+   * `vp test` (Vitest), in two projects:
+   *
+   * - `unit` — plain Node, the bulk of the suite. Nothing here imports a
+   *   `$app/*` module at runtime; the public wrappers are tested through their
+   *   rune-free cores in `src/internal/`.
+   * - `client` — happy-dom plus the Svelte plugin (so `.svelte.ts` runes
+   *   compile for the client) with the `browser` resolve condition (so Svelte
+   *   resolves to its client build and effects run), and `$app/state` / `$app/navigation` aliased to rune-backed
+   *   stand-ins, so the `$app/state` bridge is tested end to end.
+   */
   test: {
-    include: ["tests/**/*.test.ts"],
+    projects: [
+      {
+        test: {
+          name: "unit",
+          include: ["tests/**/*.test.ts"],
+          exclude: ["tests/client/**"],
+          environment: "node",
+        },
+      },
+      {
+        plugins: [svelte()],
+        resolve: {
+          conditions: ["browser"],
+          alias: [
+            { find: /^\$app\/state$/, replacement: fixture("app-state.svelte.ts") },
+            { find: /^\$app\/navigation$/, replacement: fixture("app-navigation.ts") },
+          ],
+        },
+        test: {
+          name: "client",
+          include: ["tests/client/**/*.test.ts"],
+          // A DOM environment makes Vitest use the web (not SSR) transform, so
+          // the Svelte plugin compiles `.svelte.ts` for the client.
+          environment: "happy-dom",
+        },
+      },
+    ],
   },
 });

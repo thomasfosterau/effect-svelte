@@ -86,8 +86,9 @@ runs for every example (`vp run --filter "example-*" typecheck|build`).
 - `@thomasfosterau/effect-sveltekit`: `ResponseHeaders` and `apiClient` (root);
   `makeRuntimeAdapter` / `RequestRuntime`, `Errors`, `Endpoint` (`./server`);
   the `Navigation` namespace's `beforeNavigate` / `afterNavigate` /
-  `onNavigate`, `State.page`, `Realtime`, `Forms` and `useRemoteQuery`
-  (`./client`); and the `./testing` runners.
+  `onNavigate`, `State` (`page`, `navigating`, `updated`, `checkForUpdate`,
+  `CurrentPage`), `Realtime`, `Forms` and `useRemoteQuery` (`./client`); and the
+  `./testing` runners.
 
 ## Notes
 
