@@ -30,7 +30,8 @@
  * emits the current value on the next Svelte flush and again whenever it
  * changes, and disposes the watcher when the stream ends or is interrupted.
  * All of this is client-only: during server rendering the watched streams
- * never emit.
+ * never emit, so consuming one there (for example with `Stream.runHead`)
+ * hangs rather than failing.
  *
  * These are streams and a service rather than atoms; an atom-based variant
  * may follow once the official `@effect/atom-svelte` integration lands (see
@@ -155,7 +156,9 @@ export interface CurrentPageInterface extends CurrentPageShape<Page> {}
  * it with `yield* State.CurrentPage` instead of taking it as an argument.
  * `get` snapshots the page when run; `changes` emits the current page on the
  * next Svelte flush, then a fresh snapshot whenever any field changes
- * (navigations, but also shallow routing and form results). Neither fails.
+ * (navigations, but also shallow routing and form results). Neither fails on
+ * the client; on the server outside a render, Kit's `page` throws, so `get`
+ * dies with a defect there.
  *
  * Provide {@link CurrentPage.layer} (backed by `$app/state`) in your client
  * runtime, or `Layer.succeed(State.CurrentPage, …)` in tests.
