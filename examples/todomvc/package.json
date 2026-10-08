@@ -8,7 +8,8 @@
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.json"
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "smoke": "vp test"
   },
   "dependencies": {
     "@thomasfosterau/effect-svelte": "workspace:*",
@@ -18,8 +19,10 @@
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "catalog:",
+    "happy-dom": "catalog:",
     "svelte-check": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   }
 }
