@@ -48,7 +48,9 @@ export default defineConfig({
    * - `client` — happy-dom plus the Svelte plugin (so `.svelte.ts` runes
    *   compile for the client) with the `browser` resolve condition (so Svelte
    *   resolves to its client build and effects run), and `$app/state` / `$app/navigation` aliased to rune-backed
-   *   stand-ins, so the `$app/state` bridge is tested end to end.
+   *   stand-ins, so the `$app/state` bridge is tested end to end. `$app/navigation`
+   *   and `$app/forms` stand-ins also let a test make the promise-returning
+   *   functions that `Navigation` and `Forms` wrap resolve or reject.
    */
   test: {
     projects: [
@@ -67,6 +69,7 @@ export default defineConfig({
           alias: [
             { find: /^\$app\/state$/, replacement: fixture("app-state.svelte.ts") },
             { find: /^\$app\/navigation$/, replacement: fixture("app-navigation.ts") },
+            { find: /^\$app\/forms$/, replacement: fixture("app-forms.ts") },
           ],
         },
         test: {

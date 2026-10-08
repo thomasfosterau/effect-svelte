@@ -379,6 +379,14 @@ import {
 //      Remote.callQuery(getTodos), State.page()
 ```
 
+`Navigation.goto`, `invalidate`, `invalidateAll`, `refreshAll`, `preloadData`
+and `preloadCode` fail with `Navigation.NavigationError` when SvelteKit rejects
+or throws: for example, `goto` to a URL outside the app, `preloadData` for an
+`href` outside the app, a navigation whose `beforeNavigate` / `onNavigate`
+callback throws, or any of them run during server rendering. The error's
+`operation` names the wrapper and its `cause` is SvelteKit's original reason;
+recover with `Effect.catchTag("NavigationError", ...)`.
+
 `Navigation.beforeNavigate()` / `Navigation.afterNavigate()` bridge
 `$app/navigation`'s callback-registration functions to `Stream`s,
 `Navigation.onNavigate(fn => Effect)` runs an Effect per navigation (forwarding
@@ -557,8 +565,31 @@ For SvelteKit page `actions`, the `Forms` namespace
 (`@thomasfosterau/effect-sveltekit/client`) expresses progressive enhancement
 with Effects: `Forms.enhance({ onSubmit, onResult })` builds a `SubmitFunction`
 for `use:enhance`, and `Forms.applyAction` / `Forms.deserialize` wrap the
-`$app/forms` helpers. (This complements `Remote.submitForm`, which covers remote
-forms.)
+`$app/forms` helpers. `Forms.applyAction` fails with `Forms.ApplyActionError`
+(SvelteKit's original reason as its `cause`) when SvelteKit rejects or throws:
+for example, when the navigation that follows a `redirect` result fails, or
+when it runs during server rendering. `Forms.enhance`'s `onSubmit` / `onResult`
+handlers must not fail, so handle that error before returning
+`Forms.applyAction` from `onResult`:
+
+```ts
+const submit = Forms.enhance({
+  // Treat a failed applyAction as a defect...
+  onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
+});
+
+const submitAndRecover = Forms.enhance({
+  // ...or recover from it.
+  onResult: ({ result }) =>
+    Forms.applyAction(result).pipe(
+      Effect.catchTag("ApplyActionError", (error) =>
+        Effect.logWarning("applyAction failed", error.cause),
+      ),
+    ),
+});
+```
+
+(This complements `Remote.submitForm`, which covers remote forms.)
 
 ## Recipes
 
