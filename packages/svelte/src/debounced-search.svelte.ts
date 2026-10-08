@@ -64,8 +64,9 @@ const defaultErrorMessage = (error: unknown): string =>
  * state without searching.
  *
  * Queries are buffered through an Effect `Queue` (`Stream.fromQueue`), not
- * {@link SignalEmitter}: a queue is a durable buffer, so a query emitted on any
- * later tick (every keystroke fires after mount) is delivered.
+ * {@link SignalEmitter}: a queue buffers values emitted before the stream has
+ * connected (connection is asynchronous), where a `SignalEmitter` drops them,
+ * so the initial query is never lost.
  *
  * Call during component initialisation; the component must be a descendant of
  * `provideRuntime()` unless `runtime` is given.

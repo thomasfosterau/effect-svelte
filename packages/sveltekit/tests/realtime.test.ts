@@ -91,6 +91,24 @@ describe("Realtime.fromWebSocket", () => {
     const exit = await Effect.runPromise(Effect.exit(Fiber.join(fiber)));
     expect(exit._tag).toBe("Failure");
   });
+
+  it("closes the socket when the stream fails", async () => {
+    FakeSocket.instances = [];
+    const fiber = Effect.runFork(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+        Stream.runCollect,
+      ),
+    );
+    const socket = await awaitSocket();
+    expect(socket.closeCalls).toBe(0);
+    // An `error` event fails the stream while the socket is still open.
+    socket.emit("error", {});
+
+    const exit = await Effect.runPromise(Effect.exit(Fiber.join(fiber)));
+    expect(exit._tag).toBe("Failure");
+    expect(socket.closeCalls).toBe(1);
+  });
+
   it("closes the socket when the stream ends", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
