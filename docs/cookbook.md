@@ -321,11 +321,11 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
   the fallback (`true` here), and `useStream` does not subscribe at all.
   `dashboard.latest` is `undefined` on the server and on the first client
   render, both render "Loading…", and hydration matches.
-- Prefer `toStore` to a `SignalEmitter` fed from
-  `$effect(() => emitter.emit(wide.current))`: the emitter drops values
-  emitted before its stream starts, so the initial match can be lost and the
-  page stays on "Loading…" until the viewport next changes. `toStore` hands
-  the current value to every new subscriber. The same `toStore(() => …)`
-  bridge turns any rune-tracked getter — a `$state` field, `orders.get(id)` —
-  into a `Stream`.
+- A `SignalEmitter` fed from `$effect(() => emitter.emit(wide.current))`
+  also works: by default the emitter buffers the latest value emitted before
+  its stream connects, so the initial match still arrives. `toStore` is
+  simpler, though: it needs no `$effect`, and it hands the current value to
+  every new subscriber, whereas the emitter's buffered value goes only to the
+  next run that connects. The same `toStore(() => …)` bridge turns any rune-tracked getter —
+  a `$state` field, `orders.get(id)` — into a `Stream`.
 - Requires `provideRuntime()` in an ancestor, or pass `runtime`.
