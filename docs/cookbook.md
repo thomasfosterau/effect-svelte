@@ -205,3 +205,127 @@ layout, it is also the one `invalidateAtomKeys` uses from non-component code.
   keystroke, long after mount) is delivered.
 - Requires `provideRuntime()` in an ancestor, or pass `runtime`; the `search`
   Effect's requirements must be provided by that runtime.
+
+## Svelte reactive collections and `MediaQuery` with Effect data (`useStream`)
+
+`svelte/reactivity` ships reactive versions of the built-in collections
+(`SvelteMap`, `SvelteSet`, `SvelteDate`) and a reactive `MediaQuery`. Both work
+next to Effect data with no adapter beyond what this package already exports.
+
+### `$state.raw`, or `SvelteMap` / `SvelteSet` / `SvelteDate`?
+
+`$state` deep-proxies plain objects and arrays only. Any other instance — a
+`Map`, `Set` or `Date`, and Effect's data types (`Option`, `Chunk`, `HashMap`,
+`DateTime`, `Data.Class` and `Schema.Class` instances) — is stored as is, so
+mutating it in place is invisible to Svelte; only reassigning the variable is
+seen. That leaves two cases:
+
+- **Each update produces a new value** (an Effect's result, a decoded response,
+  the next `HashMap`): hold it in `$state.raw` and reassign. Effect values are
+  immutable, so there is nothing to proxy, and a decoded `Schema.Struct` (a
+  plain object `$state` _would_ proxy) keeps its reference identity.
+- **Many small updates land in one collection** (entities by id from a stream
+  of change events, the set of selected or in-flight ids, a clock advanced in
+  place): use `SvelteMap`, `SvelteSet` or `SvelteDate`. Reading `get(key)` or
+  `has(key)` for a present key re-runs only when that entry changes, `size`
+  only when the count changes, and iteration on any change; nothing rebuilds a
+  whole object per event.
+
+```svelte
+<script lang="ts">
+  import { AsyncResult, useEffect } from "@thomasfosterau/effect-svelte";
+  import { Effect, Stream } from "effect";
+  import { SvelteMap } from "svelte/reactivity";
+  import { orderUpdates, type Order } from "#lib/orders.ts"; // Stream<Order, OrderFeedError>
+
+  // One entry per order id; an update replaces that entry only.
+  const orders = new SvelteMap<string, Order>();
+
+  // Drain the feed into the map for as long as the component is mounted.
+  const feed = useEffect(
+    Stream.runForEach(orderUpdates, (order) => Effect.sync(() => orders.set(order.id, order))),
+    { immediate: true },
+  );
+</script>
+
+<p>{orders.size} orders</p>
+<ul>
+  {#each [...orders.values()] as order (order.id)}
+    <li>{order.id}: {order.status}</li>
+  {/each}
+</ul>
+{#if AsyncResult.isFailure(feed.current)}<p>Live updates stopped.</p>{/if}
+```
+
+- Values in a `SvelteMap` / `SvelteSet` are not made deeply reactive: store
+  immutable values and `set` a replacement (setting the same reference is a
+  no-op).
+- Keys compare with `SameValueZero`, like the native classes — not with
+  Effect's `Equal`. Key by a primitive id; if you need structural keys, keep a
+  `HashMap` in `$state.raw` instead.
+- The map is the output, so the feed runs as one Effect: `Stream.runForEach`
+  under `useEffect`, which starts it on mount and interrupts it on unmount.
+  `feed.current` stays a waiting `Initial` while the feed is live and becomes
+  a `Failure` if the stream fails. (`useLiveStream` with a `Stream.tap` works
+  too, but also stores every order as its latest value, and suits a stream
+  that should re-subscribe when reactive inputs change.) On the server the
+  collections are the plain built-ins and the feed does not run.
+
+### A `MediaQuery` as an Effect `Stream`
+
+`MediaQuery` exposes its match through a `.current` getter, not the store
+contract, so `Store.toStream` cannot take it directly. `toStore` from
+`svelte/store` wraps any rune-tracked getter in a readable store, which
+`Store.toStream` turns into a `Stream` for `useStream` to consume:
+
+```svelte
+<script lang="ts">
+  import { AsyncResult, Store, useStream } from "@thomasfosterau/effect-svelte";
+  import { Stream } from "effect";
+  import { MediaQuery } from "svelte/reactivity";
+  import { toStore } from "svelte/store";
+  import { loadDashboard } from "#lib/dashboard.ts"; // ("full" | "compact") => Effect<Dashboard, DashboardError>
+
+  const wide = new MediaQuery("min-width: 1024px", true);
+
+  const dashboard = useStream(
+    Store.toStream(toStore(() => wide.current)).pipe(
+      Stream.switchMap((isWide) => Stream.fromEffect(loadDashboard(isWide ? "full" : "compact"))),
+    ),
+  );
+</script>
+
+{#if AsyncResult.isFailure(dashboard.current)}
+  <p>Couldn't load the dashboard.</p>
+{:else if dashboard.latest}
+  <ul>{#each dashboard.latest.widgets as w (w.id)}<li>{w.title}</li>{/each}</ul>
+{:else}
+  <p>Loading…</p>
+{/if}
+```
+
+- The store emits the current match when the stream starts, then each change
+  (deduplicated, so `Stream.changes` is unnecessary). `useStream` starts the
+  stream the first time the template reads `dashboard` and interrupts it on
+  unmount, which unsubscribes the store and removes the `matchMedia` listener.
+- `Stream.switchMap` interrupts an in-flight load when the breakpoint flips,
+  which aborts an Effect `HttpClient` request rather than racing it.
+- A failed load fails the whole stream: `dashboard.current` becomes a
+  `Failure` and later breakpoint flips do nothing until the component remounts.
+  To keep following the breakpoint, handle the error inside the `switchMap`,
+  e.g. `Stream.fromEffect(loadDashboard(…).pipe(Effect.retry(…)))` or a
+  `catch` that maps it to a fallback value.
+- `useStream` keeps every emission in `values`; read `latest`. That is fine for
+  a value that changes as rarely as a breakpoint.
+- SSR: the server cannot know the viewport, so there `MediaQuery.current` is
+  the fallback (`true` here), and `useStream` does not subscribe at all.
+  `dashboard.latest` is `undefined` on the server and on the first client
+  render, both render "Loading…", and hydration matches.
+- Prefer `toStore` to a `SignalEmitter` fed from
+  `$effect(() => emitter.emit(wide.current))`: the emitter drops values
+  emitted before its stream starts, so the initial match can be lost and the
+  page stays on "Loading…" until the viewport next changes. `toStore` hands
+  the current value to every new subscriber. The same `toStore(() => …)`
+  bridge turns any rune-tracked getter — a `$state` field, `orders.get(id)` —
+  into a `Stream`.
+- Requires `provideRuntime()` in an ancestor, or pass `runtime`.
