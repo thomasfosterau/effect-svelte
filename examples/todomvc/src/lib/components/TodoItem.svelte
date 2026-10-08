@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import { AsyncResult, reactiveMutation } from "@thomasfosterau/effect-svelte";
+  import { AsyncResult, useReactiveMutation } from "@thomasfosterau/effect-svelte";
   import { TodoRepository } from "../todo-repository";
   import type { Todo } from "../model";
 
@@ -11,15 +11,15 @@
 
   // Each item owns its mutations. Running any of them invalidates the
   // "todos" key, which re-runs the queries in TodoApp.
-  const toggle = reactiveMutation(["todos"], () =>
+  const toggle = useReactiveMutation(["todos"], () =>
     Effect.flatMap(TodoRepository, (repo) => repo.toggle(todo.id))
   );
 
-  const destroy = reactiveMutation(["todos"], () =>
+  const destroy = useReactiveMutation(["todos"], () =>
     Effect.flatMap(TodoRepository, (repo) => repo.remove(todo.id))
   );
 
-  const save = reactiveMutation(["todos"], () => {
+  const save = useReactiveMutation(["todos"], () => {
     const value = editText.trim();
     return Effect.flatMap(TodoRepository, (repo) =>
       value.length === 0 ? repo.remove(todo.id) : repo.update(todo.id, value)

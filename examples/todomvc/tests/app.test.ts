@@ -1,7 +1,7 @@
 /**
  * Runtime smoke test (#136): mounts the whole TodoMVC app in happy-dom and
  * fails on an uncaught error, a Svelte runtime error, or a query that keeps
- * re-running itself (`reactiveQuery` looped before #133).
+ * re-running itself (`useReactiveQuery` looped before #133).
  */
 import { Effect } from "effect";
 import { flushSync, mount, unmount } from "svelte";

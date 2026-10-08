@@ -46,9 +46,9 @@ remote functions stubbed and `$app/state` pointed at `tests/stubs/`.
 | `useSubscriptionRef`                                            | realtime-dashboard — `Portfolio.svelte`                                                            |
 | `usePubSub`                                                     | realtime-dashboard — `TradeFeed.svelte`                                                            |
 | `useScope` / `useScopeCallback`                                 | realtime-dashboard — `Connection.svelte`                                                           |
-| `reactiveQuery`                                                 | todomvc — `TodoApp.svelte`                                                                         |
-| `reactiveMutation`                                              | todomvc — `TodoApp/TodoHeader/TodoItem/TodoFooter.svelte`; realtime-dashboard — `Portfolio.svelte` |
-| `reactiveStream`                                                | realtime-dashboard — `Portfolio.svelte`                                                            |
+| `useReactiveQuery`                                              | todomvc — `TodoApp.svelte`                                                                         |
+| `useReactiveMutation`                                           | todomvc — `TodoApp/TodoHeader/TodoItem/TodoFooter.svelte`; realtime-dashboard — `Portfolio.svelte` |
+| `useReactiveStream`                                             | realtime-dashboard — `Portfolio.svelte`                                                            |
 | `useInvalidateKeys`                                             | todomvc — `TodoApp.svelte` (cross-tab sync)                                                        |
 | `SignalEmitter`                                                 | realtime-dashboard — `SymbolSearch.svelte`                                                         |
 | `AsyncResult` + `isInitial`/`isWaiting`/`isSuccess`/`isFailure` | todomvc, hacker-news, realtime-dashboard                                                           |

@@ -2,8 +2,8 @@
   import { Effect } from "effect";
   import {
     AsyncResult,
-    reactiveMutation,
-    reactiveQuery,
+    useReactiveMutation,
+    useReactiveQuery,
     useInvalidateKeys,
   } from "@thomasfosterau/effect-svelte";
   import { STORAGE_KEY, TodoRepository } from "../todo-repository";
@@ -20,11 +20,11 @@
 
   let filter = $state(filterFromHash(location.hash));
 
-  // reactiveQuery re-runs its effect whenever
-  //  - a reactiveMutation invalidates the "todos" key, or
+  // useReactiveQuery re-runs its effect whenever
+  //  - a useReactiveMutation invalidates the "todos" key, or
   //  - `filter` changes (read synchronously by the keys thunk, so Svelte
   //    tracks it as a dependency).
-  const todos = reactiveQuery(
+  const todos = useReactiveQuery(
     () => ["todos", filter],
     () => {
       const current = filter;
@@ -37,7 +37,7 @@
 
   // A second query over the same data, keyed only on "todos": invalidating
   // the key re-runs every query that depends on it.
-  const stats = reactiveQuery(
+  const stats = useReactiveQuery(
     () => ["todos"],
     () => Effect.flatMap(TodoRepository, (repo) => repo.stats)
   );
@@ -48,7 +48,7 @@
   const statsResult = $derived(stats.current);
 
   // Toggle-all is a mutation: it runs the effect, then invalidates "todos".
-  const toggleAll = reactiveMutation(["todos"], () => {
+  const toggleAll = useReactiveMutation(["todos"], () => {
     const completeAll = AsyncResult.isSuccess(statsResult) && statsResult.value.active > 0;
     return Effect.flatMap(TodoRepository, (repo) => repo.toggleAll(completeAll));
   });

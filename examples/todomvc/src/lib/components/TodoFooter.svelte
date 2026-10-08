@@ -1,12 +1,12 @@
 <script lang="ts">
   import { Effect } from "effect";
-  import { reactiveMutation } from "@thomasfosterau/effect-svelte";
+  import { useReactiveMutation } from "@thomasfosterau/effect-svelte";
   import { TodoRepository } from "../todo-repository";
   import type { TodoFilter, TodoStats } from "../model";
 
   let { stats, filter }: { stats: TodoStats; filter: TodoFilter } = $props();
 
-  const clearCompleted = reactiveMutation(["todos"], () =>
+  const clearCompleted = useReactiveMutation(["todos"], () =>
     Effect.flatMap(TodoRepository, (repo) => repo.clearCompleted)
   );
 </script>

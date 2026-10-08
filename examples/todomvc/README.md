@@ -24,8 +24,8 @@ pnpm run dev
 | --------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `provideRuntime`                                    | `src/App.svelte`                                                              |
 | `SvelteRuntime.extend`                              | `src/lib/runtime.ts`                                                          |
-| `reactiveQuery` (dynamic + static keys)             | `src/lib/components/TodoApp.svelte`                                           |
-| `reactiveMutation`                                  | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`, `TodoFooter.svelte` |
+| `useReactiveQuery` (dynamic + static keys)          | `src/lib/components/TodoApp.svelte`                                           |
+| `useReactiveMutation`                               | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`, `TodoFooter.svelte` |
 | `useInvalidateKeys`                                 | `TodoApp.svelte` (cross-tab sync via the `storage` event)                     |
 | `AsyncResult` + `isSuccess`/`isFailure`/`isWaiting` | `TodoApp.svelte`, `TodoHeader.svelte`, `TodoItem.svelte`                      |
 | Effect service + layer (`Context.Service`)          | `src/lib/todo-repository.ts`                                                  |
@@ -37,10 +37,10 @@ pnpm run dev
   merging the `TodoRepository` layer with `Reactivity.layer` from
   `effect/reactivity`.
 - `src/App.svelte` calls `provideRuntime(appRuntime)` once at the root.
-- `TodoApp.svelte` declares two `reactiveQuery`s over the repository — the
+- `TodoApp.svelte` declares two `useReactiveQuery`s over the repository — the
   visible (filtered) todos and the counts. Both depend on the `"todos"` key.
 - Every mutation (`add`, `toggle`, `update`, `remove`, `toggleAll`,
-  `clearCompleted`) is a `reactiveMutation` keyed on `"todos"`: when it
+  `clearCompleted`) is a `useReactiveMutation` keyed on `"todos"`: when it
   succeeds, both queries re-run automatically.
 - Editing the list in a second browser tab fires the `storage` event, which
   calls the `useInvalidateKeys` invalidator to refresh this tab's queries.

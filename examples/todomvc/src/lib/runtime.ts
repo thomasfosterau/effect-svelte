@@ -8,7 +8,7 @@ import { TodoRepository } from "./todo-repository";
  *
  * - `TodoRepository` — the localStorage-backed todo store, and
  * - `Reactivity` — the `effect/reactivity` service that powers
- *   `reactiveQuery` / `reactiveMutation` / `useInvalidateKeys`.
+ *   `useReactiveQuery` / `useReactiveMutation` / `useInvalidateKeys`.
  *
  * It is provided to the component tree once, in `App.svelte`, via
  * `provideRuntime(appRuntime)`.
