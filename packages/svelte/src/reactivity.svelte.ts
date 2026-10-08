@@ -8,13 +8,16 @@ import { makeResult } from "./internal/result.svelte.js";
 import { streamState } from "./internal/subscribe.js";
 
 /** The handle {@link useReactiveQuery} returns. */
-export interface ReactiveQueryReturn<A, E> {
+export interface UseReactiveQueryReturn<A, E> {
   /** The current result, re-derived whenever the keys are invalidated. */
   readonly current: AsyncResult.AsyncResult<A, E>;
 }
 
-/** Options shared by {@link useReactiveQuery}, {@link useReactiveStream} and {@link useReactiveMutation}. */
-export interface ReactiveOptions<R> {
+/**
+ * Options shared by {@link useReactiveQuery}, {@link useReactiveStream},
+ * {@link useReactiveMutation} and {@link useInvalidateKeys}.
+ */
+export interface UseReactiveOptions<R> {
   /**
    * Run against this runtime instead of the ambient context. Must still provide
    * `Reactivity.Reactivity`; when provided, the effect's `R` is otherwise
@@ -67,8 +70,8 @@ export interface ReactiveOptions<R> {
 export function useReactiveQuery<A, E, R>(
   keys: () => ReadonlyArray<unknown>,
   effectFn: () => Effect.Effect<A, E, R>,
-  options: ReactiveOptions<R> = {},
-): ReactiveQueryReturn<A, E> {
+  options: UseReactiveOptions<R> = {},
+): UseReactiveQueryReturn<A, E> {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
@@ -126,7 +129,7 @@ export function useReactiveQuery<A, E, R>(
 }
 
 /** The handle {@link useReactiveStream} returns. */
-export interface ReactiveStreamReturn<A, E> {
+export interface UseReactiveStreamReturn<A, E> {
   /**
    * Every value emitted since the stream last (re)started, as an
    * `AsyncResult`: `Initial` until the first value, then a waiting `Success`; a `Failure` once the
@@ -192,8 +195,8 @@ export interface ReactiveStreamReturn<A, E> {
 export function useReactiveStream<A, E, R>(
   keys: ReadonlyArray<unknown> | (() => ReadonlyArray<unknown>),
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
-  options: ReactiveOptions<R> = {},
-): ReactiveStreamReturn<A, E> {
+  options: UseReactiveOptions<R> = {},
+): UseReactiveStreamReturn<A, E> {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   // `streamState`'s subscriber starts the stream untracked (Svelte runs a
@@ -221,13 +224,13 @@ export function useReactiveStream<A, E, R>(
 }
 
 /** The handle {@link useReactiveMutation} returns. */
-export interface ReactiveMutationReturn<A, E> {
+export interface UseReactiveMutationReturn<A, E> {
   readonly current: AsyncResult.AsyncResult<A, E>;
   run: () => void;
 }
 
 /**
- * Runs a mutation effect and invalidates the specified keys.
+ * Runs a mutation effect and, when it succeeds, invalidates the specified keys.
  * This will cause any reactive queries depending on these keys to re-run.
  *
  * `run()` starts the mutation (interrupting one still in flight); the keys and
@@ -237,7 +240,7 @@ export interface ReactiveMutationReturn<A, E> {
  *
  * Note: Make sure your runtime includes `Reactivity.layer` from `effect/reactivity`.
  *
- * @param keys - Reactivity keys to invalidate after the mutation
+ * @param keys - Reactivity keys to invalidate once the mutation succeeds
  * @param effect - The mutation effect to run
  *
  * @example
@@ -260,8 +263,8 @@ export interface ReactiveMutationReturn<A, E> {
 export function useReactiveMutation<A, E, R>(
   keys: ReadonlyArray<unknown> | (() => ReadonlyArray<unknown>),
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
-  options: ReactiveOptions<R> = {},
-): ReactiveMutationReturn<A, E> {
+  options: UseReactiveOptions<R> = {},
+): UseReactiveMutationReturn<A, E> {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
@@ -330,13 +333,45 @@ export const reactiveQuery: typeof useReactiveQuery = useReactiveQuery;
 export const reactiveStream: typeof useReactiveStream = useReactiveStream;
 
 /**
- * Deprecated alias of {@link useReactiveMutation}: runs a mutation Effect and
- * invalidates the specified Reactivity keys. Nothing is thrown: failures and
+ * Deprecated alias of {@link useReactiveMutation}: runs a mutation Effect and,
+ * when it succeeds, invalidates the specified Reactivity keys. Nothing is thrown: failures and
  * defects settle `current` to a `Failure`.
  *
  * @deprecated Use {@link useReactiveMutation} instead; removed in the next minor release.
  */
 export const reactiveMutation: typeof useReactiveMutation = useReactiveMutation;
+
+/**
+ * Deprecated alias of {@link UseReactiveOptions}: the options the
+ * `useReactive*` hooks and {@link useInvalidateKeys} take.
+ *
+ * @deprecated Use {@link UseReactiveOptions} instead; removed in the next minor release.
+ */
+export type ReactiveOptions<R> = UseReactiveOptions<R>;
+
+/**
+ * Deprecated alias of {@link UseReactiveQueryReturn}: the handle
+ * {@link useReactiveQuery} returns.
+ *
+ * @deprecated Use {@link UseReactiveQueryReturn} instead; removed in the next minor release.
+ */
+export type ReactiveQueryReturn<A, E> = UseReactiveQueryReturn<A, E>;
+
+/**
+ * Deprecated alias of {@link UseReactiveStreamReturn}: the handle
+ * {@link useReactiveStream} returns.
+ *
+ * @deprecated Use {@link UseReactiveStreamReturn} instead; removed in the next minor release.
+ */
+export type ReactiveStreamReturn<A, E> = UseReactiveStreamReturn<A, E>;
+
+/**
+ * Deprecated alias of {@link UseReactiveMutationReturn}: the handle
+ * {@link useReactiveMutation} returns.
+ *
+ * @deprecated Use {@link UseReactiveMutationReturn} instead; removed in the next minor release.
+ */
+export type ReactiveMutationReturn<A, E> = UseReactiveMutationReturn<A, E>;
 
 /**
  * Returns a function that manually invalidates reactivity keys, causing any
@@ -362,7 +397,7 @@ export const reactiveMutation: typeof useReactiveMutation = useReactiveMutation;
  * ```
  */
 export function useInvalidateKeys(
-  options: ReactiveOptions<never> = {},
+  options: UseReactiveOptions<never> = {},
 ): (keys: ReadonlyArray<unknown>) => void {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<Reactivity.Reactivity>);
   return (keys) => {

@@ -68,18 +68,25 @@ and `fromStore`), typed as Effect's native
 
 ### Hook naming
 
-Every hook is named `useX` and is called during component initialisation,
-where it reads the ambient runtime and ties its work to the component's
-lifecycle. The `useReactive*` hooks (`useReactiveQuery`,
+Every hook is named `useX` and is called during component initialisation. A
+hook that runs Effects reads the ambient runtime (the atom hooks read the atom
+registry instead) unless given one, and every hook ties its work to the
+component's lifecycle. The `useReactive*` hooks (`useReactiveQuery`,
 `useReactiveStream`, `useReactiveMutation`) are the ones that take
 `Reactivity` keys: a query or stream re-runs whenever one of its keys is
 invalidated, and a mutation invalidates its keys when it succeeds.
 `useInvalidateKeys` invalidates keys by hand. Their runtime must provide
 `Reactivity.layer` from `effect/reactivity`.
 
+Their option and handle types are `UseReactiveOptions`,
+`UseReactiveQueryReturn`, `UseReactiveStreamReturn` and
+`UseReactiveMutationReturn`.
+
 `reactiveQuery`, `reactiveStream` and `reactiveMutation` are deprecated
-aliases of the `useReactive*` hooks, kept for one minor release and removed in
-the next.
+aliases of the `useReactive*` hooks, and `ReactiveOptions`,
+`ReactiveQueryReturn`, `ReactiveStreamReturn` and `ReactiveMutationReturn` are
+deprecated aliases of their types. Both are kept for one minor release and
+removed in the next.
 
 ### Hooks and explicit runtimes
 

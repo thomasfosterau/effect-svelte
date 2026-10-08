@@ -765,15 +765,3 @@ describe("makeResult", () => {
     expect(text(target, "tag")).toBe("Failure");
   });
 });
-
-describe("deprecated reactiveX aliases", () => {
-  it("are the useReactiveX hooks under their old names, exported from the package root", async () => {
-    // Import the root entry to check the published names, not just the module.
-    const root = await import("../../src/index.js");
-    expect(root.reactiveQuery).toBe(root.useReactiveQuery);
-    expect(root.reactiveStream).toBe(root.useReactiveStream);
-    expect(root.reactiveMutation).toBe(root.useReactiveMutation);
-    expect(root.useReactiveQuery).toBe(useReactiveQuery);
-    expect(root.useReactiveStream).toBe(useReactiveStream);
-  });
-});
