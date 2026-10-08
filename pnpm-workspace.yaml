@@ -33,17 +33,16 @@ catalog:
   svelte: ^5.57.1
   svelte-check: ^4.7.6
   todomvc-app-css: ^2.4.3
-  # TypeScript 6/7 side-by-side: TS7 (the native Go compiler) ships no JS API
-  # until 7.1, so JS-API consumers (@effect/language-service, svelte-check, the
-  # tsdown declaration bundler behind `vp pack`) stay on TS6. The alias keeps
-  # the package importable as `typescript` (bin `tsc6`); `@typescript/native`
-  # is TS7 (bin `tsc`). Pinned exact so the pair only moves together.
+  # TypeScript 6 under the `typescript` name: TS7 (the native Go compiler)
+  # ships no JS API until 7.1, so the JS-API consumers (@effect/language-service,
+  # svelte-check, the tsdown declaration bundler behind `vp pack`) need TS6.
+  # The alias keeps the package importable as `typescript` (bin `tsc6`).
+  # Pinned exact; bumped by hand (Dependabot ignores its version updates).
   # Every workspace package lists `typescript: "catalog:"`: without it,
   # peer auto-install resolves the alias's inner `typescript@6.0.x` as
   # `vite`'s optional peer, giving vite-plus-core (and so every plugin type) a
   # second instance and svelte-check a stack-depth crash on `defineConfig`.
   typescript: "npm:@typescript/typescript6@6.0.2"
-  "@typescript/native": "npm:typescript@7.0.2"
   # vite-plus pins `oxlint`, `oxfmt` and `vitest` to exact versions; `vite` is
   # the same release under its aliased core package, and `vitest` must match
   # vite-plus's exact pin because the `vitest: "catalog:"` override forces
