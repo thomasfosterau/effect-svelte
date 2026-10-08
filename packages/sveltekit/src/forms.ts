@@ -31,7 +31,7 @@
 
 import { applyAction as kitApplyAction, deserialize as kitDeserialize } from "$app/forms";
 import type { ActionResult } from "$app/forms";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import { makeSubmitFunction } from "./internal/enhance.js";
 
 export type {
@@ -53,15 +53,38 @@ export type {
 export const enhance = makeSubmitFunction;
 
 /**
+ * {@link applyAction} rejected or threw. `cause` is SvelteKit's original
+ * reason, unchanged.
+ *
+ * SvelteKit 3 throws when `applyAction` is called during server rendering, and
+ * follows a `redirect` result with a client-side navigation that rejects if it
+ * fails: for example, a `location` that is not a valid URL, or a
+ * `beforeNavigate` / `onNavigate` callback that throws. Recover with
+ * `Effect.catchTag("ApplyActionError", ...)`.
+ */
+export class ApplyActionError extends Data.TaggedError("ApplyActionError")<{
+  /** The rejection reason, or the value thrown, as SvelteKit produced it. */
+  readonly cause: unknown;
+}> {}
+
+/**
  * Apply an `ActionResult` to the page (updating `page.form` / `page.status`,
  * resetting the form, etc.) as an Effect. Wraps `$app/forms`' `applyAction`.
+ *
+ * Fails with an {@link ApplyActionError} if SvelteKit rejects or throws: for
+ * example, when the navigation that follows a `redirect` result fails, or when
+ * called during server rendering.
  */
 export const applyAction = <
   Success extends Record<string, unknown> | undefined = Record<string, unknown>,
   Failure extends Record<string, unknown> | undefined = Record<string, unknown>,
 >(
   result: ActionResult<Success, Failure>,
-): Effect.Effect<void> => Effect.promise(() => kitApplyAction(result));
+): Effect.Effect<void, ApplyActionError> =>
+  Effect.tryPromise({
+    try: () => kitApplyAction(result),
+    catch: (cause) => new ApplyActionError({ cause }),
+  });
 
 /**
  * Deserialize a raw form-action response body into an `ActionResult`, as an

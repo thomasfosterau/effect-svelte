@@ -6,8 +6,12 @@
  * `Effect`, so navigation composes inside Effect pipelines (sequencing,
  * retries, `Effect.race`, tracing spans, ...). Alongside them sit the
  * client-side lifecycle callbacks (`beforeNavigate`, `afterNavigate`,
- * `onNavigate`) bridged to Effect. These run on the client only — calling them
- * during SSR throws, exactly as the underlying `$app/navigation` functions do.
+ * `onNavigate`) bridged to Effect. These run on the client only.
+ *
+ * When SvelteKit rejects (for example, `goto` to a URL outside the app) or
+ * throws (for example, any of them run during server rendering), the wrapper
+ * fails with a {@link NavigationError} that names the operation and carries
+ * SvelteKit's original reason as its `cause`.
  *
  * @example
  * ```svelte
@@ -41,46 +45,123 @@ import {
   refreshAll as kitRefreshAll,
 } from "$app/navigation";
 import type { AfterNavigate, BeforeNavigate, OnNavigate } from "$app/navigation";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import type { Stream } from "effect";
 import { onNavigateWith, registeredStream } from "./internal/navigation-events.js";
 
 /**
- * Navigate to `url`. Wraps `$app/navigation`'s `goto`. SvelteKit rejects a URL
- * outside the app (external, or not matching a route); a rejection surfaces as
- * a defect.
+ * A `$app/navigation` promise wrapper ({@link goto}, {@link invalidate},
+ * {@link invalidateAll}, {@link refreshAll}, {@link preloadData},
+ * {@link preloadCode}) rejected or threw. `operation` names the wrapper and
+ * `cause` is SvelteKit's original reason, unchanged.
+ *
+ * SvelteKit 3 rejects `goto` with a URL outside the app (external, or matching
+ * no route) and `preloadData` with a URL outside the app; `invalidate` throws on
+ * a URL it cannot parse; `preloadCode` rejects when a route's code fails to
+ * load; a navigation (including one that follows a `load` redirect during
+ * `invalidate` / `refreshAll`) rejects when a `beforeNavigate` / `onNavigate`
+ * callback throws; and every one of them throws when called during server
+ * rendering. Recover with `Effect.catchTag("NavigationError", ...)`.
  */
-export const goto = (...args: Parameters<typeof kitGoto>): Effect.Effect<void> =>
-  Effect.promise(() => kitGoto(...args));
+export class NavigationError extends Data.TaggedError("NavigationError")<{
+  /** The wrapper whose SvelteKit call failed. */
+  readonly operation:
+    | "goto"
+    | "invalidate"
+    | "invalidateAll"
+    | "refreshAll"
+    | "preloadData"
+    | "preloadCode";
+  /** The rejection reason, or the value thrown, as SvelteKit produced it. */
+  readonly cause: unknown;
+}> {}
 
-/** Re-run `load` functions that depend on `resource`. Wraps `invalidate`. */
-export const invalidate = (...args: Parameters<typeof kitInvalidate>): Effect.Effect<void> =>
-  Effect.promise(() => kitInvalidate(...args));
+/**
+ * Runs a `$app/navigation` call as an Effect, so a rejection, or a synchronous
+ * throw, fails with a {@link NavigationError} instead of becoming a defect.
+ */
+const fromNavigation = <A>(
+  operation: NavigationError["operation"],
+  thunk: () => Promise<A>,
+): Effect.Effect<A, NavigationError> =>
+  Effect.tryPromise({
+    try: () => thunk(),
+    catch: (cause) => new NavigationError({ operation, cause }),
+  });
+
+/**
+ * Navigate to `url`. Wraps `$app/navigation`'s `goto`.
+ *
+ * Fails with a {@link NavigationError} if SvelteKit rejects: a URL outside the
+ * app (external, or not matching a route) rejects, as does a navigation whose
+ * `beforeNavigate` / `onNavigate` callback throws, or a call during server
+ * rendering. For an external URL, set `window.location` instead.
+ */
+export const goto = (...args: Parameters<typeof kitGoto>): Effect.Effect<void, NavigationError> =>
+  fromNavigation("goto", () => kitGoto(...args));
+
+/**
+ * Re-run `load` functions that depend on `resource`. Wraps `invalidate`.
+ *
+ * Fails with a {@link NavigationError} if SvelteKit rejects or throws: a
+ * `resource` string that is not a valid URL throws, as does a call during
+ * server rendering, and the navigation that follows a `load` redirect can
+ * reject.
+ */
+export const invalidate = (
+  ...args: Parameters<typeof kitInvalidate>
+): Effect.Effect<void, NavigationError> =>
+  fromNavigation("invalidate", () => kitInvalidate(...args));
 
 /**
  * Re-run every `load` function for the active page. Wraps `invalidateAll`.
  *
+ * Fails with a {@link NavigationError} if SvelteKit rejects or throws: for
+ * example, when the navigation that follows a `load` redirect fails, or when
+ * called during server rendering.
+ *
  * @deprecated SvelteKit 3 deprecates `invalidateAll`; use {@link refreshAll},
  * which also refreshes active remote functions and keeps `page.state`.
  */
-export const invalidateAll = (): Effect.Effect<void> => Effect.promise(() => kitInvalidateAll());
+export const invalidateAll = (): Effect.Effect<void, NavigationError> =>
+  fromNavigation("invalidateAll", () => kitInvalidateAll());
 
-/** Refresh active remote functions (and, by default, `load`s). Wraps `refreshAll`. */
-export const refreshAll = (...args: Parameters<typeof kitRefreshAll>): Effect.Effect<void> =>
-  Effect.promise(() => kitRefreshAll(...args));
+/**
+ * Refresh active remote functions (and, by default, `load`s). Wraps `refreshAll`.
+ *
+ * Fails with a {@link NavigationError} if SvelteKit rejects or throws: for
+ * example, when the navigation that follows a `load` redirect fails, or when
+ * called during server rendering.
+ */
+export const refreshAll = (
+  ...args: Parameters<typeof kitRefreshAll>
+): Effect.Effect<void, NavigationError> =>
+  fromNavigation("refreshAll", () => kitRefreshAll(...args));
 
-/** Preload the data for `href`. Wraps `preloadData`. */
+/**
+ * Preload the data for `href`. Wraps `preloadData`, succeeding with SvelteKit's
+ * result (`loaded`, `redirect`, or `error` when a `load` fails).
+ *
+ * Fails with a {@link NavigationError} if SvelteKit rejects: an `href` outside
+ * the app rejects, as does a call during server rendering.
+ */
 export const preloadData = (
   href: string,
-): Effect.Effect<Awaited<ReturnType<typeof kitPreloadData>>> =>
-  Effect.promise(() => kitPreloadData(href));
+): Effect.Effect<Awaited<ReturnType<typeof kitPreloadData>>, NavigationError> =>
+  fromNavigation("preloadData", () => kitPreloadData(href));
 
 /**
  * Preload the code for the route `id` (e.g. `/blog/[slug]`, without
  * `paths.base`). Wraps `preloadCode`.
+ *
+ * Fails with a {@link NavigationError} if SvelteKit rejects: a route module
+ * that fails to load rejects, as does a call during server rendering (and, in
+ * development, an `id` not starting with `/`).
  */
-export const preloadCode = (...args: Parameters<typeof kitPreloadCode>): Effect.Effect<void> =>
-  Effect.promise(() => kitPreloadCode(...args));
+export const preloadCode = (
+  ...args: Parameters<typeof kitPreloadCode>
+): Effect.Effect<void, NavigationError> =>
+  fromNavigation("preloadCode", () => kitPreloadCode(...args));
 
 /**
  * Registers a `beforeNavigate` callback and exposes every navigation about to
