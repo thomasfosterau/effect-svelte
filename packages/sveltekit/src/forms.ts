@@ -58,8 +58,8 @@ export const enhance = makeSubmitFunction;
  *
  * SvelteKit 3 throws when `applyAction` is called during server rendering, and
  * follows a `redirect` result with a client-side navigation that rejects if it
- * fails: for example, a `location` that is not a valid URL, or a
- * `beforeNavigate` / `onNavigate` callback that throws. Recover with
+ * fails: for example, a `location` that cannot be parsed even relative to the
+ * page's base URL, or a `beforeNavigate` / `onNavigate` callback that throws. Recover with
  * `Effect.catchTag("ApplyActionError", ...)`.
  */
 export class ApplyActionError extends Data.TaggedError("ApplyActionError")<{
@@ -74,6 +74,18 @@ export class ApplyActionError extends Data.TaggedError("ApplyActionError")<{
  * Fails with an {@link ApplyActionError} if SvelteKit rejects or throws: for
  * example, when the navigation that follows a `redirect` result fails, or when
  * called during server rendering.
+ *
+ * {@link enhance}'s `onSubmit` / `onResult` handlers must not fail (their error
+ * type is `never`), so handle `ApplyActionError` before returning
+ * `applyAction` from `onResult`: turn it into a defect with `Effect.orDie`, or
+ * recover with `Effect.catchTag("ApplyActionError", ...)`.
+ *
+ * @example
+ * ```ts
+ * const submit = Forms.enhance({
+ *   onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
+ * });
+ * ```
  */
 export const applyAction = <
   Success extends Record<string, unknown> | undefined = Record<string, unknown>,

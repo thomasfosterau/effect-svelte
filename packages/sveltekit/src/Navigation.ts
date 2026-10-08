@@ -57,8 +57,8 @@ import { onNavigateWith, registeredStream } from "./internal/navigation-events.j
  *
  * SvelteKit 3 rejects `goto` with a URL outside the app (external, or matching
  * no route) and `preloadData` with a URL outside the app; `invalidate` throws on
- * a URL it cannot parse; `preloadCode` rejects when a route's code fails to
- * load; a navigation (including one that follows a `load` redirect during
+ * a `resource` that cannot be parsed even relative to the current URL;
+ * `preloadCode` rejects when a route's code fails to load; a navigation (including one that follows a `load` redirect during
  * `invalidate` / `refreshAll`) rejects when a `beforeNavigate` / `onNavigate`
  * callback throws; and every one of them throws when called during server
  * rendering. Recover with `Effect.catchTag("NavigationError", ...)`.
@@ -104,9 +104,9 @@ export const goto = (...args: Parameters<typeof kitGoto>): Effect.Effect<void, N
  * Re-run `load` functions that depend on `resource`. Wraps `invalidate`.
  *
  * Fails with a {@link NavigationError} if SvelteKit rejects or throws: a
- * `resource` string that is not a valid URL throws, as does a call during
- * server rendering, and the navigation that follows a `load` redirect can
- * reject.
+ * `resource` string that cannot be parsed even relative to the current URL
+ * throws, as does a call during server rendering, and the navigation that
+ * follows a `load` redirect can reject.
  */
 export const invalidate = (
   ...args: Parameters<typeof kitInvalidate>
@@ -170,9 +170,9 @@ export const preloadCode = (
  * Unlike the promise-returning navigation functions above, this is a
  * **callback-registration** function: it must be called *synchronously during
  * component initialization* (SvelteKit wires it to the component's lifecycle).
- * It registers its callback eagerly and feeds an internal `Queue`, returning a
- * `Stream` backed by that queue — the same push-based bridge as `SignalEmitter`
- * in `@thomasfosterau/effect-svelte`. Call it at the top level of `<script>`,
+ * It registers its callback eagerly and feeds an internal unbounded `Queue`,
+ * returning a `Stream` backed by that queue: a push-based bridge that buffers
+ * every event for its single consumer. Call it at the top level of `<script>`,
  * exactly where you'd call the bare `beforeNavigate`.
  *
  * @example

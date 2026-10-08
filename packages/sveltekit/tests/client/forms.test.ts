@@ -4,7 +4,7 @@
  * an `ApplyActionError` carrying the original cause, never as a defect.
  */
 
-import type { ActionResult } from "$app/forms";
+import type { ActionResult, SubmitFunction } from "$app/forms";
 import { Cause, Effect, Exit } from "effect";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
@@ -74,5 +74,44 @@ describe("Forms.applyAction", () => {
       ),
     );
     expect(recovered).toBe(cause);
+  });
+});
+
+describe("Forms.applyAction inside Forms.enhance", () => {
+  /** Runs `submit` through both phases with `result`, as `use:enhance` would. */
+  const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<void> => {
+    const callback = await submit({ cancel: () => {} } as Parameters<SubmitFunction>[0]);
+    if (typeof callback !== "function") throw new Error("expected a result callback");
+    await callback({ result, update: () => Promise.resolve() } as Parameters<typeof callback>[0]);
+  };
+
+  // `onResult` must not fail, so the README's two patterns handle the error:
+  // these type-check only because they do.
+  it("Effect.orDie turns a failed applyAction into a defect", async () => {
+    const cause = new Error("navigation failed");
+    formsStubs.applyAction = () => Promise.reject(cause);
+    const submit = Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
+    });
+
+    await expect(runEnhanced(submit, redirect)).rejects.toMatchObject({
+      _tag: "ApplyActionError",
+      cause,
+    });
+  });
+
+  it("Effect.catchTag recovers from a failed applyAction", async () => {
+    const cause = new Error("navigation failed");
+    formsStubs.applyAction = () => Promise.reject(cause);
+    const seen: Array<unknown> = [];
+    const submit = Forms.enhance({
+      onResult: ({ result }) =>
+        Forms.applyAction(result).pipe(
+          Effect.catchTag("ApplyActionError", (error) => Effect.sync(() => seen.push(error.cause))),
+        ),
+    });
+
+    await runEnhanced(submit, redirect);
+    expect(seen).toEqual([cause]);
   });
 });

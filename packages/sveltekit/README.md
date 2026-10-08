@@ -568,8 +568,28 @@ for `use:enhance`, and `Forms.applyAction` / `Forms.deserialize` wrap the
 `$app/forms` helpers. `Forms.applyAction` fails with `Forms.ApplyActionError`
 (SvelteKit's original reason as its `cause`) when SvelteKit rejects or throws:
 for example, when the navigation that follows a `redirect` result fails, or
-when it runs during server rendering. (This complements `Remote.submitForm`,
-which covers remote forms.)
+when it runs during server rendering. `Forms.enhance`'s `onSubmit` / `onResult`
+handlers must not fail, so handle that error before returning
+`Forms.applyAction` from `onResult`:
+
+```ts
+const submit = Forms.enhance({
+  // Treat a failed applyAction as a defect...
+  onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
+});
+
+const submitAndRecover = Forms.enhance({
+  // ...or recover from it.
+  onResult: ({ result }) =>
+    Forms.applyAction(result).pipe(
+      Effect.catchTag("ApplyActionError", (error) =>
+        Effect.logWarning("applyAction failed", error.cause),
+      ),
+    ),
+});
+```
+
+(This complements `Remote.submitForm`, which covers remote forms.)
 
 ## Recipes
 

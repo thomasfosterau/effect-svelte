@@ -29,39 +29,43 @@ const failureOf = async (effect: Effect.Effect<unknown, unknown, never>): Promis
 
 type Operation = keyof typeof navigationStubs;
 
+/**
+ * Each wrapper, a call to it, and the arguments that call must forward to
+ * SvelteKit unchanged (options included).
+ */
 const wrappers: ReadonlyArray<
-  readonly [Operation, () => Effect.Effect<unknown, Navigation.NavigationError>]
+  readonly [
+    Operation,
+    () => Effect.Effect<unknown, Navigation.NavigationError>,
+    ReadonlyArray<unknown>,
+  ]
 > = [
-  ["goto", () => Navigation.goto("/done")],
-  ["invalidate", () => Navigation.invalidate("app:todos")],
-  ["invalidateAll", () => Navigation.invalidateAll()],
-  ["refreshAll", () => Navigation.refreshAll()],
-  ["preloadData", () => Navigation.preloadData("/blog")],
-  ["preloadCode", () => Navigation.preloadCode("/blog/[slug]")],
+  [
+    "goto",
+    () => Navigation.goto("/done", { replace: true, refreshAll: true }),
+    ["/done", { replace: true, refreshAll: true }],
+  ],
+  ["invalidate", () => Navigation.invalidate("app:todos", true), ["app:todos", true]],
+  ["invalidateAll", () => Navigation.invalidateAll(), []],
+  ["refreshAll", () => Navigation.refreshAll(), []],
+  ["preloadData", () => Navigation.preloadData("/blog"), ["/blog"]],
+  ["preloadCode", () => Navigation.preloadCode("/blog/[slug]"), ["/blog/[slug]"]],
 ];
 
 describe("Navigation promise wrappers: success", () => {
-  it.each(wrappers)("%s forwards its arguments and succeeds", async (operation, run) => {
-    const calls: Array<Array<unknown>> = [];
-    navigationStubs[operation] = (...args) => {
-      calls.push(args);
-      return Promise.resolve();
-    };
+  it.each(wrappers)(
+    "%s forwards its arguments and succeeds",
+    async (operation, run, expectedArgs) => {
+      const calls: Array<Array<unknown>> = [];
+      navigationStubs[operation] = (...args) => {
+        calls.push(args);
+        return Promise.resolve();
+      };
 
-    await Effect.runPromise(run());
-    expect(calls).toHaveLength(1);
-  });
-
-  it("goto forwards the URL and options", async () => {
-    const calls: Array<Array<unknown>> = [];
-    navigationStubs.goto = (...args) => {
-      calls.push(args);
-      return Promise.resolve();
-    };
-
-    await Effect.runPromise(Navigation.goto("/done", { replace: true }));
-    expect(calls).toEqual([["/done", { replace: true }]]);
-  });
+      await Effect.runPromise(run());
+      expect(calls).toEqual([expectedArgs]);
+    },
+  );
 
   it("preloadData succeeds with SvelteKit's result", async () => {
     const result = { type: "redirect", status: 307, location: "/login" };
