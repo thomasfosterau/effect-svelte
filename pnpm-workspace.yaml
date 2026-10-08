@@ -21,13 +21,13 @@ catalogMode: strict
 
 catalog:
   "@changesets/cli": ^3.0.3
-  "@effect/language-service": ^0.87.3
-  "@effect/platform-node": 4.0.0
+  "@effect/language-service": ^0.87.4
+  "@effect/platform-node": 4.0.2
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^3.0.0
   "@sveltejs/vite-plugin-svelte": ^7.3.1
   "@types/node": ^26.6.4
-  effect: 4.0.0
+  effect: 4.0.2
   happy-dom: ^20.14.5
   magic-string: ^1.4.2
   svelte: ^5.57.1
