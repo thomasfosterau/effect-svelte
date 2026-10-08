@@ -11,6 +11,16 @@
 
 import { Cause, Data, Effect, Queue, Stream } from "effect";
 
+/**
+ * Forward a failed `Stream.callback` setup to the stream's queue, so the stream
+ * fails with it. Up to `effect@4.0.1`, `Stream.callback` dropped a failing
+ * setup Effect's cause and the stream hung instead.
+ */
+const failQueueOnSetupError =
+  <A, E>(queue: Queue.Queue<A, E | Cause.Done>) =>
+  <R>(setup: Effect.Effect<unknown, E, R>): Effect.Effect<unknown, never, R> =>
+    Effect.catchCause(setup, (cause) => Queue.failCause(queue, cause));
+
 // ---------------------------------------------------------------------------
 // EventSource
 // ---------------------------------------------------------------------------
@@ -25,9 +35,16 @@ export interface SseMessage {
   readonly lastEventId: string;
 }
 
-/** Raised when an `EventSource` connection fails fatally (its `readyState` is `CLOSED`). */
+/**
+ * Raised when an `EventSource` cannot be opened (its constructor throws, e.g.
+ * for an invalid URL; `cause` holds the thrown value) or its connection fails
+ * fatally (its `readyState` is `CLOSED`; `cause` is absent).
+ */
 export class EventSourceError extends Data.TaggedError("EventSourceError")<{
+  /** The URL the `EventSource` was opened with. */
   readonly url: string;
+  /** What the `EventSource` constructor threw, when that is why the stream failed. */
+  readonly cause?: unknown;
 }> {}
 
 /** The subset of the `EventSource` constructor this module relies on. */
@@ -58,9 +75,11 @@ export interface FromEventSourceOptions {
  * Consume a Server-Sent-Events endpoint as a `Stream` of {@link SseMessage}.
  *
  * The browser's `EventSource` reconnects automatically after transient drops,
- * so the stream stays live across reconnects; it fails with
- * {@link EventSourceError} only when the connection closes fatally. The source
- * is closed when the stream's scope closes.
+ * so the stream stays live across reconnects. It fails with
+ * {@link EventSourceError} when the connection closes fatally, or, with the
+ * thrown value as its `cause`, when the `EventSource` constructor throws (e.g.
+ * a `SyntaxError` for an invalid URL). The source is closed when the stream's
+ * scope closes; one that failed to construct has nothing to close.
  *
  * @example
  * ```ts
@@ -83,30 +102,37 @@ export const fromEventSource = (
   return Stream.callback<SseMessage, EventSourceError>(
     (queue) =>
       Effect.acquireRelease(
-        Effect.sync(() => {
-          const source =
-            options?.withCredentials === undefined
-              ? new Impl(url)
-              : new Impl(url, { withCredentials: options.withCredentials });
+        // Construct and attach the listeners in one synchronous step, so no
+        // event can be dispatched in between; a throw from either (in practice
+        // the constructor) becomes the typed error. A failed acquire registers
+        // no release: a source that failed to construct has nothing to close.
+        Effect.try({
+          try: () => {
+            const source =
+              options?.withCredentials === undefined
+                ? new Impl(url)
+                : new Impl(url, { withCredentials: options.withCredentials });
 
-          const onMessage = (e: MessageEvent): void => {
-            Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
-          };
+            const onMessage = (e: MessageEvent): void => {
+              Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
+            };
 
-          source.addEventListener("message", onMessage);
-          for (const name of options?.events ?? []) source.addEventListener(name, onMessage);
+            source.addEventListener("message", onMessage);
+            for (const name of options?.events ?? []) source.addEventListener(name, onMessage);
 
-          source.addEventListener("error", () => {
-            // EventSource reconnects on its own unless it has closed for good.
-            if (source.readyState === 2 /* CLOSED */) {
-              Queue.failCauseUnsafe(queue, Cause.fail(new EventSourceError({ url })));
-            }
-          });
+            source.addEventListener("error", () => {
+              // EventSource reconnects on its own unless it has closed for good.
+              if (source.readyState === 2 /* CLOSED */) {
+                Queue.failCauseUnsafe(queue, Cause.fail(new EventSourceError({ url })));
+              }
+            });
 
-          return source;
+            return source;
+          },
+          catch: (cause) => new EventSourceError({ url, cause }),
         }),
         (source) => Effect.sync(() => source.close()),
-      ),
+      ).pipe(failQueueOnSetupError(queue)),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "sliding" },
   );
 };
@@ -115,11 +141,20 @@ export const fromEventSource = (
 // WebSocket
 // ---------------------------------------------------------------------------
 
-/** Raised when a `WebSocket` errors or closes uncleanly. */
+/**
+ * Raised when a `WebSocket` cannot be opened (its constructor throws, e.g. for
+ * an invalid URL or protocol list; `cause` holds the thrown value), errors, or
+ * closes uncleanly (`code` and `reason` come from the close event).
+ */
 export class WebSocketError extends Data.TaggedError("WebSocketError")<{
+  /** The URL the `WebSocket` was opened with. */
   readonly url: string;
+  /** The close code, when an unclean close is why the stream failed. */
   readonly code?: number;
+  /** The close reason, when an unclean close is why the stream failed. */
   readonly reason?: string;
+  /** What the `WebSocket` constructor threw, when that is why the stream failed. */
+  readonly cause?: unknown;
 }> {}
 
 /** The subset of the `WebSocket` constructor this module relies on. */
@@ -146,9 +181,11 @@ export interface FromWebSocketOptions {
  * Consume a `WebSocket` as a `Stream` of its message payloads
  * (`string | ArrayBuffer | Blob`, depending on `binaryType`).
  *
- * The stream ends when the socket closes cleanly and fails with
- * {@link WebSocketError} on an error or unclean close. The socket is closed when
- * the stream's scope closes.
+ * The stream ends when the socket closes cleanly. It fails with
+ * {@link WebSocketError} on an error or unclean close, or, with the thrown
+ * value as its `cause`, when the `WebSocket` constructor throws (e.g. a
+ * `SyntaxError` for an invalid URL or protocol list). The socket is closed when
+ * the stream's scope closes; one that failed to construct has nothing to close.
  *
  * @example
  * ```ts
@@ -165,42 +202,46 @@ export const fromWebSocket = (
   options?: FromWebSocketOptions,
 ): Stream.Stream<string | ArrayBuffer | Blob, WebSocketError> => {
   const Impl = options?.implementation ?? (globalThis.WebSocket as WebSocketConstructor);
-  // See `fromEventSource`: the socket is opened with `acquireRelease` so it is
-  // closed when the stream's scope closes.
   return Stream.callback<string | ArrayBuffer | Blob, WebSocketError>(
     (queue) =>
       Effect.acquireRelease(
-        Effect.sync(() => {
-          const socket = new Impl(url, options?.protocols);
-          if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
+        // See `fromEventSource`: construct and attach the listeners in one
+        // synchronous step, mapping a throw to the typed error; a failed
+        // acquire registers no release.
+        Effect.try({
+          try: () => {
+            const socket = new Impl(url, options?.protocols);
+            if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
 
-          socket.addEventListener("message", (e: MessageEvent) => {
-            Queue.offerUnsafe(queue, e.data);
-          });
+            socket.addEventListener("message", (e: MessageEvent) => {
+              Queue.offerUnsafe(queue, e.data);
+            });
 
-          socket.addEventListener("error", () => {
-            Queue.failCauseUnsafe(queue, Cause.fail(new WebSocketError({ url })));
-          });
+            socket.addEventListener("error", () => {
+              Queue.failCauseUnsafe(queue, Cause.fail(new WebSocketError({ url })));
+            });
 
-          socket.addEventListener("close", (e: CloseEvent) => {
-            if (e.wasClean) {
-              Queue.endUnsafe(queue);
-            } else {
-              Queue.failCauseUnsafe(
-                queue,
-                Cause.fail(new WebSocketError({ url, code: e.code, reason: e.reason })),
-              );
-            }
-          });
+            socket.addEventListener("close", (e: CloseEvent) => {
+              if (e.wasClean) {
+                Queue.endUnsafe(queue);
+              } else {
+                Queue.failCauseUnsafe(
+                  queue,
+                  Cause.fail(new WebSocketError({ url, code: e.code, reason: e.reason })),
+                );
+              }
+            });
 
-          return socket;
+            return socket;
+          },
+          catch: (cause) => new WebSocketError({ url, cause }),
         }),
         (socket) =>
           Effect.sync(() => {
             // Only close a socket that is still connecting/open.
             if (socket.readyState === 0 || socket.readyState === 1) socket.close();
           }),
-      ),
+      ).pipe(failQueueOnSetupError(queue)),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "suspend" },
   );
 };
