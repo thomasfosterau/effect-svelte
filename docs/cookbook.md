@@ -310,6 +310,11 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
   unmount, which unsubscribes the store and removes the `matchMedia` listener.
 - `Stream.switchMap` interrupts an in-flight load when the breakpoint flips,
   which aborts an Effect `HttpClient` request rather than racing it.
+- A failed load fails the whole stream: `dashboard.current` becomes a
+  `Failure` and later breakpoint flips do nothing until the component remounts.
+  To keep following the breakpoint, handle the error inside the `switchMap`,
+  e.g. `Stream.fromEffect(loadDashboard(…).pipe(Effect.retry(…)))` or a
+  `catch` that maps it to a fallback value.
 - `useStream` keeps every emission in `values`; read `latest`. That is fine for
   a value that changes as rarely as a breakpoint.
 - SSR: the server cannot know the viewport, so there `MediaQuery.current` is
