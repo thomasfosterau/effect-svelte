@@ -13,6 +13,11 @@
  * `effectFn`) is tracked: state an Effect reads synchronously while it starts
  * is not a dependency, matching `useEffect({ immediate: true })`.
  *
+ * `reactiveStream` starts its run from a `createSubscriber` start callback,
+ * which Svelte runs untracked, so it reads its thunks in a `$derived` instead;
+ * the same split applies (#140). `useInvalidateKeys` re-runs queries on the
+ * spot, so calling it from an `$effect` must not track their reads either.
+ *
  * Synchronous Effects settle inside the `$effect`, so `flushSync()` after
  * `mount` is enough to see the settled result; asynchronous ones are released
  * and observed through `Deferred`s and the probe's `onSuccess`, never a timer.
@@ -26,7 +31,7 @@ import { useDerived } from "../../src/derived.svelte.js";
 import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
 import { useQuery } from "../../src/query.svelte.js";
-import { reactiveQuery } from "../../src/reactivity.svelte.js";
+import { reactiveQuery, reactiveStream, useInvalidateKeys } from "../../src/reactivity.svelte.js";
 import ResultProbe from "./ResultProbe.svelte";
 import { makeMounter, text } from "./helpers.js";
 
@@ -463,6 +468,272 @@ describe("reactiveQuery", () => {
     expect(starts).toBe(1);
     expect(text(target, "tag")).toBe("Failure");
     expect(text(target, "waiting")).toBe("false");
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+});
+
+describe("reactiveStream", () => {
+  // `reactiveStream` is built on `createSubscriber`, whose `start` runs
+  // untracked: the thunks must be tracked some other way (#140).
+
+  /** A `Reactivity` runtime plus a synchronous `invalidate` for the tests. */
+  const makeReactivity = async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const runtime = await managed.context();
+    return {
+      runtime,
+      invalidate: (keys: ReadonlyArray<unknown>) => managed.runSync(Reactivity.invalidate(keys)),
+      dispose: async () => {
+        mounter.cleanup();
+        await managed.dispose();
+      },
+    };
+  };
+
+  it("runs once for every reader and appends a value per invalidation", async () => {
+    const reactivity = await makeReactivity();
+    const log = successLog();
+    let starts = 0;
+    // The probe reads `current` from its template and from an `$effect`: two
+    // readers, one fiber.
+    const target = mountProbe({
+      use: () =>
+        reactiveStream(
+          () => ["probe"],
+          () => Effect.sync(() => ++starts),
+          { runtime: reactivity.runtime },
+        ),
+      onSuccess: log.onSuccess,
+    });
+    expect(starts).toBe(1);
+    expect(text(target, "tag")).toBe("Success");
+    expect(text(target, "value")).toBe("1");
+
+    // A re-run's value reaches the stream after an async boundary.
+    reactivity.invalidate(["probe"]);
+    expect(starts).toBe(2);
+    await log.until((value) => String(value) === "1,2");
+    flushSync();
+    expect(starts).toBe(2);
+    expect(text(target, "value")).toBe("1,2");
+
+    await reactivity.dispose();
+  });
+
+  it("restarts for state only the keys thunk reads", async () => {
+    const reactivity = await makeReactivity();
+    const log = successLog();
+    const dep = $state({ n: 1 });
+    let starts = 0;
+    const target = mountProbe({
+      use: () =>
+        reactiveStream(
+          // Each key is invalidated on its own, so each run gets a distinct one.
+          () => [`probe-${dep.n}`],
+          () => Effect.sync(() => ++starts),
+          { runtime: reactivity.runtime },
+        ),
+      onSuccess: log.onSuccess,
+    });
+    expect(starts).toBe(1);
+    expect(text(target, "value")).toBe("1");
+
+    dep.n = 2;
+    flushSync();
+    // A fresh run: the values emitted under the old keys are dropped.
+    expect(starts).toBe(2);
+    expect(text(target, "value")).toBe("2");
+
+    // The new run listens on the new keys, and the old one has stopped.
+    reactivity.invalidate(["probe-2"]);
+    expect(starts).toBe(3);
+    await log.until((value) => String(value) === "2,3");
+    reactivity.invalidate(["probe-1"]);
+    expect(starts).toBe(3);
+
+    await reactivity.dispose();
+  });
+
+  it("restarts for state only the effect thunk reads", async () => {
+    const reactivity = await makeReactivity();
+    const dep = $state({ n: 1 });
+    let starts = 0;
+    const target = mountProbe({
+      use: () =>
+        reactiveStream(
+          () => ["probe"],
+          () => {
+            const n = dep.n;
+            return Effect.sync(() => {
+              starts++;
+              return n * 10;
+            });
+          },
+          { runtime: reactivity.runtime },
+        ),
+    });
+    expect(starts).toBe(1);
+    expect(text(target, "value")).toBe("10");
+
+    dep.n = 2;
+    flushSync();
+    expect(starts).toBe(2);
+    expect(text(target, "value")).toBe("20");
+
+    await reactivity.dispose();
+  });
+
+  it("does not restart for state the Effect reads while it runs", async () => {
+    const reactivity = await makeReactivity();
+    const log = successLog();
+    const inner = $state({ n: 100 });
+    let starts = 0;
+    const target = mountProbe({
+      use: () =>
+        reactiveStream(
+          () => ["probe"],
+          () =>
+            Effect.sync(() => {
+              starts++;
+              return inner.n;
+            }),
+          { runtime: reactivity.runtime },
+        ),
+      onSuccess: log.onSuccess,
+    });
+    expect(starts).toBe(1);
+    expect(text(target, "value")).toBe("100");
+
+    inner.n = 200;
+    flushSync();
+    expect(starts).toBe(1);
+    expect(text(target, "value")).toBe("100");
+
+    // An invalidation still re-runs it, and the re-run sees the new state.
+    reactivity.invalidate(["probe"]);
+    expect(starts).toBe(2);
+    await log.until((value) => String(value) === "100,200");
+
+    await reactivity.dispose();
+  });
+
+  it("settles a failure to Failure, and starts over when a thunk's state changes", async () => {
+    const reactivity = await makeReactivity();
+    const dep = $state({ n: 1 });
+    let starts = 0;
+    const target = mountProbe({
+      use: () =>
+        reactiveStream(
+          () => ["probe"],
+          () => {
+            const n = dep.n;
+            return Effect.suspend(() => {
+              starts++;
+              return n === 1 ? Effect.fail("boom") : Effect.succeed(n);
+            });
+          },
+          { runtime: reactivity.runtime },
+        ),
+    });
+    expect(starts).toBe(1);
+    expect(text(target, "tag")).toBe("Failure");
+    expect(text(target, "waiting")).toBe("false");
+
+    // The failure ended the stream, so an invalidation no longer re-runs it.
+    reactivity.invalidate(["probe"]);
+    expect(starts).toBe(1);
+
+    dep.n = 2;
+    flushSync();
+    expect(starts).toBe(2);
+    expect(text(target, "tag")).toBe("Success");
+    expect(text(target, "value")).toBe("2");
+
+    await reactivity.dispose();
+  });
+
+  it("interrupts the previous run when it restarts, and the last run on unmount", async () => {
+    const reactivity = await makeReactivity();
+    const dep = $state({ n: 1 });
+    const interrupted = [
+      Effect.runSync(Deferred.make<void>()),
+      Effect.runSync(Deferred.make<void>()),
+    ] as const;
+    let starts = 0;
+    const target = document.createElement("div");
+    document.body.appendChild(target);
+    const component = mount(ResultProbe, {
+      target,
+      props: {
+        use: () =>
+          reactiveStream(
+            () => ["probe", dep.n],
+            () => {
+              const gate = interrupted[dep.n - 1]!;
+              return Effect.suspend(() => {
+                starts++;
+                return Effect.never;
+              }).pipe(Effect.onInterrupt(() => Deferred.succeed(gate, undefined)));
+            },
+            { runtime: reactivity.runtime },
+          ),
+      },
+    });
+    flushSync();
+    expect(starts).toBe(1);
+
+    dep.n = 2;
+    flushSync();
+    expect(starts).toBe(2);
+    await Effect.runPromise(Deferred.await(interrupted[0]));
+    expect(Effect.runSync(Deferred.isDone(interrupted[1]))).toBe(false);
+
+    await unmount(component);
+    target.remove();
+    await Effect.runPromise(Deferred.await(interrupted[1]));
+    expect(starts).toBe(2);
+
+    await reactivity.dispose();
+  });
+});
+
+describe("useInvalidateKeys", () => {
+  it("can be called from an $effect without tracking the state the queries read", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    const inner = $state({ n: 1 });
+    let starts = 0;
+    let runs = 0;
+    mountProbe({
+      use: () => {
+        const query = reactiveQuery(
+          () => ["probe"],
+          () =>
+            Effect.sync(() => {
+              starts++;
+              return inner.n;
+            }),
+          { runtime: reactivity },
+        );
+        const invalidate = useInvalidateKeys({ runtime: reactivity });
+        // Created after the query's `$effect`, so the query is registered by
+        // the time this runs, and the invalidation re-runs it synchronously.
+        $effect(() => {
+          runs++;
+          invalidate(["probe"]);
+        });
+        return query;
+      },
+    });
+    expect(runs).toBe(1);
+    expect(starts).toBe(2);
+
+    inner.n = 2;
+    flushSync();
+    expect(runs).toBe(1);
+    expect(starts).toBe(2);
 
     mounter.cleanup();
     await managed.dispose();

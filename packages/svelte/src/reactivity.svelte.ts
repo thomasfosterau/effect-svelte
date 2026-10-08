@@ -127,36 +127,61 @@ export function reactiveQuery<A, E, R>(
 
 /** The handle {@link reactiveStream} returns. */
 export interface ReactiveStreamReturn<A, E> {
+  /**
+   * Every value the current run has emitted, as an `AsyncResult`: `Initial`
+   * until the first value, then a waiting `Success`; a `Failure` once the
+   * Effect fails.
+   */
   readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
+  /** Every value the current run has emitted, oldest first. */
   readonly values: ReadonlyArray<A>;
+  /** The most recent value the current run has emitted, if any. */
   readonly latest: A | undefined;
 }
 
 /**
- * Creates a reactive stream that emits values whenever the specified keys are invalidated.
- * The effect re-runs automatically when keys change.
+ * Creates a reactive stream that runs `effect` once, then again each time
+ * `keys` are invalidated, collecting every result in `values`.
  *
- * @param keys - Reactivity keys that this stream depends on
- * @param effect - The Effect to run when keys are invalidated
+ * When `keys` or `effect` is a thunk, the reactive state it reads is tracked:
+ * when that state changes, the running stream is interrupted and a new one
+ * starts with the new keys and Effect, its `values` empty again. Only the
+ * thunks' reads are dependencies: the Effect runs untracked, so state it reads
+ * while running does not restart the stream (an invalidation re-runs it, and
+ * the re-run sees the new state). Read anything that should restart the
+ * stream in a thunk, as `channelId` is below.
+ *
+ * The stream starts when `current`, `values` or `latest` is first read inside
+ * an effect or template, and one run is shared by every reader. It is
+ * interrupted once the last reader is gone (for example on unmount), and
+ * starts afresh if read again later.
+ *
+ * Nothing is thrown: a failure or defect of the Effect ends the stream and
+ * settles `current` to a `Failure` (keeping `values`), after which
+ * invalidations no longer re-run it until a thunk's state changes or it
+ * restarts. Interruption (a restart, or the last reader leaving) is not a
+ * failure.
+ *
+ * Note: Make sure your runtime includes `Reactivity.layer` from `effect/reactivity`.
+ *
+ * @param keys - Reactivity keys that this stream depends on, or a thunk returning them
+ * @param effect - The Effect to run initially and whenever the keys are invalidated, or a thunk returning it
  *
  * @example
  * ```svelte
  * <script lang="ts">
  *   import { reactiveStream } from '@thomasfosterau/effect-svelte';
- *   import { Effect } from 'effect';
  *
- *   const messages = reactiveStream(
- *     ['messages'],
- *     Effect.gen(function* () {
- *       const data = yield* fetchMessages();
- *       return data;
- *     })
- *   );
+ *   let channelId = $state('general');
+ *
+ *   // Re-fetches whenever the 'messages' key is invalidated, and starts over
+ *   // when `channelId` changes.
+ *   const messages = reactiveStream(['messages'], () => fetchMessages(channelId));
  * </script>
  *
  * <ul>
- *   {#each messages.values as msg}
- *     <li>{msg}</li>
+ *   {#each messages.values as batch}
+ *     <li>{batch.length} messages</li>
  *   {/each}
  * </ul>
  * ```
@@ -167,11 +192,29 @@ export function reactiveStream<A, E, R>(
   options: ReactiveOptions<R> = {},
 ): ReactiveStreamReturn<A, E> {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
-  return streamState(runtime, () => {
+
+  // `streamState`'s subscriber starts the stream untracked (Svelte runs a
+  // `createSubscriber` start callback under `untrack`), so the thunks are read
+  // here instead: their reads are this `$derived`'s only dependencies. Each
+  // change builds a fresh subscriber, which the readers re-subscribe to, and
+  // the old one's fiber is interrupted once its last reader has moved on.
+  const source = $derived.by(() => {
     const currentKeys = typeof keys === "function" ? keys() : keys;
     const currentEffect = typeof effect === "function" ? effect() : effect;
-    return Reactivity.stream(currentEffect, currentKeys);
+    return streamState(runtime, () => Reactivity.stream(currentEffect, currentKeys));
   });
+
+  return {
+    get current() {
+      return source.current;
+    },
+    get values() {
+      return source.values;
+    },
+    get latest() {
+      return source.latest;
+    },
+  };
 }
 
 /** The handle {@link reactiveMutation} returns. */
@@ -261,6 +304,14 @@ export function reactiveMutation<A, E, R>(
  * Returns a function that manually invalidates reactivity keys, causing any
  * reactive queries depending on those keys to re-run.
  *
+ * The invalidation re-runs the matching queries and streams synchronously, up
+ * to their first async step. It runs untracked, so calling the function from a
+ * consumer's `$effect` does not make that effect depend on state those
+ * Effects read.
+ *
+ * Invalidation itself cannot fail: a re-run query or stream that fails settles
+ * its own result to a `Failure`, not this call.
+ *
  * @example
  * ```svelte
  * <script lang="ts">
@@ -277,6 +328,9 @@ export function useInvalidateKeys(
 ): (keys: ReadonlyArray<unknown>) => void {
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<Reactivity.Reactivity>);
   return (keys) => {
-    runSync(runtime)(Reactivity.invalidate(keys));
+    // `Reactivity.invalidate` forks every matching query on the spot, so a
+    // tracked call would subscribe the caller's `$effect` to whatever state
+    // those queries read before their first async boundary.
+    untrack(() => runSync(runtime)(Reactivity.invalidate(keys)));
   };
 }
