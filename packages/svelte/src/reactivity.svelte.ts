@@ -128,14 +128,14 @@ export function reactiveQuery<A, E, R>(
 /** The handle {@link reactiveStream} returns. */
 export interface ReactiveStreamReturn<A, E> {
   /**
-   * Every value the current run has emitted, as an `AsyncResult`: `Initial`
-   * until the first value, then a waiting `Success`; a `Failure` once the
+   * Every value emitted since the stream last (re)started, as an
+   * `AsyncResult`: `Initial` until the first value, then a waiting `Success`; a `Failure` once the
    * Effect fails.
    */
   readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
-  /** Every value the current run has emitted, oldest first. */
+  /** Every value emitted since the stream last (re)started, oldest first. */
   readonly values: ReadonlyArray<A>;
-  /** The most recent value the current run has emitted, if any. */
+  /** The most recent value emitted since the stream last (re)started, if any. */
   readonly latest: A | undefined;
 }
 
@@ -144,12 +144,15 @@ export interface ReactiveStreamReturn<A, E> {
  * `keys` are invalidated, collecting every result in `values`.
  *
  * When `keys` or `effect` is a thunk, the reactive state it reads is tracked:
- * when that state changes, the running stream is interrupted and a new one
- * starts with the new keys and Effect, its `values` empty again. Only the
+ * when that state changes, the running stream is interrupted (a microtask
+ * later) and a new one starts with the new keys and Effect, its `values` empty
+ * again. Only the
  * thunks' reads are dependencies: the Effect runs untracked, so state it reads
  * while running does not restart the stream (an invalidation re-runs it, and
  * the re-run sees the new state). Read anything that should restart the
- * stream in a thunk, as `channelId` is below.
+ * stream in a thunk, as `channelId` is below. The thunks are called from a
+ * `$derived`, so keep them pure (no `$state` writes) and expect them to run
+ * during server rendering too.
  *
  * The stream starts when `current`, `values` or `latest` is first read inside
  * an effect or template, and one run is shared by every reader. It is
