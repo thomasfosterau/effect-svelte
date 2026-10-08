@@ -63,10 +63,11 @@ const defaultErrorMessage = (error: unknown): string =>
  * (stale-while-revalidate), and an empty (or whitespace-only) query resets the
  * state without searching.
  *
- * Queries are buffered through an Effect `Queue` (`Stream.fromQueue`), not
- * {@link SignalEmitter}: a queue buffers values emitted before the stream has
- * connected (connection is asynchronous), where a `SignalEmitter` drops them,
- * so the initial query is never lost.
+ * Queries are buffered through an Effect `Queue` (`Stream.fromQueue`), which
+ * keeps every query emitted before the stream has connected (connection is
+ * asynchronous), so the initial query is never lost. The stream has exactly
+ * one consumer, so it needs neither {@link SignalEmitter}'s multicast nor its
+ * bounded pre-connect buffer.
  *
  * Call during component initialisation; the component must be a descendant of
  * `provideRuntime()` unless `runtime` is given.

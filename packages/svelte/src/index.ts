@@ -83,7 +83,7 @@ export {
 } from "./debounced-search.svelte.js";
 
 // Svelte-to-Effect Direction
-export { SignalEmitter } from "./emitter.js";
+export { SignalEmitter, type SignalEmitterOptions } from "./emitter.js";
 
 /**
  * Svelte [store](https://svelte.dev/docs/svelte/stores) interop, both
