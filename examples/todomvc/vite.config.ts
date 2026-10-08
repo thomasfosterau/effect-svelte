@@ -20,6 +20,12 @@ export default defineConfig({
           name: "smoke",
           include: ["tests/**/*.test.ts"],
           environment: "happy-dom",
+          // Node >= 25 defines its own `localStorage` global, which is
+          // `undefined` without `--localstorage-file`, and Vitest's happy-dom
+          // environment does not replace a global Node already has. Turning
+          // Node's Web Storage off leaves happy-dom's `localStorage`, which
+          // the todo repository uses.
+          execArgv: ["--no-experimental-webstorage"],
         },
       },
     ],
