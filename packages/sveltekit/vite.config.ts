@@ -28,7 +28,7 @@ export default defineConfig({
     unbundle: true,
     // Declarations come from the TS6 JS compiler (the `typescript` alias): the
     // `tsgo` generator only discovers `@typescript/native-preview` or an
-    // unaliased TypeScript 7, neither of which the 6/7 split installs.
+    // unaliased TypeScript 7, neither of which the workspace installs.
     dts: true,
     sourcemap: true,
     deps: {
