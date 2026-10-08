@@ -376,6 +376,68 @@ describe("reactiveQuery", () => {
     await managed.dispose();
   });
 
+  it("restarts for state only the effect thunk reads", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    const log = successLog();
+    const dep = $state({ n: 1 });
+    let starts = 0;
+    mountProbe({
+      use: () =>
+        reactiveQuery(
+          () => ["probe"],
+          () => {
+            const n = dep.n;
+            return Effect.sync(() => {
+              starts++;
+              return n;
+            });
+          },
+          { runtime: reactivity },
+        ),
+      onSuccess: log.onSuccess,
+    });
+    await log.until((value) => value === 1);
+    flushSync();
+    expect(starts).toBe(1);
+
+    dep.n = 2;
+    flushSync();
+    expect(starts).toBe(2);
+    await log.until((value) => value === 2);
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+
+  it("restarts for state only the keys thunk reads", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    const log = successLog();
+    const dep = $state({ n: 1 });
+    let starts = 0;
+    mountProbe({
+      use: () =>
+        reactiveQuery(
+          () => ["probe", dep.n],
+          () => Effect.sync(() => ++starts),
+          { runtime: reactivity },
+        ),
+      onSuccess: log.onSuccess,
+    });
+    await log.until((value) => value === 1);
+    flushSync();
+    expect(starts).toBe(1);
+
+    dep.n = 2;
+    flushSync();
+    expect(starts).toBe(2);
+    await log.until((value) => value === 2);
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+
   it("runs a synchronously failing Effect once and settles to Failure", async () => {
     const managed = ManagedRuntime.make(Reactivity.layer);
     const reactivity = await managed.context();
