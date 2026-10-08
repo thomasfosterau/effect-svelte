@@ -563,23 +563,32 @@ Effects (no explicit wrapper) when the `effectKit()` Vite plugin is enabled.
 
 For SvelteKit page `actions`, the `Forms` namespace
 (`@thomasfosterau/effect-sveltekit/client`) expresses progressive enhancement
-with Effects: `Forms.enhance({ onSubmit, onResult })` builds a `SubmitFunction`
-for `use:enhance`, and `Forms.applyAction` / `Forms.deserialize` wrap the
-`$app/forms` helpers. `Forms.applyAction` fails with `Forms.ApplyActionError`
-(SvelteKit's original reason as its `cause`) when SvelteKit rejects or throws:
-for example, when the navigation that follows a `redirect` result fails, or
-when it runs during server rendering. `Forms.enhance`'s `onSubmit` / `onResult`
-handlers must not fail, so handle that error before returning
-`Forms.applyAction` from `onResult`:
+with Effects: `Forms.enhance({ onSubmit, onResult }, { runtime, onError })`
+builds a `SubmitFunction` for `use:enhance`, and `Forms.applyAction` /
+`Forms.deserialize` wrap the `$app/forms` helpers. `Forms.applyAction` fails
+with `Forms.ApplyActionError` (SvelteKit's original reason as its `cause`) when
+SvelteKit rejects or throws: for example, when the navigation that follows a
+`redirect` result fails, or when it runs during server rendering.
+
+`onSubmit` and `onResult` may fail. The `onError` option receives the error,
+typed as the union of their error types, and runs on the same runtime; it must
+not fail itself. A failed `onSubmit` also cancels the submission, and a failed
+`onResult` does not fall back to SvelteKit's default behaviour. Without
+`onError`, a failure is treated like a defect: the promise SvelteKit awaits
+rejects with the error, SvelteKit sends no request after a failed `onSubmit`
+and applies no default result after a failed `onResult`, and the browser
+reports an unhandled rejection. Defects and interruptions always take that path
+rather than reaching `onError`.
 
 ```ts
-const submit = Forms.enhance({
-  // Treat a failed applyAction as a defect...
-  onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
-});
+const submit = Forms.enhance(
+  { onResult: ({ result }) => Forms.applyAction(result) },
+  // error: ApplyActionError
+  { onError: (error) => Effect.logWarning("applyAction failed", error.cause) },
+);
 
 const submitAndRecover = Forms.enhance({
-  // ...or recover from it.
+  // Or recover inside the handler, so onResult cannot fail.
   onResult: ({ result }) =>
     Forms.applyAction(result).pipe(
       Effect.catchTag("ApplyActionError", (error) =>

@@ -1,0 +1,5 @@
+---
+"@thomasfosterau/effect-sveltekit": minor
+---
+
+`Forms.enhance` (in `./client`) now accepts `onSubmit` / `onResult` handlers that fail, and takes a new `onError` option beside `runtime`: `Forms.enhance(handlers, { onError })`. `onError` receives the error a handler failed with, typed as the union of the handlers' error types, and runs on the same runtime as the handlers (it must not fail itself). A failed `onSubmit` also cancels the submission, and a failed `onResult` does not fall back to SvelteKit's default behaviour. Without `onError`, a failure rejects the promise SvelteKit awaits with the error itself, as a defect does (and as `Effect.orDie` did), and defects and interruptions still take that path even when `onError` is given. So `onResult: ({ result }) => Forms.applyAction(result)` type-checks, its `ApplyActionError` going to `onError` when one is given. `EnhanceHandlers` gains `ESubmit` / `EResult` type parameters and `EnhanceOptions` an `E` parameter, all defaulting to `never`, so handlers that cannot fail behave as before.
