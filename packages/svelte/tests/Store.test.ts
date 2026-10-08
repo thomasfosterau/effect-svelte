@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Layer, ManagedRuntime, PubSub, Queue, Ref, Stream, SubscriptionRef } from "effect";
+import {
+  Effect,
+  Fiber,
+  Layer,
+  ManagedRuntime,
+  PubSub,
+  Queue,
+  Ref,
+  Stream,
+  SubscriptionRef,
+} from "effect";
 import { get, writable } from "svelte/store";
 import * as Store from "../src/Store.js";
 
@@ -33,6 +43,102 @@ describe("Store.toStream", () => {
       Stream.runCollect(Stream.take(Store.toStream(store), 3)),
     );
     expect(values).toEqual([1, 2, 3]);
+  });
+
+  /**
+   * A `writable` wrapped to count its live subscriptions, so the tests can see
+   * when `toStream` subscribes and unsubscribes.
+   */
+  const countedWritable = (initial: number) => {
+    const store = writable(initial);
+    const counted = {
+      active: 0,
+      set: store.set,
+      subscribe(run: (value: number) => void) {
+        counted.active++;
+        const unsubscribe = store.subscribe(run);
+        return () => {
+          counted.active--;
+          unsubscribe();
+        };
+      },
+    };
+    return counted;
+  };
+
+  /**
+   * Forks a fiber that forwards every element of `stream` into a queue, so the
+   * test can take elements one at a time. The store pushes its current value
+   * from inside `subscribe`, so taking the first element proves the
+   * subscription is open — no sleep is needed to wait for the stream to start.
+   */
+  const forward = <A>(stream: Stream.Stream<A>) =>
+    Effect.gen(function* () {
+      const received = yield* Queue.unbounded<A>();
+      const fiber = yield* Effect.forkChild(
+        Stream.runForEach(stream, (value) => Queue.offer(received, value)),
+      );
+      // Bounded only so a regression fails fast instead of hanging the suite;
+      // the passing path never waits on the clock.
+      const next = Queue.take(received).pipe(Effect.timeout("2 seconds"));
+      return { fiber, next };
+    });
+
+  it("delivers values the store pushes after the stream has started", async () => {
+    const store = countedWritable(0);
+
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const { fiber, next } = yield* forward(Store.toStream(store));
+        const first = yield* next;
+        store.set(1);
+        const second = yield* next;
+        store.set(2);
+        const third = yield* next;
+        yield* Fiber.interrupt(fiber);
+        return [first, second, third];
+      }),
+    );
+
+    expect(values).toEqual([0, 1, 2]);
+  });
+
+  it("keeps the subscription open while the stream runs and closes it on interruption", async () => {
+    const store = countedWritable(0);
+
+    const activeWhileRunning = await Effect.runPromise(
+      Effect.gen(function* () {
+        const { fiber, next } = yield* forward(Store.toStream(store));
+        yield* next;
+        const active = store.active;
+        // `Fiber.interrupt` waits for the stream's scope to close.
+        yield* Fiber.interrupt(fiber);
+        return active;
+      }),
+    );
+
+    expect(activeWhileRunning).toBe(1);
+    expect(store.active).toBe(0);
+  });
+
+  it("unsubscribes from the store when the stream ends", async () => {
+    const store = countedWritable(0);
+
+    const values = await Effect.runPromise(
+      Effect.gen(function* () {
+        const { fiber, next } = yield* forward(Stream.take(Store.toStream(store), 2));
+        const first = yield* next;
+        store.set(1);
+        const second = yield* next;
+        // `Stream.take` ends the stream after the second element; joining
+        // waits for its scope to close.
+        yield* Fiber.join(fiber);
+        return [first, second];
+      }),
+    );
+
+    expect(values).toEqual([0, 1]);
+    expect(store.active).toBe(0);
   });
 });
 

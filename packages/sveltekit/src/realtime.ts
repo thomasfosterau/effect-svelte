@@ -59,7 +59,8 @@ export interface FromEventSourceOptions {
  *
  * The browser's `EventSource` reconnects automatically after transient drops,
  * so the stream stays live across reconnects; it fails with
- * {@link EventSourceError} only when the connection closes fatally.
+ * {@link EventSourceError} only when the connection closes fatally. The source
+ * is closed when the stream's scope closes.
  *
  * @example
  * ```ts
@@ -76,30 +77,36 @@ export const fromEventSource = (
   options?: FromEventSourceOptions,
 ): Stream.Stream<SseMessage, EventSourceError> => {
   const Impl = options?.implementation ?? (globalThis.EventSource as EventSourceConstructor);
+  // Effect v4's `Stream.callback` runs the returned Effect as the stream's
+  // setup, inside the stream's scope; it is not a cleanup. Open the source
+  // with `acquireRelease` so it is closed when that scope closes.
   return Stream.callback<SseMessage, EventSourceError>(
     (queue) =>
-      Effect.sync(() => {
-        const source =
-          options?.withCredentials === undefined
-            ? new Impl(url)
-            : new Impl(url, { withCredentials: options.withCredentials });
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const source =
+            options?.withCredentials === undefined
+              ? new Impl(url)
+              : new Impl(url, { withCredentials: options.withCredentials });
 
-        const onMessage = (e: MessageEvent): void => {
-          Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
-        };
+          const onMessage = (e: MessageEvent): void => {
+            Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
+          };
 
-        source.addEventListener("message", onMessage);
-        for (const name of options?.events ?? []) source.addEventListener(name, onMessage);
+          source.addEventListener("message", onMessage);
+          for (const name of options?.events ?? []) source.addEventListener(name, onMessage);
 
-        source.addEventListener("error", () => {
-          // EventSource reconnects on its own unless it has closed for good.
-          if (source.readyState === 2 /* CLOSED */) {
-            Queue.failCauseUnsafe(queue, Cause.fail(new EventSourceError({ url })));
-          }
-        });
+          source.addEventListener("error", () => {
+            // EventSource reconnects on its own unless it has closed for good.
+            if (source.readyState === 2 /* CLOSED */) {
+              Queue.failCauseUnsafe(queue, Cause.fail(new EventSourceError({ url })));
+            }
+          });
 
-        return Effect.sync(() => source.close());
-      }),
+          return source;
+        }),
+        (source) => Effect.sync(() => source.close()),
+      ),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "sliding" },
   );
 };
@@ -158,36 +165,42 @@ export const fromWebSocket = (
   options?: FromWebSocketOptions,
 ): Stream.Stream<string | ArrayBuffer | Blob, WebSocketError> => {
   const Impl = options?.implementation ?? (globalThis.WebSocket as WebSocketConstructor);
+  // See `fromEventSource`: the socket is opened with `acquireRelease` so it is
+  // closed when the stream's scope closes.
   return Stream.callback<string | ArrayBuffer | Blob, WebSocketError>(
     (queue) =>
-      Effect.sync(() => {
-        const socket = new Impl(url, options?.protocols);
-        if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const socket = new Impl(url, options?.protocols);
+          if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
 
-        socket.addEventListener("message", (e: MessageEvent) => {
-          Queue.offerUnsafe(queue, e.data);
-        });
+          socket.addEventListener("message", (e: MessageEvent) => {
+            Queue.offerUnsafe(queue, e.data);
+          });
 
-        socket.addEventListener("error", () => {
-          Queue.failCauseUnsafe(queue, Cause.fail(new WebSocketError({ url })));
-        });
+          socket.addEventListener("error", () => {
+            Queue.failCauseUnsafe(queue, Cause.fail(new WebSocketError({ url })));
+          });
 
-        socket.addEventListener("close", (e: CloseEvent) => {
-          if (e.wasClean) {
-            Queue.endUnsafe(queue);
-          } else {
-            Queue.failCauseUnsafe(
-              queue,
-              Cause.fail(new WebSocketError({ url, code: e.code, reason: e.reason })),
-            );
-          }
-        });
+          socket.addEventListener("close", (e: CloseEvent) => {
+            if (e.wasClean) {
+              Queue.endUnsafe(queue);
+            } else {
+              Queue.failCauseUnsafe(
+                queue,
+                Cause.fail(new WebSocketError({ url, code: e.code, reason: e.reason })),
+              );
+            }
+          });
 
-        return Effect.sync(() => {
-          // Only close a socket that is still connecting/open.
-          if (socket.readyState === 0 || socket.readyState === 1) socket.close();
-        });
-      }),
+          return socket;
+        }),
+        (socket) =>
+          Effect.sync(() => {
+            // Only close a socket that is still connecting/open.
+            if (socket.readyState === 0 || socket.readyState === 1) socket.close();
+          }),
+      ),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "suspend" },
   );
 };

@@ -2,8 +2,8 @@
  * `useDebouncedSearch`, ported from the shared components library's
  * `combobox-async-search` suite. The regression it guards: query changes emitted
  * on a LATER tick than mount must reach the search (an earlier bridge through
- * `SignalEmitter` dropped them), and a superseded in-flight search must be
- * interrupted, not merely ignored.
+ * `SignalEmitter` dropped them, until #126 fixed its stream cleanup), and a
+ * superseded in-flight search must be interrupted, not merely ignored.
  */
 import { Duration, Effect, Layer, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
