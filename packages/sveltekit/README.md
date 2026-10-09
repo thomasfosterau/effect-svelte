@@ -576,6 +576,12 @@ with `Forms.ApplyActionError` (SvelteKit's original reason as its `cause`) when
 SvelteKit rejects or throws: for example, when the navigation that follows a
 `redirect` result fails, or when it runs during server rendering.
 
+The handlers (and `onError`) run on `runtime`, a `Context` or `ManagedRuntime`.
+It is required, and checked to provide every service they require, as soon as
+any handler requires one: there is no ambient runtime to fall back on, so such
+a call without it does not type-check. Handlers that require no services run on
+the default runtime, and the options may be omitted.
+
 `onSubmit` and `onResult` may fail. The `onError` handler receives the error,
 typed as the union of their error types, and runs on the same runtime; it must
 not fail itself. Write `onError` after the other handlers: written before one

@@ -7,7 +7,7 @@
  */
 
 import type { ActionResult, SubmitFunction } from "$app/forms";
-import { Cause, Context, Data, Effect, Exit } from "effect";
+import { Cause, Context, Data, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
 import type { SubmitInput } from "../../src/forms.js";
@@ -401,5 +401,63 @@ describe("Forms.enhance with failing handlers", () => {
       { onResult: ({ result }) => Forms.applyAction(result), onError: report },
       { runtime: Context.empty() },
     );
+  });
+
+  it("requires a runtime when the handlers require services", () => {
+    class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
+    class Clock extends Context.Service<Clock, { readonly now: number }>()("Clock") {}
+    const greet = () =>
+      Effect.gen(function* () {
+        yield* Greeter;
+      });
+    const greeter = Context.make(Greeter, { hi: "hello" });
+
+    // Without a runtime, the handlers would die with a missing-service defect.
+    // @ts-expect-error: onSubmit requires Greeter, so a runtime is required
+    Forms.enhance({ onSubmit: greet });
+    // @ts-expect-error: onResult requires Greeter, so a runtime is required
+    Forms.enhance({ onResult: greet });
+    // @ts-expect-error: onError requires Greeter, so a runtime is required
+    Forms.enhance({ onSubmit: () => Effect.fail(new Invalid({ field: "title" })), onError: greet });
+    // @ts-expect-error: the options must name a runtime
+    Forms.enhance({ onSubmit: greet }, {});
+    // @ts-expect-error: the runtime must not be undefined
+    Forms.enhance({ onSubmit: greet }, { runtime: undefined });
+    Forms.enhance(
+      { onSubmit: greet },
+      // @ts-expect-error: the runtime must provide Greeter
+      { runtime: Context.make(Clock, { now: 0 }) },
+    );
+
+    Forms.enhance({ onSubmit: greet }, { runtime: greeter });
+    Forms.enhance(
+      { onResult: greet },
+      { runtime: ManagedRuntime.make(Layer.succeed(Greeter, { hi: "hello" })) },
+    );
+    // A runtime that provides more than the handlers require is fine.
+    Forms.enhance({ onSubmit: greet }, { runtime: Context.add(greeter, Clock, { now: 0 }) });
+  });
+
+  it("keeps the runtime optional when the handlers require no services", () => {
+    Forms.enhance({});
+    Forms.enhance({ onSubmit: () => Effect.void });
+    Forms.enhance({ onResult: ({ result }) => Forms.applyAction(result) });
+    Forms.enhance(
+      { onResult: ({ result }) => Forms.applyAction(result), onError: () => Effect.void },
+      {},
+    );
+    Forms.enhance({ onSubmit: () => Effect.void }, { runtime: undefined });
+    Forms.enhance({ onSubmit: () => Effect.void }, undefined);
+    Forms.enhance({ onSubmit: () => Effect.void }, { runtime: Context.empty() });
+  });
+
+  it("accepts handlers forwarded as undefined", () => {
+    const optional: { readonly onResult?: undefined } = { onResult: undefined };
+    Forms.enhance({ onSubmit: () => Effect.void, ...optional });
+    Forms.enhance({ onSubmit: undefined, onResult: undefined, onError: undefined });
+
+    const forwarded = (onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>) =>
+      Forms.enhance({ onSubmit: () => Effect.void, onResult });
+    expectTypeOf(forwarded).returns.toEqualTypeOf<SubmitFunction>();
   });
 });

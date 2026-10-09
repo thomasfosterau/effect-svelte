@@ -38,7 +38,7 @@ export interface EnhanceHandlers<
    * If it fails with `ESubmit`, the submission is cancelled and the error goes
    * to {@link EnhanceHandlers.onError | onError}.
    */
-  readonly onSubmit?: (input: SubmitInput) => Effect.Effect<void, ESubmit, R>;
+  readonly onSubmit?: ((input: SubmitInput) => Effect.Effect<void, ESubmit, R>) | undefined;
   /**
    * Runs once the action responds, with the `ActionResult` and SvelteKit's
    * `update()` (which applies the default behaviour — updating `page.form`,
@@ -49,7 +49,7 @@ export interface EnhanceHandlers<
    * {@link EnhanceHandlers.onError | onError}; SvelteKit's default behaviour
    * is not applied in its place.
    */
-  readonly onResult?: (options: ResultOptions) => Effect.Effect<void, EResult, R>;
+  readonly onResult?: ((options: ResultOptions) => Effect.Effect<void, EResult, R>) | undefined;
   /**
    * Handles an error `onSubmit` or `onResult` failed with (`E`, the union of
    * their error types), as `Effect.catch` would. It runs on the same runtime
@@ -77,11 +77,24 @@ export interface EnhanceHandlers<
 /** Options for {@link makeSubmitFunction}. */
 export interface EnhanceOptions<R = never> {
   /**
-   * The runtime to run the handler effects against. Omit when the handlers
-   * require no services (`R = never`); they then run on the default runtime.
+   * The runtime to run the handler effects against, providing every service
+   * `R` they require. Required when the handlers (or `onError`) require
+   * services; omit it when they require none (`R = never`), and they run on
+   * the default runtime.
    */
-  readonly runtime?: EnhanceRuntime<R>;
+  readonly runtime?: EnhanceRuntime<R> | undefined;
 }
+
+/**
+ * The options argument of {@link makeSubmitFunction}, as a rest tuple: optional
+ * when the handlers require no services (`R = never`), and otherwise required,
+ * with a `runtime` that provides `R`. There is no ambient runtime to fall back
+ * on, so handlers that require services and run without one would die with a
+ * missing-service defect.
+ */
+export type EnhanceOptionsArgs<R> = [R] extends [never]
+  ? [options?: EnhanceOptions<never> | undefined]
+  : [options: EnhanceOptions<R> & { readonly runtime: EnhanceRuntime<R> }];
 
 /** The handler names {@link makeSubmitFunction} accepts. */
 export type EnhanceHandlerKey = keyof EnhanceHandlers;
@@ -149,10 +162,12 @@ const runPromiseWith =
  * present, and `E` (the error `onError` receives) is computed from their
  * errors, or inferred from `onError`'s parameter annotation and then checked
  * against them, so a handlers object type-checks whatever its property order
- * (see {@link EnhanceHandlers.onError}).
+ * (see {@link EnhanceHandlers.onError}). The options argument, and its
+ * `runtime`, are required when `R` is not `never` (see
+ * {@link EnhanceOptionsArgs}).
  */
 export const makeSubmitFunction = <
-  R,
+  R = never,
   ESubmit = NotInferred,
   EResult = NotInferred,
   Keys extends EnhanceHandlerKey = never,
@@ -161,8 +176,13 @@ export const makeSubmitFunction = <
   handlers: EnhanceHandlers<R, ESubmit, EResult, E> &
     HandlerKeys<Keys> &
     NoInfer<OnErrorAccepts<R, HandlerErrors<Keys, ESubmit, EResult>, E>>,
-  options?: EnhanceOptions<R>,
+  // `R` is inferred from the handlers alone; the runtime is then checked
+  // against it.
+  ...rest: NoInfer<EnhanceOptionsArgs<R>>
 ): SubmitFunction => {
+  // Either branch of `EnhanceOptionsArgs<R>`: the `never` one only when `R`
+  // is `never`, where the two coincide.
+  const options = rest[0] as EnhanceOptions<R> | undefined;
   const run = runPromiseWith(options?.runtime);
   // `E` is the union of the errors of the handlers present, so `onError`
   // accepts whatever either handler fails with.

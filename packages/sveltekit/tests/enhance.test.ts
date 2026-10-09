@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { SubmitFunction } from "$app/forms";
-import { Context, Effect } from "effect";
+import { Context, Effect, Layer, ManagedRuntime } from "effect";
 import { makeSubmitFunction } from "../src/internal/enhance.js";
 
 /** A minimal SubmitFunction input; only what a handler touches is populated. */
@@ -84,5 +84,29 @@ describe("makeSubmitFunction", () => {
 
     await submit(submitInput());
     expect(seen).toBe("hello");
+  });
+
+  it("runs onSubmit and onResult against a provided ManagedRuntime", async () => {
+    class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
+    const runtime = ManagedRuntime.make(Layer.succeed(Greeter, { hi: "hello" }));
+
+    const seen: Array<string> = [];
+    const greet = (phase: string) => () =>
+      Effect.gen(function* () {
+        const greeter = yield* Greeter;
+        seen.push(`${phase}: ${greeter.hi}`);
+      });
+    const submit = makeSubmitFunction(
+      { onSubmit: greet("submit"), onResult: greet("result") },
+      { runtime },
+    );
+
+    try {
+      const callback = await submit(submitInput());
+      await (callback as (o: unknown) => Promise<void>)(resultOptions());
+      expect(seen).toEqual(["submit: hello", "result: hello"]);
+    } finally {
+      await runtime.dispose();
+    }
   });
 });
