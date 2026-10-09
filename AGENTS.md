@@ -78,7 +78,7 @@ If `effect-solutions` is not installed, run `.claude/hooks/session-start.sh`
 
 `effect-solutions` is a global CLI installed by the SessionStart hook, not a devDependency; `~/.local/share/effect-solutions/effect` is a clone of [Effect-TS/effect-smol](https://github.com/Effect-TS/effect-smol), with the v3 → v4 migration maps under `migration/` (start with `v3-to-v4.md`). If neither is available, read `node_modules/effect/dist/*.d.ts`.
 
-Both packages target Effect v4: `effect` and `@effect/platform-node` move together on the one exact version pinned in the catalog, and the published peer floor is `catalogs.peers`. HTTP lives under `effect/http/*` and `effect/http-api/*`; `Reactivity` and atoms under `effect/reactivity`, `AsyncResult` under `effect/reactivity/AsyncResult`. `@effect/platform` and `@effect/experimental` do not exist in v4.
+Both packages target Effect v4: `effect` and `@effect/platform-node` move together on the one exact version pinned in the catalog, and the published peer floor is `catalogs.peers` — currently `>=4.0.2` for both, the same release as the pin, so CI tests the floor (#164). HTTP lives under `effect/http/*` and `effect/http-api/*`; `Reactivity` and atoms under `effect/reactivity`, `AsyncResult` under `effect/reactivity/AsyncResult`. `@effect/platform` and `@effect/experimental` do not exist in v4.
 
 ## Agent sessions
 

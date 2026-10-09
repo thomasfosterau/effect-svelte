@@ -8,8 +8,9 @@ import { failQueueOnSetupError } from "../src/internal/stream-callback.js";
 // These tests exercise the helper directly rather than through a
 // `Stream.callback` site: from `effect@4.0.2` on, `Stream.callback` forwards a
 // failed setup itself, so a test that only goes through the stream passes with
-// or without the helper. The peer floor still admits 4.0.0 and 4.0.1, where the
-// helper is what keeps the stream from hanging.
+// or without the helper. On 4.0.0 and 4.0.1, which the peer floor admitted until
+// #164 raised it to 4.0.2, the helper is what kept the stream from hanging; #168
+// tracks removing it.
 describe("failQueueOnSetupError", () => {
   it("fails the queue with a setup's defect, and the setup itself succeeds", async () => {
     const thrown = new Error("setup threw");
@@ -151,8 +152,9 @@ function closingIndex(code: string, open: number, opener: string, closer: string
 
 /**
  * Call-site guard: every `Stream.callback` call in `src/` must route its setup
- * through `failQueueOnSetupError`, or a failed setup hangs the stream on the
- * `effect` versions the peer floor still admits (4.0.0, 4.0.1).
+ * through `failQueueOnSetupError`, or a failed setup hangs the stream on
+ * `effect` 4.0.0 and 4.0.1 (below the peer floor since #164; #168 tracks
+ * removing the helper and this guard).
  *
  * Heuristic: in each `.ts` file under `src/`, with comments and strings blanked
  * out, find every `Stream.callback`, skip an optional `<…>` type argument list,
