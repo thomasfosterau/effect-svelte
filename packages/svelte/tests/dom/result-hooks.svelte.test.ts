@@ -16,7 +16,10 @@
  * `useReactiveStream` starts its run from a `createSubscriber` start callback,
  * which Svelte runs untracked, so it reads its thunks in a `$derived` instead;
  * the same split applies (#140). `useInvalidateKeys` re-runs queries on the
- * spot, so calling it from an `$effect` must not track their reads either.
+ * spot, so calling it from an `$effect` must not track their reads either;
+ * nor may `useReactiveMutation`'s `run()` or `useMutation`'s `mutate()`, which
+ * also call thunks and callbacks and run the mutation up to its first async
+ * step (#142).
  *
  * Synchronous Effects settle inside the `$effect`, so `flushSync()` after
  * `mount` is enough to see the settled result; asynchronous ones are released
@@ -31,10 +34,13 @@ import { useDerived } from "../../src/derived.svelte.js";
 import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
 import { useQuery } from "../../src/query.svelte.js";
+import { useMutation } from "../../src/mutation.svelte.js";
 import {
   useReactiveQuery,
   useReactiveStream,
+  useReactiveMutation,
   useInvalidateKeys,
+  type UseReactiveMutationReturn,
 } from "../../src/reactivity.svelte.js";
 import ResultProbe from "./ResultProbe.svelte";
 import { makeMounter, text } from "./helpers.js";
@@ -741,6 +747,226 @@ describe("useInvalidateKeys", () => {
 
     mounter.cleanup();
     await managed.dispose();
+  });
+});
+
+describe("useReactiveMutation", () => {
+  it("runs on run(), settles to Success and re-runs the queries on its keys", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    let queries = 0;
+    let mutations = 0;
+    let mutation!: UseReactiveMutationReturn<number, never>;
+    const target = mountProbe({
+      use: () => {
+        useReactiveQuery(
+          () => ["probe"],
+          () => Effect.sync(() => ++queries),
+          { runtime: reactivity },
+        );
+        mutation = useReactiveMutation(
+          ["probe"],
+          Effect.sync(() => ++mutations),
+          { runtime: reactivity },
+        );
+        return mutation;
+      },
+    });
+    expect(queries).toBe(1);
+    expect(mutations).toBe(0);
+    expect(text(target, "tag")).toBe("Initial");
+    expect(text(target, "waiting")).toBe("false");
+
+    mutation.run();
+    flushSync();
+    expect(mutations).toBe(1);
+    expect(queries).toBe(2);
+    expect(text(target, "tag")).toBe("Success");
+    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "value")).toBe("1");
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+
+  it("settles a failure to Failure without invalidating its keys", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    let queries = 0;
+    let mutation!: UseReactiveMutationReturn<never, string>;
+    const target = mountProbe({
+      use: () => {
+        useReactiveQuery(
+          () => ["probe"],
+          () => Effect.sync(() => ++queries),
+          { runtime: reactivity },
+        );
+        mutation = useReactiveMutation(["probe"], Effect.fail("boom"), { runtime: reactivity });
+        return mutation;
+      },
+    });
+    expect(queries).toBe(1);
+
+    mutation.run();
+    flushSync();
+    expect(queries).toBe(1);
+    expect(text(target, "tag")).toBe("Failure");
+    expect(text(target, "waiting")).toBe("false");
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+
+  it("can run from an $effect without tracking the state the mutation or the re-run queries read", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    const keysDep = $state({ n: 1 });
+    const effectDep = $state({ n: 1 });
+    const inner = $state({ n: 1 });
+    const queried = $state({ n: 1 });
+    let queries = 0;
+    let mutations = 0;
+    let runs = 0;
+    const target = mountProbe({
+      use: () => {
+        useReactiveQuery(
+          () => ["probe"],
+          () =>
+            Effect.sync(() => {
+              queries++;
+              return queried.n;
+            }),
+          { runtime: reactivity },
+        );
+        const mutation = useReactiveMutation(
+          () => (keysDep.n > 0 ? ["probe"] : []),
+          () => {
+            const n = effectDep.n;
+            return Effect.sync(() => {
+              mutations++;
+              return n + inner.n;
+            });
+          },
+          { runtime: reactivity },
+        );
+        // Created after the query's `$effect`, so the query is registered by
+        // the time this runs, and the mutation's invalidation re-runs it
+        // synchronously.
+        $effect(() => {
+          runs++;
+          mutation.run();
+        });
+        return mutation;
+      },
+    });
+    expect(runs).toBe(1);
+    expect(mutations).toBe(1);
+    expect(queries).toBe(2);
+    expect(text(target, "tag")).toBe("Success");
+    expect(text(target, "value")).toBe("2");
+
+    // Read by the keys thunk, the effect thunk, the mutation Effect and the
+    // re-run query: none of them is the caller's dependency.
+    for (const box of [keysDep, effectDep, inner, queried]) {
+      box.n++;
+      flushSync();
+      expect(runs).toBe(1);
+    }
+    expect(mutations).toBe(1);
+    expect(queries).toBe(2);
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+});
+
+describe("useMutation", () => {
+  it("can mutate from an $effect without tracking the state the mutation or the re-run queries read", async () => {
+    const managed = ManagedRuntime.make(Reactivity.layer);
+    const reactivity = await managed.context();
+    const fnDep = $state({ n: 1 });
+    const inner = $state({ n: 1 });
+    const callbackDep = $state({ n: 1 });
+    const queried = $state({ n: 1 });
+    let queries = 0;
+    let mutations = 0;
+    let runs = 0;
+    const target = mountProbe({
+      use: () => {
+        useReactiveQuery(
+          () => ["probe"],
+          () =>
+            Effect.sync(() => {
+              queries++;
+              return queried.n;
+            }),
+          { runtime: reactivity },
+        );
+        const mutation = useMutation(
+          (input: number) => {
+            const n = fnDep.n;
+            return Effect.sync(() => {
+              mutations++;
+              return input + n + inner.n;
+            });
+          },
+          {
+            runtime: reactivity,
+            onMutate: () => callbackDep.n,
+            onSuccess: () => void callbackDep.n,
+            onSettled: () => void callbackDep.n,
+            invalidates: () => (callbackDep.n > 0 ? ["probe"] : []),
+          },
+        );
+        $effect(() => {
+          runs++;
+          mutation.mutate(1);
+        });
+        return mutation;
+      },
+    });
+    expect(runs).toBe(1);
+    expect(mutations).toBe(1);
+    expect(queries).toBe(2);
+    expect(text(target, "tag")).toBe("Success");
+    expect(text(target, "value")).toBe("3");
+
+    // Read by `fn`, the mutation Effect, the callbacks and the re-run query:
+    // none of them is the caller's dependency.
+    for (const box of [fnDep, inner, callbackDep, queried]) {
+      box.n++;
+      flushSync();
+      expect(runs).toBe(1);
+    }
+    expect(mutations).toBe(1);
+    expect(queries).toBe(2);
+
+    mounter.cleanup();
+    await managed.dispose();
+  });
+
+  it("can mutate from an $effect without tracking an onError callback's reads", async () => {
+    const dep = $state({ n: 1 });
+    let runs = 0;
+    const target = mountProbe({
+      use: () => {
+        const mutation = useMutation((input: number) => Effect.fail(input), {
+          runtime,
+          onError: () => void dep.n,
+        });
+        $effect(() => {
+          runs++;
+          mutation.mutate(1);
+        });
+        return mutation;
+      },
+    });
+    expect(runs).toBe(1);
+    expect(text(target, "tag")).toBe("Failure");
+
+    dep.n++;
+    flushSync();
+    expect(runs).toBe(1);
   });
 });
 

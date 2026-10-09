@@ -234,9 +234,11 @@ export interface UseReactiveMutationReturn<A, E> {
  * This will cause any reactive queries depending on these keys to re-run.
  *
  * `run()` starts the mutation (interrupting one still in flight); the keys and
- * Effect thunks are read then. Nothing is thrown: the Effect's failures and
- * defects settle `current` to a `Failure`, and interruption (a newer `run()` or
- * unmount) leaves it as is.
+ * Effect thunks are read then. It runs untracked, so calling it from a
+ * consumer's `$effect` does not make that effect depend on state the thunks,
+ * the mutation Effect or the queries its invalidation re-runs read. Nothing is
+ * thrown: the Effect's failures and defects settle `current` to a `Failure`,
+ * and interruption (a newer `run()` or unmount) leaves it as is.
  *
  * Note: Make sure your runtime includes `Reactivity.layer` from `effect/reactivity`.
  *
@@ -270,30 +272,35 @@ export function useReactiveMutation<A, E, R>(
   const state = makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
 
-  const run = () => {
-    if (currentFiber !== null) {
-      interruptFiber(currentFiber);
-    }
+  // Untracked: the thunks run here, `runFork` runs the mutation synchronously
+  // up to its first async step, and a synchronous success invalidates the
+  // keys, which re-runs the matching queries on the spot. Tracked, a `run()`
+  // from a caller's `$effect` would subscribe that effect to all of their reads.
+  const run = () =>
+    untrack(() => {
+      if (currentFiber !== null) {
+        interruptFiber(currentFiber);
+      }
 
-    const currentKeys = typeof keys === "function" ? keys() : keys;
-    const currentEffect = typeof effect === "function" ? effect() : effect;
+      const currentKeys = typeof keys === "function" ? keys() : keys;
+      const currentEffect = typeof effect === "function" ? effect() : effect;
 
-    state.startWaiting();
+      state.startWaiting();
 
-    const mutationEffect = Reactivity.mutation(currentEffect, currentKeys);
-    const runningFiber = runFork(runtime)(mutationEffect);
-    currentFiber = runningFiber;
+      const mutationEffect = Reactivity.mutation(currentEffect, currentKeys);
+      const runningFiber = runFork(runtime)(mutationEffect);
+      currentFiber = runningFiber;
 
-    runFork(runtime)(
-      Effect.gen(function* () {
-        const exit = yield* Fiber.await(runningFiber);
-        if (currentFiber === runningFiber) {
-          state.settle(exit);
-          currentFiber = null;
-        }
-      }),
-    );
-  };
+      runFork(runtime)(
+        Effect.gen(function* () {
+          const exit = yield* Fiber.await(runningFiber);
+          if (currentFiber === runningFiber) {
+            state.settle(exit);
+            currentFiber = null;
+          }
+        }),
+      );
+    });
 
   $effect(() => {
     // Cleanup: interrupt any running fiber on unmount
