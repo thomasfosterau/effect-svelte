@@ -563,17 +563,19 @@ Effects (no explicit wrapper) when the `effectKit()` Vite plugin is enabled.
 
 For SvelteKit page `actions`, the `Forms` namespace
 (`@thomasfosterau/effect-sveltekit/client`) expresses progressive enhancement
-with Effects: `Forms.enhance({ onSubmit, onResult }, { runtime, onError })`
+with Effects: `Forms.enhance({ onSubmit, onResult, onError }, { runtime })`
 builds a `SubmitFunction` for `use:enhance`, and `Forms.applyAction` /
 `Forms.deserialize` wrap the `$app/forms` helpers. `Forms.applyAction` fails
 with `Forms.ApplyActionError` (SvelteKit's original reason as its `cause`) when
 SvelteKit rejects or throws: for example, when the navigation that follows a
 `redirect` result fails, or when it runs during server rendering.
 
-`onSubmit` and `onResult` may fail. The `onError` option receives the error,
+`onSubmit` and `onResult` may fail. The `onError` handler receives the error,
 typed as the union of their error types, and runs on the same runtime; it must
-not fail itself. A failed `onSubmit` also cancels the submission, and a failed
-`onResult` does not fall back to SvelteKit's default behaviour. Without
+not fail itself. Write `onError` after the other handlers: written before one
+whose parameters are not annotated, it still type-checks, but its `error`
+parameter is `unknown`. A failed `onSubmit` also cancels the submission, and a
+failed `onResult` does not fall back to SvelteKit's default behaviour. Without
 `onError`, a failure is treated like a defect: the promise SvelteKit awaits
 rejects with the error, SvelteKit sends no request after a failed `onSubmit`
 and applies no default result after a failed `onResult`, and the browser
@@ -581,11 +583,11 @@ reports an unhandled rejection. Defects and interruptions always take that path
 rather than reaching `onError`.
 
 ```ts
-const submit = Forms.enhance(
-  { onResult: ({ result }) => Forms.applyAction(result) },
+const submit = Forms.enhance({
+  onResult: ({ result }) => Forms.applyAction(result),
   // error: ApplyActionError
-  { onError: (error) => Effect.logWarning("applyAction failed", error.cause) },
-);
+  onError: (error) => Effect.logWarning("applyAction failed", error.cause),
+});
 
 const submitAndRecover = Forms.enhance({
   // Or recover inside the handler, so onResult cannot fail.

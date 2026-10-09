@@ -19,18 +19,24 @@ export type ResultOptions = Parameters<ResultCallback>[0];
 export type EnhanceRuntime<R> = Context.Context<R> | ManagedRuntime.ManagedRuntime<R, never>;
 
 /**
- * Effect-based handlers for the two phases of an enhanced form submission.
- * `ESubmit` / `EResult` are the errors `onSubmit` / `onResult` may fail with;
- * a failure goes to {@link EnhanceOptions.onError}.
+ * Effect-based handlers for the two phases of an enhanced form submission,
+ * plus `onError` for the errors they fail with. `ESubmit` / `EResult` are the
+ * errors `onSubmit` / `onResult` may fail with, and `E` (their union by
+ * default) the error `onError` receives.
  */
-export interface EnhanceHandlers<R = never, ESubmit = never, EResult = never> {
+export interface EnhanceHandlers<
+  R = never,
+  ESubmit = never,
+  EResult = never,
+  E = ESubmit | EResult,
+> {
   /**
    * Runs before the request is sent. Call `input.cancel()` to abort the
    * submission (the result phase then never runs). Use for optimistic UI or
    * validation.
    *
    * If it fails with `ESubmit`, the submission is cancelled and the error goes
-   * to `onError` (see {@link EnhanceOptions.onError}).
+   * to {@link EnhanceHandlers.onError | onError}.
    */
   readonly onSubmit?: (input: SubmitInput) => Effect.Effect<void, ESubmit, R>;
   /**
@@ -39,24 +45,23 @@ export interface EnhanceHandlers<R = never, ESubmit = never, EResult = never> {
    * resetting the form, invalidating). If omitted, SvelteKit's default
    * behaviour applies automatically.
    *
-   * If it fails with `EResult`, the error goes to `onError` (see
-   * {@link EnhanceOptions.onError}); SvelteKit's default behaviour is not
-   * applied in its place.
+   * If it fails with `EResult`, the error goes to
+   * {@link EnhanceHandlers.onError | onError}; SvelteKit's default behaviour
+   * is not applied in its place.
    */
   readonly onResult?: (options: ResultOptions) => Effect.Effect<void, EResult, R>;
-}
-
-/** Options for {@link makeSubmitFunction}. */
-export interface EnhanceOptions<R = never, E = never> {
   /**
-   * The runtime to run the handler effects against. Omit when the handlers
-   * require no services (`R = never`); they then run on the default runtime.
-   */
-  readonly runtime?: EnhanceRuntime<R>;
-  /**
-   * Handles an error `onSubmit` or `onResult` failed with (`E`, inferred from
+   * Handles an error `onSubmit` or `onResult` failed with (`E`, the union of
    * their error types), as `Effect.catch` would. It runs on the same runtime
    * and must not fail itself.
+   *
+   * Write it after `onSubmit` / `onResult` for `error` to be inferred
+   * precisely. Written before a handler whose parameters are not annotated
+   * (such as `onResult: ({ result }) => ...`), it still type-checks, but
+   * `error` is `unknown`: TypeScript types `onError`'s parameter before it has
+   * seen that handler's error type. An annotated parameter (or a function
+   * passed by name) must accept every error the handlers fail with, in either
+   * order.
    *
    * Only failures reach it: a defect or interruption (in a handler or in
    * `onError`) still rejects the promise SvelteKit awaits, as does a failure
@@ -67,6 +72,63 @@ export interface EnhanceOptions<R = never, E = never> {
    * rejection.
    */
   readonly onError?: ((error: E) => Effect.Effect<void, never, R>) | undefined;
+}
+
+/** Options for {@link makeSubmitFunction}. */
+export interface EnhanceOptions<R = never> {
+  /**
+   * The runtime to run the handler effects against. Omit when the handlers
+   * require no services (`R = never`); they then run on the default runtime.
+   */
+  readonly runtime?: EnhanceRuntime<R>;
+}
+
+/** The handler names {@link makeSubmitFunction} accepts. */
+export type EnhanceHandlerKey = keyof EnhanceHandlers;
+
+/**
+ * Records which handlers a handlers object names: `Keys` is inferred from the
+ * object's keys, which TypeScript knows before it types any handler.
+ */
+export type HandlerKeys<Keys extends EnhanceHandlerKey> = { readonly [Key in Keys]?: unknown };
+
+/**
+ * The default of a handler error TypeScript has not inferred (yet): a handler
+ * it types after `onError`, or one that is absent (and left out by `Keys`).
+ * No error a handler can fail with is assignable to it.
+ */
+export interface NotInferred {
+  readonly "~effect-sveltekit/NotInferred": never;
+}
+
+/** The errors of the handlers named in `Keys`. */
+export type HandlerErrors<Keys extends EnhanceHandlerKey, ESubmit, EResult> =
+  | ("onSubmit" extends Keys ? ESubmit : never)
+  | ("onResult" extends Keys ? EResult : never);
+
+/**
+ * The error an unannotated `onError` receives: the handlers' errors, or
+ * `unknown` while one of them is not inferred yet (`onError` written before a
+ * handler whose parameters are not annotated).
+ */
+export type OnErrorInput<Errors> = NotInferred extends Errors ? unknown : Errors;
+
+/**
+ * Requires `onError` to accept every error in `Errors` when its parameter is
+ * annotated (`E` is then inferred from the annotation). The check waits while
+ * a handler's error is not inferred yet, and applies once it is.
+ */
+export type OnErrorAccepts<R, Errors, E> = [Errors] extends [E]
+  ? unknown
+  : unknown extends Errors
+    ? OnErrorMustAccept<R, Errors>
+    : NotInferred extends Errors
+      ? unknown
+      : OnErrorMustAccept<R, Errors>;
+
+/** The `onError` that {@link OnErrorAccepts} requires. */
+export interface OnErrorMustAccept<R, Errors> {
+  readonly onError?: ((error: Errors) => Effect.Effect<void, never, R>) | undefined;
 }
 
 /** Run an `Effect<A, E, R>` on the given runtime (or the default when none). */
@@ -82,13 +144,31 @@ const runPromiseWith =
 /**
  * Build a SvelteKit `SubmitFunction` from Effect-based handlers. See
  * `Forms.enhance` for the public entry point and documentation.
+ *
+ * The type parameters are inferred, never written. `Keys` names the handlers
+ * present, and `E` (the error `onError` receives) is computed from their
+ * errors, or inferred from `onError`'s parameter annotation and then checked
+ * against them, so a handlers object type-checks whatever its property order
+ * (see {@link EnhanceHandlers.onError}).
  */
-export const makeSubmitFunction = <R = never, ESubmit = never, EResult = never>(
-  handlers: EnhanceHandlers<R, ESubmit, EResult>,
-  options?: EnhanceOptions<R, NoInfer<ESubmit | EResult>>,
+export const makeSubmitFunction = <
+  R,
+  ESubmit = NotInferred,
+  EResult = NotInferred,
+  Keys extends EnhanceHandlerKey = never,
+  E = OnErrorInput<HandlerErrors<Keys, ESubmit, EResult>>,
+>(
+  handlers: EnhanceHandlers<R, ESubmit, EResult, E> &
+    HandlerKeys<Keys> &
+    NoInfer<OnErrorAccepts<R, HandlerErrors<Keys, ESubmit, EResult>, E>>,
+  options?: EnhanceOptions<R>,
 ): SubmitFunction => {
   const run = runPromiseWith(options?.runtime);
-  const onError = options?.onError;
+  // `E` is the union of the errors of the handlers present, so `onError`
+  // accepts whatever either handler fails with.
+  const onError = handlers.onError as
+    | ((error: ESubmit | EResult) => Effect.Effect<void, never, R>)
+    | undefined;
   return async (input) => {
     if (handlers.onSubmit) {
       const submit = handlers.onSubmit(input);

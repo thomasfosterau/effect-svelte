@@ -50,19 +50,21 @@ export type {
  * to keep SvelteKit's default behaviour. Pass `{ runtime }` when the handlers
  * require application services.
  *
- * Either handler may fail. Pass `{ onError }` to handle the error (typed as
- * the union of the handlers' error types): a failed `onSubmit` also cancels the
- * submission, and a failed `onResult` does not fall back to SvelteKit's default
- * behaviour. Without `onError`, or for a defect or interruption, the promise
- * SvelteKit awaits rejects (with the error itself for a failure), which
- * SvelteKit leaves unhandled.
+ * Either handler may fail. Add an `onError` handler to handle the error
+ * (typed as the union of the handlers' error types when written after them;
+ * `unknown` when written before a handler with unannotated parameters): a
+ * failed `onSubmit` also cancels the submission, and a failed `onResult` does
+ * not fall back to SvelteKit's default behaviour. Without `onError`, or for a
+ * defect or interruption, the promise SvelteKit awaits rejects (with the error
+ * itself for a failure), which SvelteKit leaves unhandled.
  *
  * @example
  * ```ts
- * const submit = Forms.enhance(
- *   { onResult: ({ result }) => Forms.applyAction(result) },
- *   { onError: (error) => Effect.logWarning("applyAction failed", error.cause) },
- * );
+ * const submit = Forms.enhance({
+ *   onResult: ({ result }) => Forms.applyAction(result),
+ *   // error: ApplyActionError
+ *   onError: (error) => Effect.logWarning("applyAction failed", error.cause),
+ * });
  * ```
  */
 export const enhance = makeSubmitFunction;
@@ -90,16 +92,16 @@ export class ApplyActionError extends Data.TaggedError("ApplyActionError")<{
  * example, when the navigation that follows a `redirect` result fails, or when
  * called during server rendering.
  *
- * {@link enhance}'s `onResult` can return it directly; its `onError` option
+ * {@link enhance}'s `onResult` can return it directly; its `onError` handler
  * then receives the `ApplyActionError`. Without `onError`, the error rejects
  * the promise SvelteKit awaits.
  *
  * @example
  * ```ts
- * const submit = Forms.enhance(
- *   { onResult: ({ result }) => Forms.applyAction(result) },
- *   { onError: (error) => Effect.logWarning("applyAction failed", error.cause) },
- * );
+ * const submit = Forms.enhance({
+ *   onResult: ({ result }) => Forms.applyAction(result),
+ *   onError: (error) => Effect.logWarning("applyAction failed", error.cause),
+ * });
  * ```
  */
 export const applyAction = <
