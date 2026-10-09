@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Exit, Option, Stream } from "effect";
+import { Cause, Effect, Exit, Option, Stream } from "effect";
 import {
   type ReadonlyNavigating,
   type ReadonlyPage,
@@ -140,6 +140,31 @@ describe("watchedStream", () => {
     const fake = makeFakeWatch();
     watchedStream(fake.watch, () => 1);
     expect(fake.live).toBe(0);
+  });
+
+  it("dies with what a throwing `watch` threw, instead of hanging", async () => {
+    const thrown = new Error("watch failed");
+    const throwingWatch: Watch = () => {
+      throw thrown;
+    };
+
+    // The timeout only guards against a hang (effect 4.0.0 and 4.0.1 dropped a
+    // failed `Stream.callback` setup), so it fails the test rather than passing it.
+    const exit = await Effect.runPromise(
+      watchedStream(throwingWatch, () => 1).pipe(
+        Stream.runCollect,
+        Effect.timeout("2 seconds"),
+        Effect.exit,
+      ),
+    );
+
+    if (Exit.isSuccess(exit)) throw new Error("expected the stream to die");
+    const [reason, ...rest] = exit.cause.reasons;
+    expect(rest).toEqual([]);
+    if (reason === undefined || !Cause.isDieReason(reason)) {
+      throw new Error(`expected a defect, got ${Cause.pretty(exit.cause)}`);
+    }
+    expect(reason.defect).toBe(thrown);
   });
 });
 

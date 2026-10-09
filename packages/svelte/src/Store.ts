@@ -1,6 +1,7 @@
 import { Effect, type PubSub, Queue, Ref, Stream, SubscriptionRef } from "effect";
 import { type Readable, readable } from "svelte/store";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
+import { failQueueOnSetupError } from "./internal/stream-callback.js";
 
 /**
  * Converts a Svelte [store](https://svelte.dev/docs/svelte/stores) (anything
@@ -12,7 +13,9 @@ import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
  * libraries that expose Svelte stores — feed Effect pipelines. The subscription
  * is opened when the stream is run and closed when its scope closes (the
  * stream ends, e.g. via `Stream.take`, or its fiber is interrupted). The stream
- * never fails and does not end on its own.
+ * never fails and does not end on its own. A `subscribe` that throws breaks the
+ * store contract, so it surfaces as a defect: the stream dies with what
+ * `subscribe` threw.
  *
  * @example
  * ```ts
@@ -37,7 +40,7 @@ export function toStream<A>(store: Readable<A>): Stream.Stream<A> {
         }),
       ),
       (unsubscribe) => Effect.sync(() => unsubscribe()),
-    ),
+    ).pipe(failQueueOnSetupError(queue)),
   );
 }
 
