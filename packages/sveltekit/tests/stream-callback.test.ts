@@ -159,9 +159,11 @@ function closingIndex(code: string, open: number, opener: string, closer: string
  * require a `(` next, take the text up to the matching `)` (the whole call
  * expression, options included) and require `failQueueOnSetupError(` in it.
  * Anything else after `Stream.callback` (a bare reference, an unbalanced call,
- * a type argument containing `=>`) is reported rather than skipped, so the
- * guard errs towards a false alarm, never a silent pass. It does not see `callback` imported from
- * `effect/Stream` under another name; this package only uses `Stream.callback`.
+ * a type argument containing `=>`) is reported rather than skipped, so for the
+ * call shapes it recognises the guard errs towards a false alarm. It misses
+ * `callback` imported from `effect/Stream` under another name, `Stream . callback`
+ * written with spaces, and the helper placed in the options argument rather than
+ * the setup; this package only uses formatted `Stream.callback(setup, …)` calls.
  */
 describe("Stream.callback call sites", () => {
   const files = readdirSync(srcDir, { recursive: true, encoding: "utf8" })
