@@ -10,7 +10,13 @@ import type { ActionResult, SubmitFunction } from "$app/forms";
 import { Cause, Context, Data, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
-import type { SubmitInput } from "../../src/forms.js";
+import type {
+  EnhanceHandlers,
+  EnhanceOptions,
+  EnhanceOptionsArgs,
+  EnhanceRuntime,
+  SubmitInput,
+} from "../../src/forms.js";
 import { formsStubs, resetFormsStubs } from "./fixtures/app-forms.js";
 
 afterEach(resetFormsStubs);
@@ -436,6 +442,108 @@ describe("Forms.enhance with failing handlers", () => {
     );
     // A runtime that provides more than the handlers require is fine.
     Forms.enhance({ onSubmit: greet }, { runtime: Context.add(greeter, Clock, { now: 0 }) });
+  });
+
+  it("accepts handlers that require different services from one runtime", () => {
+    class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
+    class Clock extends Context.Service<Clock, { readonly now: number }>()("Clock") {}
+    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
+      "Reporter",
+    ) {}
+    const greet = Effect.gen(function* () {
+      yield* Greeter;
+    });
+    const tick = Effect.gen(function* () {
+      yield* Clock;
+    });
+    const report = (error: unknown) =>
+      Effect.gen(function* () {
+        const reporter = yield* Reporter;
+        reporter.report(error);
+      });
+    const greeter = Context.make(Greeter, { hi: "hello" });
+    const both = Context.add(greeter, Clock, { now: 0 });
+
+    // Each handler's requirements count, not only the first one's.
+    Forms.enhance({ onSubmit: () => greet, onResult: () => tick }, { runtime: both });
+    Forms.enhance(
+      {
+        onSubmit: ({ cancel }) => greet.pipe(Effect.andThen(Effect.sync(cancel))),
+        onResult: ({ update }) => tick.pipe(Effect.andThen(Effect.promise(() => update()))),
+      },
+      { runtime: both },
+    );
+    Forms.enhance(
+      {
+        onSubmit: () => greet.pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
+        onError: (error) => report(error),
+      },
+      { runtime: Context.add(greeter, Reporter, { report: () => {} }) },
+    );
+    Forms.enhance(
+      { onSubmit: () => greet, onResult: () => tick, onError: report },
+      {
+        runtime: ManagedRuntime.make(
+          Layer.mergeAll(
+            Layer.succeed(Greeter, { hi: "hello" }),
+            Layer.succeed(Clock, { now: 0 }),
+            Layer.succeed(Reporter, { report: () => {} }),
+          ),
+        ),
+      },
+    );
+
+    // A runtime missing one handler's service is still rejected, on the runtime.
+    Forms.enhance(
+      { onSubmit: () => greet, onResult: () => tick },
+      // @ts-expect-error: the runtime does not provide Clock (onResult)
+      { runtime: greeter },
+    );
+    Forms.enhance(
+      {
+        onSubmit: ({ cancel }) => greet.pipe(Effect.andThen(Effect.sync(cancel))),
+        onResult: ({ update }) => tick.pipe(Effect.andThen(Effect.promise(() => update()))),
+      },
+      // @ts-expect-error: the runtime does not provide Clock (onResult)
+      { runtime: greeter },
+    );
+    Forms.enhance(
+      {
+        onSubmit: () => greet.pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
+        onError: report,
+      },
+      // @ts-expect-error: the runtime does not provide Reporter (onError)
+      { runtime: greeter },
+    );
+    // @ts-expect-error: the handlers require Greeter and Clock, so a runtime is required
+    Forms.enhance({ onSubmit: () => greet, onResult: () => tick });
+  });
+
+  it("lets a generic wrapper forward its options", () => {
+    class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
+    const greet = Effect.gen(function* () {
+      yield* Greeter;
+    });
+    const greeter = Context.make(Greeter, { hi: "hello" });
+
+    const wrap = <R>(handlers: EnhanceHandlers<R>, ...options: EnhanceOptionsArgs<R>) =>
+      Forms.enhance(handlers, ...options);
+    wrap({ onSubmit: () => greet }, { runtime: greeter });
+    wrap({ onSubmit: () => Effect.void });
+    // @ts-expect-error: onSubmit requires Greeter, so a runtime is required
+    wrap({ onSubmit: () => greet });
+
+    const wrapWithRuntime = <R>(
+      handlers: EnhanceHandlers<R>,
+      options: { readonly runtime: EnhanceRuntime<R> },
+    ) => Forms.enhance(handlers, options);
+    wrapWithRuntime({ onSubmit: () => greet }, { runtime: greeter });
+
+    // An optional runtime would let handlers that require services run without one.
+    const wrapOptional = <R>(handlers: EnhanceHandlers<R>, options: EnhanceOptions<R>) =>
+      // @ts-expect-error: EnhanceOptions<R> may omit the runtime
+      Forms.enhance(handlers, options);
+    expectTypeOf(wrapOptional).returns.toEqualTypeOf<SubmitFunction>();
   });
 
   it("keeps the runtime optional when the handlers require no services", () => {
