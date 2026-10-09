@@ -116,10 +116,10 @@ describe("Forms.enhance with failing handlers", () => {
     const cause = new Error("navigation failed");
     formsStubs.applyAction = () => Promise.reject(cause);
     const seen: Array<unknown> = [];
-    const submit = Forms.enhance(
-      { onResult: ({ result }) => Forms.applyAction(result) },
-      { onError: (error) => Effect.sync(() => seen.push(error)) },
-    );
+    const submit = Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      onError: (error) => Effect.sync(() => seen.push(error)),
+    });
 
     // onError replaces SvelteKit's default result behaviour: `update()` is not
     // called in its place.
@@ -131,10 +131,10 @@ describe("Forms.enhance with failing handlers", () => {
 
   it("calls update() only when a successful onResult calls it", async () => {
     const seen: Array<unknown> = [];
-    const submit = Forms.enhance(
-      { onResult: ({ update }) => Effect.promise(() => update()) },
-      { onError: (error) => Effect.sync(() => seen.push(error)) },
-    );
+    const submit = Forms.enhance({
+      onResult: ({ update }) => Effect.promise(() => update()),
+      onError: (error) => Effect.sync(() => seen.push(error)),
+    });
 
     expect(await runEnhanced(submit, success)).toBe(1);
     expect(seen).toEqual([]);
@@ -145,24 +145,22 @@ describe("Forms.enhance with failing handlers", () => {
     const onError = (error: unknown) => Effect.sync(() => seen.push(error));
 
     await runEnhanced(
-      Forms.enhance({ onResult: ({ result }) => Forms.applyAction(result) }, { onError }),
+      Forms.enhance({ onResult: ({ result }) => Forms.applyAction(result), onError }),
       redirect,
     );
 
     formsStubs.applyAction = () => Promise.reject(new Error("navigation failed"));
     const recovered: Array<unknown> = [];
     await runEnhanced(
-      Forms.enhance(
-        {
-          onResult: ({ result }) =>
-            Forms.applyAction(result).pipe(
-              Effect.catchTag("ApplyActionError", (error) =>
-                Effect.sync(() => recovered.push(error)),
-              ),
+      Forms.enhance({
+        onResult: ({ result }) =>
+          Forms.applyAction(result).pipe(
+            Effect.catchTag("ApplyActionError", (error) =>
+              Effect.sync(() => recovered.push(error)),
             ),
-        },
-        { onError },
-      ),
+          ),
+        onError,
+      }),
       redirect,
     );
 
@@ -184,10 +182,10 @@ describe("Forms.enhance with failing handlers", () => {
     const cause = new Error("navigation failed");
     formsStubs.applyAction = () => Promise.reject(cause);
     const seen: Array<unknown> = [];
-    const submit = Forms.enhance(
-      { onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie) },
-      { onError: (error) => Effect.sync(() => seen.push(error)) },
-    );
+    const submit = Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result).pipe(Effect.orDie),
+      onError: (error) => Effect.sync(() => seen.push(error)),
+    });
 
     await expect(runEnhanced(submit, redirect)).rejects.toMatchObject({
       _tag: "ApplyActionError",
@@ -198,10 +196,10 @@ describe("Forms.enhance with failing handlers", () => {
 
   it("cancels the submission and calls onError when onSubmit fails", async () => {
     const seen: Array<unknown> = [];
-    const submit = Forms.enhance(
-      { onSubmit: () => Effect.fail(new Invalid({ field: "title" })) },
-      { onError: (error) => Effect.sync(() => seen.push(error)) },
-    );
+    const submit = Forms.enhance({
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onError: (error) => Effect.sync(() => seen.push(error)),
+    });
     const { input, cancelled } = submitInput();
 
     await submit(input);
@@ -219,10 +217,10 @@ describe("Forms.enhance with failing handlers", () => {
 
   it("does not cancel or call onError when onSubmit succeeds", async () => {
     const seen: Array<unknown> = [];
-    const submit = Forms.enhance(
-      { onSubmit: () => Effect.void },
-      { onError: (error) => Effect.sync(() => seen.push(error)) },
-    );
+    const submit = Forms.enhance({
+      onSubmit: () => Effect.void,
+      onError: (error) => Effect.sync(() => seen.push(error)),
+    });
     const { input, cancelled } = submitInput();
 
     await submit(input);
@@ -237,51 +235,171 @@ describe("Forms.enhance with failing handlers", () => {
     const reported: Array<unknown> = [];
     const runtime = Context.make(Reporter, { report: (e) => reported.push(e) });
     const submit = Forms.enhance(
-      { onSubmit: () => Effect.fail(new Invalid({ field: "title" })) },
       {
-        runtime,
+        onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
         onError: (error) =>
           Effect.gen(function* () {
             const reporter = yield* Reporter;
             reporter.report(error);
           }),
       },
+      { runtime },
     );
 
     await submit(submitInput().input);
     expect(reported).toEqual([new Invalid({ field: "title" })]);
   });
 
-  it("types onError's error as the union of the handlers' errors", () => {
-    Forms.enhance(
-      {
-        onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
-        onResult: ({ result }) => Forms.applyAction(result),
+  it("types onError's error as the union of the handlers' errors, after them", () => {
+    Forms.enhance({
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onResult: ({ result }) => Forms.applyAction(result),
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<Invalid | Forms.ApplyActionError>();
+        return Effect.void;
       },
-      {
-        onError: (error) => {
-          expectTypeOf(error).toEqualTypeOf<Invalid | Forms.ApplyActionError>();
-          return Effect.void;
-        },
+    });
+
+    Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<Forms.ApplyActionError>();
+        return Effect.void;
       },
-    );
+    });
 
-    Forms.enhance(
-      { onResult: ({ result }) => Forms.applyAction(result) },
-      // @ts-expect-error: the handlers fail with ApplyActionError, not Invalid
-      { onError: (error: Invalid) => Effect.log(error.field) },
-    );
-
-    Forms.enhance(
-      { onResult: ({ result }) => Forms.applyAction(result) },
-      // @ts-expect-error: onError must not fail
-      { onError: (error) => Effect.fail(error) },
-    );
+    Forms.enhance({
+      onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<Invalid>();
+        return Effect.void;
+      },
+    });
 
     // Handlers that cannot fail leave nothing for onError to receive.
+    Forms.enhance({
+      onSubmit: () => Effect.void,
+      onError: (error) => Effect.sync(() => expectTypeOf(error).toBeNever()),
+    });
+    Forms.enhance({ onError: (error) => Effect.sync(() => expectTypeOf(error).toBeNever()) });
+  });
+
+  it("type-checks onError before the handlers", () => {
+    // onError's parameter is typed before a handler with unannotated
+    // parameters that follows it, so it widens to `unknown` (still sound)...
+    Forms.enhance({
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<unknown>();
+        return Effect.void;
+      },
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+    Forms.enhance({
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<unknown>();
+        return Effect.void;
+      },
+      onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+
+    // ...but stays precise for handlers whose parameters need no inference...
+    Forms.enhance({
+      onError: (error) => {
+        expectTypeOf(error).toEqualTypeOf<Invalid | Forms.ApplyActionError>();
+        return Effect.void;
+      },
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onResult: (options: Forms.ResultOptions) => Forms.applyAction(options.result),
+    });
+
+    // ...and for absent handlers, which contribute nothing.
+    Forms.enhance({
+      onError: (error) => Effect.sync(() => expectTypeOf(error).toBeNever()),
+      onSubmit: () => Effect.void,
+    });
+
+    // An annotated onError is checked against the handlers' errors either way.
+    Forms.enhance({
+      onError: (error: Forms.ApplyActionError) => Effect.log(error.cause),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+    Forms.enhance({
+      onError: (error: Invalid | Forms.ApplyActionError) => Effect.log(error._tag),
+      onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+    Forms.enhance({
+      // @ts-expect-error: the handlers fail with ApplyActionError, not Invalid
+      onError: (error: Invalid) => Effect.log(error.field),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+  });
+
+  it("rejects an onError that does not fit the handlers", () => {
+    Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      // @ts-expect-error: the handlers fail with ApplyActionError, not Invalid
+      onError: (error: Invalid) => Effect.log(error.field),
+    });
+
+    Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      // @ts-expect-error: onError must not fail
+      onError: (error) => Effect.fail(error),
+    });
+
+    Forms.enhance({
+      // @ts-expect-error: onError must not fail
+      onError: (error) => Effect.fail(error),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+
+    Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      // @ts-expect-error: a misspelt handler is rejected, not ignored
+      onEror: (error: unknown) => Effect.log(error),
+    });
+
+    // A narrower annotation would let an error through unhandled.
+    const onApplyActionError = (error: Forms.ApplyActionError) => Effect.log(error.cause);
+    Forms.enhance({
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onResult: ({ result }) => Forms.applyAction(result),
+      // @ts-expect-error: onError must also accept Invalid
+      onError: onApplyActionError,
+    });
+    Forms.enhance({
+      // @ts-expect-error: onError must also accept Invalid
+      onError: onApplyActionError,
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onResult: ({ result }) => Forms.applyAction(result),
+    });
+    Forms.enhance({
+      onResult: ({ result }) => Forms.deserialize(result.type),
+      // @ts-expect-error: deserialize fails with unknown, which onError must accept
+      onError: onApplyActionError,
+    });
+  });
+
+  it("joins onError's requirements with the handlers'", () => {
+    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
+      "Reporter",
+    ) {}
+    const report = (error: unknown) =>
+      Effect.gen(function* () {
+        const reporter = yield* Reporter;
+        reporter.report(error);
+      });
+
     Forms.enhance(
-      { onSubmit: () => Effect.void },
-      { onError: (error) => Effect.sync(() => expectTypeOf(error).toBeNever()) },
+      { onError: report, onResult: ({ result }) => Forms.applyAction(result) },
+      { runtime: Context.make(Reporter, { report: () => {} }) },
+    );
+    Forms.enhance(
+      // @ts-expect-error: the runtime does not provide Reporter
+      { onResult: ({ result }) => Forms.applyAction(result), onError: report },
+      { runtime: Context.empty() },
     );
   });
 });
