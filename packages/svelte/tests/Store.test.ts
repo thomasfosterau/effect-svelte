@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  Cause,
   Effect,
+  Exit,
   Fiber,
   Layer,
   ManagedRuntime,
@@ -139,6 +141,34 @@ describe("Store.toStream", () => {
 
     expect(values).toEqual([0, 1]);
     expect(store.active).toBe(0);
+  });
+
+  it("dies with what a throwing `subscribe` threw, instead of hanging", async () => {
+    // A store that breaks the readable store contract by throwing on subscribe.
+    const thrown = new Error("subscribe failed");
+    const store = {
+      subscribe(): () => void {
+        throw thrown;
+      },
+    };
+
+    // The timeout only guards against a hang (effect 4.0.0 and 4.0.1 dropped a
+    // failed `Stream.callback` setup), so it fails the test rather than passing it.
+    const exit = await Effect.runPromise(
+      Store.toStream<number>(store).pipe(
+        Stream.runCollect,
+        Effect.timeout("2 seconds"),
+        Effect.exit,
+      ),
+    );
+
+    if (Exit.isSuccess(exit)) throw new Error("expected the stream to die");
+    const [reason, ...rest] = exit.cause.reasons;
+    expect(rest).toEqual([]);
+    if (reason === undefined || !Cause.isDieReason(reason)) {
+      throw new Error(`expected a defect, got ${Cause.pretty(exit.cause)}`);
+    }
+    expect(reason.defect).toBe(thrown);
   });
 });
 

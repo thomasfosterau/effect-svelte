@@ -14,6 +14,7 @@
 
 import type { NavigationTarget, NavigationType } from "$app/navigation";
 import { Data, Effect, Option, Queue, Stream } from "effect";
+import { failQueueOnSetupError } from "./stream-callback.js";
 
 /**
  * The fields of SvelteKit's `page` we snapshot. Mirrors the shape of
@@ -109,7 +110,9 @@ export type Watch = <A>(read: () => A, onValue: (value: A) => void) => () => voi
 /**
  * A `Stream` of `read()`: the current value, then a new one each time `watch`
  * reports a change. Cold and lazy — each run opens its own watcher and disposes
- * it when the stream ends or is interrupted.
+ * it when the stream ends or is interrupted. Never fails; a throwing `watch`
+ * surfaces as a defect (the stream dies with what it threw, with no watcher
+ * left to dispose).
  */
 export function watchedStream<A>(watch: Watch, read: () => A): Stream.Stream<A> {
   return Stream.callback<A>((queue) =>
@@ -120,7 +123,7 @@ export function watchedStream<A>(watch: Watch, read: () => A): Stream.Stream<A> 
         }),
       ),
       (dispose) => Effect.sync(dispose),
-    ),
+    ).pipe(failQueueOnSetupError(queue)),
   );
 }
 

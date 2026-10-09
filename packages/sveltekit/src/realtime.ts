@@ -10,16 +10,7 @@
  */
 
 import { Cause, Data, Effect, Queue, Stream } from "effect";
-
-/**
- * Forward a failed `Stream.callback` setup to the stream's queue, so the stream
- * fails with it. Up to `effect@4.0.1`, `Stream.callback` dropped a failing
- * setup Effect's cause and the stream hung instead.
- */
-const failQueueOnSetupError =
-  <A, E>(queue: Queue.Queue<A, E | Cause.Done>) =>
-  <R>(setup: Effect.Effect<unknown, E, R>): Effect.Effect<unknown, never, R> =>
-    Effect.catchCause(setup, (cause) => Queue.failCause(queue, cause));
+import { failQueueOnSetupError } from "./internal/stream-callback.js";
 
 // ---------------------------------------------------------------------------
 // EventSource
