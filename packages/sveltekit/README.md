@@ -38,7 +38,7 @@ export const load = serverLoad((event) => Effect.succeed({ id: event.params.id }
 The same wrappers exist for actions, endpoints and hooks, on the default
 per-request runtime or on your own services (see
 [App-wide runtime](#app-wide-runtime-share-your-services-across-requests)); the
-`effectKit()` Vite plugin lets route files export bare Effects instead.
+optional `effectKit()` Vite plugin lets route files export bare Effects instead.
 
 ## API
 
@@ -57,7 +57,7 @@ per-request runtime or on your own services (see
 ### At a glance
 
 - **Effects as route exports** — explicit wrappers, app-wide runtimes (services
-  built once per process), or the `effectKit()` plugin.
+  built once per process), or, optionally, the `effectKit()` plugin.
 - **Bring-your-own per-request runtime** — `makeRuntimeAdapter(provider, opts)`
   binds the server wrappers to a `RequestRuntime` provider, so the handler
   effect's services are your own application catalogue (not `SvelteKitServices`).
@@ -91,51 +91,6 @@ per-request runtime or on your own services (see
   `toWebHandler`). Asset serving is a pluggable `AssetSource`
   (`AssetSource.fileSystem` for Node, `AssetSource.cloudflareAssets(env.ASSETS)`
   for Workers, or any custom source — R2, KV, a CDN passthrough).
-
-### SvelteKit Vite plugin (recommended)
-
-```ts
-// vite.config.ts
-import { sveltekit } from "@sveltejs/kit/vite";
-import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
-
-export default {
-  plugins: [effectKit(), sveltekit()],
-};
-```
-
-With the plugin installed, you can return an Effect (or a function returning
-an Effect) directly from any standard SvelteKit route file (`+page.ts`,
-`+page.server.ts`, `+layout(.server).ts`, `+server.ts`,
-`hooks.(server|client).ts`):
-
-```ts
-// +page.server.ts
-import { Effect } from "effect";
-
-export const load = (event) => Effect.succeed({ id: event.params.id });
-```
-
-The plugin rewrites the export so it goes through the same runtime as the
-explicit wrappers below; plain promise/value-returning functions pass through
-unchanged.
-
-#### Supported exports
-
-| File                | Exports auto-wrapped                                                   |
-| ------------------- | ---------------------------------------------------------------------- |
-| `+page.ts`          | `load`                                                                 |
-| `+page.server.ts`   | `load`, `actions`                                                      |
-| `+layout.ts`        | `load`                                                                 |
-| `+layout.server.ts` | `load`                                                                 |
-| `+server.ts`        | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `fallback` |
-| `hooks.ts`          | `reroute`                                                              |
-| `hooks.server.ts`   | `handle`, `handleFetch`, `handleError`, `init`                         |
-| `hooks.client.ts`   | `handleError`, `init`                                                  |
-
-Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` — and the
-universal `transport` hook (which is plain data, not a function) — are never
-touched.
 
 ### App-wide runtime (share your services across requests)
 
@@ -171,20 +126,13 @@ The runtime exposes `serverLoad`, `action`, `actions`, `handle`, `handleFetch`,
 For universal `load` functions there is a browser-safe counterpart,
 `makeUniversalRuntime`, in `@thomasfosterau/effect-sveltekit`.
 
-To make the same services available to bare-Effect exports handled by the
-Vite plugin, point the plugin at the runtime module:
-
-```ts
-// vite.config.ts
-effectKit({ serverRuntime: "#lib/server/runtime.ts" });
-```
-
 #### One runtime per request
 
-Wire the runtime's `handle` hook (or the auto-wrapped `handle` from the Vite
-plugin) in `src/hooks.server.ts`. It creates a **per-request runtime** — the
-application layer's services plus the request's `HttpClient`/`SvelteKitRequestEvent`,
-built once and sharing a single request scope — and stores it on `event.locals`:
+Wire the runtime's `handle` hook (or the auto-wrapped `handle` from the
+[Vite plugin](#sveltekit-vite-plugin-optional)) in `src/hooks.server.ts`. It
+creates a **per-request runtime** — the application layer's services plus the
+request's `HttpClient`/`SvelteKitRequestEvent`, built once and sharing a single
+request scope — and stores it on `event.locals`:
 
 ```ts
 // src/hooks.server.ts
@@ -215,6 +163,64 @@ export const handle = runtime.handle(({ event, resolve }) =>
 
 Wrappers from a _different_ runtime, or requests without `handle` wired, fall
 back to building the request services per call, so this is backward compatible.
+
+### SvelteKit Vite plugin (optional)
+
+The explicit wrappers above are the primary API. The `effectKit()` Vite plugin
+is an optional convenience on top of them:
+
+```ts
+// vite.config.ts
+import { sveltekit } from "@sveltejs/kit/vite";
+import { effectKit } from "@thomasfosterau/effect-sveltekit/vite";
+
+export default {
+  plugins: [effectKit(), sveltekit()],
+};
+```
+
+With the plugin installed, you can return an Effect (or a function returning
+an Effect) directly from any standard SvelteKit route file (`+page.ts`,
+`+page.server.ts`, `+layout(.server).ts`, `+server.ts`,
+`hooks.(server|client).ts`):
+
+```ts
+// +page.server.ts
+import { Effect } from "effect";
+
+export const load = (event) => Effect.succeed({ id: event.params.id });
+```
+
+The plugin rewrites the export so it goes through the same runtime as the
+explicit wrappers; plain promise/value-returning functions pass through
+unchanged. SvelteKit's generated `$types` cannot see through the rewrite, so
+type a plugin-wrapped route's `data` prop yourself; explicit wrappers return
+real SvelteKit functions, so route `$types` work as usual.
+
+To make an app-wide runtime's services available to bare-Effect exports, point
+the plugin at the runtime module:
+
+```ts
+// vite.config.ts
+effectKit({ serverRuntime: "#lib/server/runtime.ts" });
+```
+
+#### Supported exports
+
+| File                | Exports auto-wrapped                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| `+page.ts`          | `load`                                                                 |
+| `+page.server.ts`   | `load`, `actions`                                                      |
+| `+layout.ts`        | `load`                                                                 |
+| `+layout.server.ts` | `load`                                                                 |
+| `+server.ts`        | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`, `HEAD`, `fallback` |
+| `hooks.ts`          | `reroute`                                                              |
+| `hooks.server.ts`   | `handle`, `handleFetch`, `handleError`, `init`                         |
+| `hooks.client.ts`   | `handleError`, `init`                                                  |
+
+Config exports like `prerender`, `ssr`, `csr`, and `trailingSlash` — and the
+universal `transport` hook (which is plain data, not a function) — are never
+touched.
 
 ### Effect deployment adapter
 
