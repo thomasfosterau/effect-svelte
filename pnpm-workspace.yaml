@@ -29,7 +29,7 @@ catalog:
   "@types/node": ^26.6.4
   effect: 4.0.2
   happy-dom: ^20.14.5
-  magic-string: ^1.4.2
+  magic-string: ^1.4.3
   svelte: ^5.57.1
   svelte-check: ^4.7.6
   todomvc-app-css: ^2.4.3
