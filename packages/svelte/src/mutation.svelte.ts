@@ -1,4 +1,5 @@
 import type { Effect } from "effect";
+import { untrack } from "svelte";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import { makeMutation, type MutationCallbacks } from "./internal/mutation.js";
@@ -28,7 +29,12 @@ export interface UseMutationReturn<A, E, I> {
    */
   readonly current: AsyncResult.AsyncResult<A, E>;
 
-  /** Run the mutation with `input`. A new call interrupts any in-flight run. */
+  /**
+   * Run the mutation with `input`. A new call interrupts any in-flight run.
+   * It runs untracked, so calling it from an `$effect` does not make that
+   * effect depend on state `fn`, the Effect, the callbacks or the re-run
+   * queries read.
+   */
   readonly mutate: (input: I) => void;
 
   /** Interrupt any in-flight run and reset `current` back to `Initial`. */
@@ -82,7 +88,12 @@ export function useMutation<A, E, I, R, C = unknown>(
     get current() {
       return state.current;
     },
-    mutate: core.mutate,
+    // Untracked: `fn`, `onMutate` and the Effect up to its first async step
+    // run inside `mutate`, and so do `onSuccess` / `onError` / `onSettled` and
+    // the invalidation's re-run queries when the Effect settles synchronously.
+    // Tracked, a `mutate` from a caller's `$effect` would subscribe that effect
+    // to all of their reads.
+    mutate: (input) => untrack(() => core.mutate(input)),
     reset: core.reset,
   };
 }
