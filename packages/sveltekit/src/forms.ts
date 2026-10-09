@@ -47,8 +47,11 @@ export type {
  *
  * `onSubmit` runs before the request (call `input.cancel()` to abort);
  * `onResult` runs on the response with SvelteKit's `update()`. Omit `onResult`
- * to keep SvelteKit's default behaviour. Pass `{ runtime }` when the handlers
- * require application services.
+ * to keep SvelteKit's default behaviour. When the handlers (or `onError`)
+ * require application services, pass `{ runtime }` (a `Context` or
+ * `ManagedRuntime` providing them): it is then required, and a call without it
+ * does not type-check. Handlers that require no services run on the default
+ * runtime, and the options may be omitted.
  *
  * Either handler may fail. Add an `onError` handler to handle the error
  * (typed as the union of the handlers' error types when written after them;
