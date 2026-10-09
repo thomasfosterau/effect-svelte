@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as root from "../src/index.js";
 import type {
+  DerivedReturn,
   ReactiveMutationReturn,
   ReactiveOptions,
   ReactiveQueryReturn,
@@ -9,6 +10,7 @@ import type {
   UseReactiveOptions,
   UseReactiveQueryReturn,
   UseReactiveStreamReturn,
+  UseDerivedReturn,
 } from "../src/index.js";
 import {
   useReactiveMutation,
@@ -17,7 +19,8 @@ import {
 } from "../src/reactivity.svelte.js";
 
 // The deprecated names are exported from the package root on purpose; these
-// tests check that they stay identical to the `useReactive*` names until the
+// tests check that they stay identical to their renamed counterparts (the
+// `useReactive*` hooks and the `UseReactive*` / `UseDerived*` types) until the
 // aliases are removed.
 describe("deprecated reactiveX aliases", () => {
   it("are the useReactiveX hooks under their old names, exported from the package root", () => {
@@ -38,5 +41,11 @@ describe("deprecated reactiveX aliases", () => {
     expectTypeOf<ReactiveMutationReturn<1, never>>().toEqualTypeOf<
       UseReactiveMutationReturn<1, never>
     >();
+  });
+});
+
+describe("deprecated DerivedReturn alias", () => {
+  it("is the UseDerivedReturn type under its old name", () => {
+    expectTypeOf<DerivedReturn<1, never>>().toEqualTypeOf<UseDerivedReturn<1, never>>();
   });
 });

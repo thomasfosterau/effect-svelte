@@ -21,7 +21,12 @@ export {
 } from "./live-stream.svelte.js";
 
 // Layer 3: Convenience Hooks
-export { useDerived, type DerivedReturn, type UseDerivedOptions } from "./derived.svelte.js";
+export {
+  useDerived,
+  type UseDerivedOptions,
+  type UseDerivedReturn,
+  type DerivedReturn,
+} from "./derived.svelte.js";
 export { useQuery, type UseQueryOptions, type UseQueryReturn } from "./query.svelte.js";
 export {
   useMutation,
