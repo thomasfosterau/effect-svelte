@@ -78,15 +78,19 @@ invalidated, and a mutation invalidates its keys when it succeeds.
 `useInvalidateKeys` invalidates keys by hand. Their runtime must provide
 `Reactivity.layer` from `effect/reactivity`.
 
-Their option and handle types are `UseReactiveOptions`,
-`UseReactiveQueryReturn`, `UseReactiveStreamReturn` and
-`UseReactiveMutationReturn`.
+Option and handle types are named after their hook: `useDerived` takes
+`UseDerivedOptions` and returns `UseDerivedReturn`, `useQuery` takes
+`UseQueryOptions` and returns `UseQueryReturn`, and so on. The `useReactive*`
+hooks share `UseReactiveOptions` and return `UseReactiveQueryReturn`,
+`UseReactiveStreamReturn` and `UseReactiveMutationReturn`.
 
 `reactiveQuery`, `reactiveStream` and `reactiveMutation` are deprecated
 aliases of the `useReactive*` hooks, and `ReactiveOptions`,
-`ReactiveQueryReturn`, `ReactiveStreamReturn` and `ReactiveMutationReturn` are
-deprecated aliases of their types. Both are kept for one minor release and
-removed in the next.
+`ReactiveQueryReturn`, `ReactiveStreamReturn`, `ReactiveMutationReturn` and
+`DerivedReturn` are deprecated aliases of `UseReactiveOptions`,
+`UseReactiveQueryReturn`, `UseReactiveStreamReturn`,
+`UseReactiveMutationReturn` and `UseDerivedReturn`. All of them are kept for
+one minor release and removed in the next.
 
 ### Hooks and explicit runtimes
 

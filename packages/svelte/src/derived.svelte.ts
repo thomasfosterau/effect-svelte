@@ -26,7 +26,7 @@ export interface UseDerivedOptions<R = never> {
 }
 
 /** The handle {@link useDerived} returns. */
-export interface DerivedReturn<A, E> {
+export interface UseDerivedReturn<A, E> {
   /**
    * The current result. While re-running after a dependency change, the
    * previous value is kept as a waiting `Success` (stale-while-revalidate).
@@ -76,7 +76,7 @@ export interface DerivedReturn<A, E> {
 export function useDerived<A, E, R>(
   fn: () => Effect.Effect<A, E, R>,
   options: UseDerivedOptions<R> = {},
-): DerivedReturn<A, E> {
+): UseDerivedReturn<A, E> {
   const { debounce } = options;
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
@@ -142,3 +142,11 @@ export function useDerived<A, E, R>(
     },
   };
 }
+
+/**
+ * Deprecated alias of {@link UseDerivedReturn}: the handle {@link useDerived}
+ * returns.
+ *
+ * @deprecated Use {@link UseDerivedReturn} instead; removed in the next minor release.
+ */
+export type DerivedReturn<A, E> = UseDerivedReturn<A, E>;

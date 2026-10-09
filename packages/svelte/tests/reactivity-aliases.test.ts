@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as root from "../src/index.js";
 import type {
+  DerivedReturn,
   ReactiveMutationReturn,
   ReactiveOptions,
   ReactiveQueryReturn,
@@ -9,6 +10,7 @@ import type {
   UseReactiveOptions,
   UseReactiveQueryReturn,
   UseReactiveStreamReturn,
+  UseDerivedReturn,
 } from "../src/index.js";
 import {
   useReactiveMutation,
@@ -38,5 +40,11 @@ describe("deprecated reactiveX aliases", () => {
     expectTypeOf<ReactiveMutationReturn<1, never>>().toEqualTypeOf<
       UseReactiveMutationReturn<1, never>
     >();
+  });
+});
+
+describe("deprecated DerivedReturn alias", () => {
+  it("is the UseDerivedReturn type under its old name", () => {
+    expectTypeOf<DerivedReturn<1, never>>().toEqualTypeOf<UseDerivedReturn<1, never>>();
   });
 });
