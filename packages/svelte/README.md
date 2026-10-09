@@ -80,9 +80,13 @@ invalidated, and a mutation invalidates its keys when it succeeds.
 
 Option and handle types are named after their hook: `useDerived` takes
 `UseDerivedOptions` and returns `UseDerivedReturn`, `useQuery` takes
-`UseQueryOptions` and returns `UseQueryReturn`, and so on. The `useReactive*`
-hooks share `UseReactiveOptions` and return `UseReactiveQueryReturn`,
-`UseReactiveStreamReturn` and `UseReactiveMutationReturn`.
+`UseQueryOptions` and returns `UseQueryReturn`, and so on. Hooks that share a
+family share its types: the `useReactive*` hooks take `UseReactiveOptions` and
+return `UseReactiveQueryReturn`, `UseReactiveStreamReturn` and
+`UseReactiveMutationReturn` (`useInvalidateKeys` also takes
+`UseReactiveOptions` and returns a plain function), and `useAtom` and
+`useAtomResult` take `UseAtomOptions` and return `UseAtomReturn`
+(`UseWritableAtomReturn` for a writable atom).
 
 `reactiveQuery`, `reactiveStream` and `reactiveMutation` are deprecated
 aliases of the `useReactive*` hooks, and `ReactiveOptions`,
