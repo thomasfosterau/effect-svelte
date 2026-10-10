@@ -586,8 +586,9 @@ a handler. The message may at first name only the services of the handlers
 TypeScript types first (such as an `onError` passed by name, before handlers
 whose parameters are not annotated), and the rest once the runtime provides
 those. Handlers that require no services run on the default runtime, and the
-options may be omitted. A function that wraps `Forms.enhance` for handlers
-requiring any `R` forwards its options as
+options may be omitted; an effect typed as requiring `any` or `unknown` is
+treated as requiring no services, so no runtime is demanded. A function that
+wraps `Forms.enhance` for handlers requiring any `R` forwards its options as
 `...options: Forms.EnhanceOptionsArgs<R>`, which keeps them optional exactly
 when `R` is `never` (an `EnhanceOptions<R>`, whose runtime is optional, does not
 type-check there).
