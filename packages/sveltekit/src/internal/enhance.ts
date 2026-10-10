@@ -22,7 +22,9 @@ export type EnhanceRuntime<R> = Context.Context<R> | ManagedRuntime.ManagedRunti
  * Effect-based handlers for the two phases of an enhanced form submission,
  * plus `onError` for the errors they fail with. `ESubmit` / `EResult` are the
  * errors `onSubmit` / `onResult` may fail with, and `E` (their union by
- * default) the error `onError` receives.
+ * default) the error `onError` receives. Each handler is called as a method of
+ * the handlers object, so `this` in a handler written as a method is that
+ * object.
  */
 export interface EnhanceHandlers<
   R = never,
@@ -134,8 +136,15 @@ export type ServicesNotInferred = unknown;
 
 /**
  * The services a handler requires: `R`, or none while it is not inferred
- * ({@link ServicesNotInferred}), as for an absent handler. (An effect that
- * requires `unknown` names no service a runtime could provide.)
+ * ({@link ServicesNotInferred}), as for an absent handler.
+ *
+ * Since `unknown` must count as none, so does every requirements type that
+ * `unknown` is assignable to: an effect typed as requiring `any` or `unknown`
+ * (to which a union with `unknown` collapses), such as one annotated
+ * `Effect.Effect<void, never, any>`, is treated as requiring no services, so
+ * no runtime is demanded for it. Such a type names no service a runtime could
+ * be checked against, and only a top type fits every handler in TypeScript's
+ * first inference pass.
  */
 export type RequiredServices<R> = unknown extends R ? never : R;
 
@@ -244,18 +253,22 @@ export const makeSubmitFunction = <
   const onError = handlers.onError as
     | ((error: ESubmit | EResult) => Effect.Effect<void, never, R>)
     | undefined;
+  // Each handler is called as a method of the handlers object (`this` is
+  // `handlers`), as 0.5.0 called `onSubmit`.
+  const handleError =
+    onError === undefined ? undefined : (error: ESubmit | EResult) => onError.call(handlers, error);
   return async (input) => {
     // `onSubmit` and `onResult` are read on each submission, so a handler
     // replaced on the handlers object after `enhance()` is the one that runs.
-    const { onSubmit } = phases;
-    if (onSubmit) {
-      const submit = onSubmit(input);
+    // `onResult` is read once `onSubmit` has run, so `onSubmit` may set it.
+    const submit = phases.onSubmit?.(input);
+    if (submit !== undefined) {
       await run(
-        onError === undefined
+        handleError === undefined
           ? submit
           : submit.pipe(
               Effect.catch((error) =>
-                Effect.sync(() => input.cancel()).pipe(Effect.andThen(onError(error))),
+                Effect.sync(() => input.cancel()).pipe(Effect.andThen(handleError(error))),
               ),
             ),
       );
@@ -264,8 +277,8 @@ export const makeSubmitFunction = <
     // Returning `undefined` lets SvelteKit apply its default result behaviour.
     if (!onResult) return undefined;
     return (resultOptions) => {
-      const result = onResult(resultOptions);
-      return run(onError === undefined ? result : result.pipe(Effect.catch(onError)));
+      const result = onResult.call(handlers, resultOptions);
+      return run(handleError === undefined ? result : result.pipe(Effect.catch(handleError)));
     };
   };
 };

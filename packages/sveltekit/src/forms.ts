@@ -57,10 +57,12 @@ export type {
  * first name only the services of the handlers TypeScript types first (such as
  * an `onError` passed by name), and the rest once the runtime provides those.
  * Handlers that require no services run on the default runtime, and the options
- * may be omitted. A function that wraps `enhance` for handlers requiring any
- * `R` forwards its options as `...options: EnhanceOptionsArgs<R>` (or takes a
- * required `{ runtime: EnhanceRuntime<R> }`): an `EnhanceOptions<R>`, whose
- * runtime is optional, does not type-check there.
+ * may be omitted; an effect typed as requiring `any` or `unknown` is treated as
+ * requiring no services, so no runtime is demanded. A function that wraps
+ * `enhance` for handlers requiring any `R` forwards its options as
+ * `...options: EnhanceOptionsArgs<R>` (or takes a required
+ * `{ runtime: EnhanceRuntime<R> }`): an `EnhanceOptions<R>`, whose runtime is
+ * optional, does not type-check there.
  *
  * Either handler may fail. Add an `onError` handler to handle the error
  * (typed as the union of the handlers' error types when written after them;

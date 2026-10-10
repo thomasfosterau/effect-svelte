@@ -606,6 +606,23 @@ describe("Forms.enhance with failing handlers", () => {
     Forms.enhance({ onSubmit: () => Effect.void }, { runtime: Context.empty() });
   });
 
+  it("treats an effect requiring any or unknown as requiring no services", () => {
+    // Only a top type fits every handler in TypeScript's first inference pass,
+    // so requirements typed as `any` or `unknown` (to which a union with
+    // `unknown` collapses) count as none, and no runtime is demanded (see
+    // `RequiredServices`).
+    const anyR = Effect.void as Effect.Effect<void, never, any>;
+    const unknownR = Effect.void as Effect.Effect<void, never, unknown>;
+
+    expectTypeOf(Forms.enhance({ onSubmit: () => anyR })).toEqualTypeOf<SubmitFunction>();
+    Forms.enhance({ onResult: () => anyR });
+    Forms.enhance({
+      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+      onError: () => anyR,
+    });
+    Forms.enhance({ onSubmit: () => unknownR, onResult: () => unknownR });
+  });
+
   it("accepts handlers forwarded as undefined", () => {
     const optional: { readonly onResult?: undefined } = { onResult: undefined };
     Forms.enhance({ onSubmit: () => Effect.void, ...optional });
