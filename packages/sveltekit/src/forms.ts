@@ -51,13 +51,16 @@ export type {
  * to keep SvelteKit's default behaviour. When the handlers (or `onError`)
  * require application services, pass `{ runtime }` (a `Context` or
  * `ManagedRuntime` providing them): it is then required, and a call without it
- * does not type-check. Each handler may require different services; the
- * runtime must provide all of them. Handlers that require no services run on
- * the default runtime, and the options may be omitted. A function that wraps
- * `enhance` for handlers requiring any `R` forwards its options as
- * `...options: EnhanceOptionsArgs<R>` (or takes a required
- * `{ runtime: EnhanceRuntime<R> }`): an `EnhanceOptions<R>`, whose runtime is
- * optional, does not type-check there.
+ * does not type-check. Each handler may require different services; the runtime
+ * must provide all of them. A missing runtime is reported on the call, and one
+ * that lacks a service on the runtime, never on a handler; the message may at
+ * first name only the services of the handlers TypeScript types first (such as
+ * an `onError` passed by name), and the rest once the runtime provides those.
+ * Handlers that require no services run on the default runtime, and the options
+ * may be omitted. A function that wraps `enhance` for handlers requiring any
+ * `R` forwards its options as `...options: EnhanceOptionsArgs<R>` (or takes a
+ * required `{ runtime: EnhanceRuntime<R> }`): an `EnhanceOptions<R>`, whose
+ * runtime is optional, does not type-check there.
  *
  * Either handler may fail. Add an `onError` handler to handle the error
  * (typed as the union of the handlers' error types when written after them;
