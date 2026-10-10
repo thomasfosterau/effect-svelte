@@ -1,9 +1,0 @@
-/* Additions on top of todomvc-app-css for states the original stylesheet
-   does not cover (Effect failure causes). */
-
-.todoapp .error {
-  margin: 0;
-  padding: 16px;
-  color: #b83f45;
-  text-align: center;
-}
