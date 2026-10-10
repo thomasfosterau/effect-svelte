@@ -4,10 +4,7 @@
 #
 # One file, two callers — the Claude Code SessionStart hook and the
 # devcontainer's `postCreateCommand` (which invokes this file directly) — so a
-# container shell and an agent session are provisioned identically. (Copied
-# from the library standard, effect-jsonapi / effect-drizzle-ext; the
-# `gardeneria #NNN` citations below name the issues there that are the
-# evidence behind a decision, not tickets in this tracker.)
+# container shell and an agent session are provisioned identically.
 #
 # ## What it does
 #
@@ -19,8 +16,6 @@
 #    re-exec shim into `~/.local/bin` (a directory already on PATH and
 #    writable by the session user). A file survives where an `export` cannot:
 #    this script cannot change its caller's environment.
-# 4. Installs the effect-solutions CLI and clones the Effect v4 reference
-#    repository (Effect-TS/effect-smol) that AGENTS.md tells agents to consult.
 #
 # ## Node, and why this repairs rather than clobbers
 #
@@ -95,7 +90,7 @@ SHIM
     || { rm -f "$dest.tmp" 2>/dev/null; log "could not write vp shim"; }
 }
 
-# ── 1. Bare `node` (gardeneria #1462) ────────────────────────────────────────
+# ── 1. Bare `node` ────────────────────────────────────────
 # Only repair a shim that is already failing. `command -v node` is not enough:
 # the shim exists and resolves, then dies on use, so the version call is the
 # real test.
@@ -131,18 +126,5 @@ fi
 # ── 3. `vp` on PATH ──────────────────────────────────────────────────────────
 # node_modules/.bin only exists after the install, so this runs after step 2.
 write_vp_shim
-
-# ── 4. effect-solutions + the Effect v4 reference clone ──────────────────────
-if ! command -v effect-solutions >/dev/null 2>&1; then
-  log "installing the effect-solutions CLI…"
-  npm install -g effect-solutions >/dev/null 2>&1 \
-    || log "could not install effect-solutions globally (non-fatal)"
-fi
-if [ ! -d "$EFFECT_REF_DIR" ]; then
-  log "cloning the Effect v4 reference repository…"
-  mkdir -p "$(dirname "$EFFECT_REF_DIR")"
-  git clone --depth 1 https://github.com/Effect-TS/effect-smol.git "$EFFECT_REF_DIR" >/dev/null 2>&1 \
-    || log "could not clone the effect-smol reference repository (non-fatal)"
-fi
 
 exit 0

@@ -1,6 +1,6 @@
 # Contributing to effect-svelte
 
-This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`); `examples/*` are private apps built against the packages' `dist/`. Conventions are in [AGENTS.md](AGENTS.md); this file is the setup, the commands and the checklists.
+This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`). Conventions are in [AGENTS.md](AGENTS.md); this file is the setup, the commands and the checklists.
 
 ## Development setup
 
