@@ -152,8 +152,9 @@ describe("Store.toStream", () => {
       },
     };
 
-    // The timeout only guards against a hang (effect 4.0.0 and 4.0.1 dropped a
-    // failed `Stream.callback` setup), so it fails the test rather than passing it.
+    // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2,
+    // the peer floor. The timeout only guards against a regression to a hang, so
+    // it fails the test rather than passing it.
     const exit = await Effect.runPromise(
       Store.toStream<number>(store).pipe(
         Stream.runCollect,
