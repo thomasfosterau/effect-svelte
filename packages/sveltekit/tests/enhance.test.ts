@@ -109,4 +109,30 @@ describe("makeSubmitFunction", () => {
       await runtime.dispose();
     }
   });
+
+  it("reads onSubmit and onResult on each submission", async () => {
+    const calls: Array<string> = [];
+    const record = (call: string) => () => Effect.sync(() => calls.push(call));
+    const handlers: {
+      onSubmit?: () => Effect.Effect<number>;
+      onResult?: () => Effect.Effect<number>;
+    } = {};
+    const submit = makeSubmitFunction(handlers);
+
+    // No handlers yet: SvelteKit's default result behaviour applies.
+    expect(await submit(submitInput())).toBeUndefined();
+
+    // Handlers added (or replaced) after `enhance()` run on the next submission.
+    handlers.onSubmit = record("submit");
+    handlers.onResult = record("result");
+    const callback = await submit(submitInput());
+    expect(typeof callback).toBe("function");
+    await (callback as (o: unknown) => Promise<void>)(resultOptions());
+    expect(calls).toEqual(["submit", "result"]);
+
+    handlers.onSubmit = record("submit again");
+    delete handlers.onResult;
+    expect(await submit(submitInput())).toBeUndefined();
+    expect(calls).toEqual(["submit", "result", "submit again"]);
+  });
 });

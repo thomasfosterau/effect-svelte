@@ -403,9 +403,56 @@ describe("Forms.enhance with failing handlers", () => {
       { runtime: Context.make(Reporter, { report: () => {} }) },
     );
     Forms.enhance(
-      // @ts-expect-error: the runtime does not provide Reporter
       { onResult: ({ result }) => Forms.applyAction(result), onError: report },
+      // @ts-expect-error: the runtime does not provide Reporter
       { runtime: Context.empty() },
+    );
+  });
+
+  it("reports a missing or wrong runtime on the call or the runtime, not a handler", () => {
+    class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
+    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
+      "Reporter",
+    ) {}
+    // Passed by name, so TypeScript infers its requirements before those of
+    // the handlers whose parameters are not annotated.
+    const report = (error: unknown) =>
+      Effect.gen(function* () {
+        const reporter = yield* Reporter;
+        reporter.report(error);
+      });
+    const greeter = Context.make(Greeter, { hi: "hello" });
+
+    // @ts-expect-error: onError requires Reporter, so a runtime is required
+    Forms.enhance({
+      onResult: ({ result }) => Forms.applyAction(result),
+      onError: report,
+    });
+    // @ts-expect-error: onError requires Reporter, so a runtime is required
+    Forms.enhance({
+      onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
+      onError: report,
+    });
+    // @ts-expect-error: the handlers require Greeter and Reporter, so a runtime is required
+    Forms.enhance({
+      onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+      onError: report,
+    });
+    Forms.enhance(
+      {
+        onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+        onError: report,
+      },
+      // @ts-expect-error: the runtime does not provide Reporter (onError)
+      { runtime: greeter },
+    );
+    Forms.enhance(
+      {
+        onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+        onError: report,
+      },
+      // @ts-expect-error: the runtime does not provide Greeter (onResult)
+      { runtime: Context.make(Reporter, { report: () => {} }) },
     );
   });
 

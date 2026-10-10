@@ -108,13 +108,36 @@ export type EnhanceHandlerKey = keyof EnhanceHandlers;
 export type HandlerKeys<Keys extends EnhanceHandlerKey> = { readonly [Key in Keys]?: unknown };
 
 /**
- * The default of a handler error TypeScript has not inferred (yet): a handler
- * it types after `onError`, or one that is absent (and left out by `Keys`).
- * No error a handler can fail with is assignable to it.
+ * The default of a handler's error (`ESubmit` / `EResult`) while TypeScript
+ * has not inferred it: for a handler it types after `onError`, for one it
+ * skips in its first inference pass (a handler whose parameters are not
+ * annotated), or for one that is absent (and left out by `Keys`).
+ *
+ * It is `any` so that every handler type-checks against it, whatever it fails
+ * with: when a call does not type-check, TypeScript may report the errors
+ * against its first-pass inference, and a handler that did not fit this
+ * default would then be blamed for a missing or wrong runtime. Detected with
+ * {@link IsErrorNotInferred}, never left in `onError`'s parameter type.
  */
-export interface NotInferred {
-  readonly "~effect-sveltekit/NotInferred": never;
-}
+export type ErrorNotInferred = any;
+
+/** Whether `Errors` includes a handler error not inferred yet ({@link ErrorNotInferred}). */
+export type IsErrorNotInferred<Errors> = 0 extends 1 & Errors ? true : false;
+
+/**
+ * The default of a handler's requirements (`RSubmit` / `RResult` / `RError`)
+ * while TypeScript has not inferred them: `unknown`, which every handler's
+ * requirements are assignable to (see {@link ErrorNotInferred} for why), and
+ * which {@link RequiredServices} counts as none.
+ */
+export type ServicesNotInferred = unknown;
+
+/**
+ * The services a handler requires: `R`, or none while it is not inferred
+ * ({@link ServicesNotInferred}), as for an absent handler. (An effect that
+ * requires `unknown` names no service a runtime could provide.)
+ */
+export type RequiredServices<R> = unknown extends R ? never : R;
 
 /** The errors of the handlers named in `Keys`. */
 export type HandlerErrors<Keys extends EnhanceHandlerKey, ESubmit, EResult> =
@@ -126,18 +149,17 @@ export type HandlerErrors<Keys extends EnhanceHandlerKey, ESubmit, EResult> =
  * `unknown` while one of them is not inferred yet (`onError` written before a
  * handler whose parameters are not annotated).
  */
-export type OnErrorInput<Errors> = NotInferred extends Errors ? unknown : Errors;
+export type OnErrorInput<Errors> = IsErrorNotInferred<Errors> extends true ? unknown : Errors;
 
 /**
  * Requires `onError` to accept every error in `Errors` when its parameter is
  * annotated (`E` is then inferred from the annotation). The check waits while
  * a handler's error is not inferred yet, and applies once it is.
  */
-export type OnErrorAccepts<R, Errors, E> = [Errors] extends [E]
-  ? unknown
-  : unknown extends Errors
-    ? OnErrorMustAccept<R, Errors>
-    : NotInferred extends Errors
+export type OnErrorAccepts<R, Errors, E> =
+  IsErrorNotInferred<Errors> extends true
+    ? unknown
+    : [Errors] extends [E]
       ? unknown
       : OnErrorMustAccept<R, Errors>;
 
@@ -183,13 +205,19 @@ export type EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E> = P
  * {@link EnhanceHandlers.onError}). The options argument, and its `runtime`,
  * are required when the handlers require any service, and the runtime must
  * provide all of them (see {@link EnhanceOptionsArgs}).
+ *
+ * When a call does not type-check, TypeScript may report it against its first
+ * inference pass, which skips handlers whose parameters are not annotated. The
+ * defaults of the handler parameters ({@link ErrorNotInferred},
+ * {@link ServicesNotInferred}) accept any handler, so a missing or wrong
+ * runtime is reported on the call or on the runtime, never on a handler.
  */
 export const makeSubmitFunction = <
-  RSubmit = never,
-  RResult = never,
-  RError = never,
-  ESubmit = NotInferred,
-  EResult = NotInferred,
+  RSubmit = ServicesNotInferred,
+  RResult = ServicesNotInferred,
+  RError = ServicesNotInferred,
+  ESubmit = ErrorNotInferred,
+  EResult = ErrorNotInferred,
   Keys extends EnhanceHandlerKey = never,
   E = OnErrorInput<HandlerErrors<Keys, ESubmit, EResult>>,
 >(
@@ -198,21 +226,28 @@ export const makeSubmitFunction = <
     NoInfer<OnErrorAccepts<RError, HandlerErrors<Keys, ESubmit, EResult>, E>>,
   // The requirements are inferred from the handlers alone; the runtime is
   // then checked against their union.
-  ...rest: NoInfer<EnhanceOptionsArgs<RSubmit | RResult | RError>>
+  ...rest: NoInfer<
+    EnhanceOptionsArgs<
+      RequiredServices<RSubmit> | RequiredServices<RResult> | RequiredServices<RError>
+    >
+  >
 ): SubmitFunction => {
-  type R = RSubmit | RResult | RError;
+  type R = RequiredServices<RSubmit> | RequiredServices<RResult> | RequiredServices<RError>;
   // Either branch of `EnhanceOptionsArgs<R>`: the `never` one only when `R`
   // is `never`, where the two coincide.
   const options = rest[0] as EnhanceOptions<R> | undefined;
   const run = runPromiseWith(options?.runtime);
   // Each handler requires a part of `R`, which the runtime provides in full.
-  const { onSubmit, onResult } = handlers as EnhanceHandlers<R, ESubmit, EResult, E>;
+  const phases = handlers as EnhanceHandlers<R, ESubmit, EResult, E>;
   // `E` is the union of the errors of the handlers present, so `onError`
   // accepts whatever either handler fails with.
   const onError = handlers.onError as
     | ((error: ESubmit | EResult) => Effect.Effect<void, never, R>)
     | undefined;
   return async (input) => {
+    // `onSubmit` and `onResult` are read on each submission, so a handler
+    // replaced on the handlers object after `enhance()` is the one that runs.
+    const { onSubmit } = phases;
     if (onSubmit) {
       const submit = onSubmit(input);
       await run(
@@ -225,6 +260,7 @@ export const makeSubmitFunction = <
             ),
       );
     }
+    const { onResult } = phases;
     // Returning `undefined` lets SvelteKit apply its default result behaviour.
     if (!onResult) return undefined;
     return (resultOptions) => {
