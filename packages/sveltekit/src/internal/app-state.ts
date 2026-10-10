@@ -14,7 +14,6 @@
 
 import type { NavigationTarget, NavigationType } from "$app/navigation";
 import { Data, Effect, Option, Queue, Stream } from "effect";
-import { failQueueOnSetupError } from "./stream-callback.js";
 
 /**
  * The fields of SvelteKit's `page` we snapshot. Mirrors the shape of
@@ -123,7 +122,7 @@ export function watchedStream<A>(watch: Watch, read: () => A): Stream.Stream<A> 
         }),
       ),
       (dispose) => Effect.sync(dispose),
-    ).pipe(failQueueOnSetupError(queue)),
+    ),
   );
 }
 

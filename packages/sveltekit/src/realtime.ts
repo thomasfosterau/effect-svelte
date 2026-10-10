@@ -10,7 +10,6 @@
  */
 
 import { Cause, Data, Effect, Queue, Stream } from "effect";
-import { failQueueOnSetupError } from "./internal/stream-callback.js";
 
 // ---------------------------------------------------------------------------
 // EventSource
@@ -123,7 +122,7 @@ export const fromEventSource = (
           catch: (cause) => new EventSourceError({ url, cause }),
         }),
         (source) => Effect.sync(() => source.close()),
-      ).pipe(failQueueOnSetupError(queue)),
+      ),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "sliding" },
   );
 };
@@ -232,7 +231,7 @@ export const fromWebSocket = (
             // Only close a socket that is still connecting/open.
             if (socket.readyState === 0 || socket.readyState === 1) socket.close();
           }),
-      ).pipe(failQueueOnSetupError(queue)),
+      ),
     { bufferSize: options?.bufferSize ?? 16, strategy: options?.strategy ?? "suspend" },
   );
 };
