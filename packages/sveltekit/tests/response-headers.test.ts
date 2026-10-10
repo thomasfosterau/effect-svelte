@@ -1,7 +1,6 @@
 /**
  * `ResponseHeaders` — the response-headers buffer the applications hand-wrote
- * (`lib/cache.ts` + the `transport` in `hooks.ts`). Ported from the website
- * application's `cache` suite, plus the transport and copy steps it relied on.
+ * (`lib/cache.ts` + the `transport` in `hooks.ts`).
  */
 import { describe, expect, it } from "vite-plus/test";
 import { responseHeadersTransporter } from "../src/Hooks.js";

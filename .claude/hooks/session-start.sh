@@ -22,8 +22,8 @@
 # `~/.vite-plus/bin/node` is a shim pointing at the `vp` launcher, which
 # resolves a Node version and installs it under `~/.vite-plus/js_runtime`.
 # When that directory is not writable by the session user and the resolved
-# version drifts past the cached one, the shim fails with `Permission denied`
-# (gardeneria #1462). This script therefore *tests* `node --version` and only
+# version drifts past the cached one, the shim fails with `Permission denied`.
+# This script therefore *tests* `node --version` and only
 # replaces the shim when it is already broken, pointing it at a real cached
 # binary. A working shim is left alone.
 #
@@ -51,7 +51,6 @@ log() { printf '[session-start] %s\n' "$1" >&2; }
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 LOCAL_BIN="${HOME:-/root}/.local/bin"
-EFFECT_REF_DIR="${HOME:-/root}/.local/share/effect-solutions/effect"
 
 mkdir -p "$LOCAL_BIN" 2>/dev/null || log "cannot create $LOCAL_BIN; continuing"
 
@@ -60,10 +59,10 @@ mkdir -p "$LOCAL_BIN" 2>/dev/null || log "cannot create $LOCAL_BIN; continuing"
 # cwd inside a `.claude/worktrees/*` checkout — so the CLI process would load
 # the primary tree's vitest while the worktree's test modules resolve the
 # worktree's own copy, and two physical instances of vitest corrupt its
-# suite-collector state (gardeneria #1663). The shim instead walks up from
+# suite-collector state. The shim instead walks up from
 # $PWD for the nearest project-local vite-plus and re-execs that, falling back
 # to the primary checkout's when none is found above cwd.
-VP_SHIM_MARKER="# generated-by: .claude/hooks/session-start.sh (vp re-exec shim, gardeneria issue #1663)"
+VP_SHIM_MARKER="# generated-by: .claude/hooks/session-start.sh"
 write_vp_shim() {
   dest="$LOCAL_BIN/vp"
   [ -x "$PROJECT_DIR/node_modules/vite-plus/bin/vp" ] || return 0

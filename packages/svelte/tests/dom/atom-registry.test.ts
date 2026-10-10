@@ -1,8 +1,6 @@
 /**
  * The registry seam in the browser: the implicit registry is memoised, and
  * `invalidateAtomKeys` is a no-op when nothing is mounted against the keys.
- * (Ported from the website application's `atom-registry` suite; the server half
- * lives in `tests/atom-registry.test.ts`.)
  */
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";

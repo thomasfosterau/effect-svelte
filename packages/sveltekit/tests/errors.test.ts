@@ -1,7 +1,5 @@
 /**
- * `Errors.toSvelteKit` — the catalogue-driven `translateError`. Ported from the
- * website application's `translate` suite (its hand-written `toSvelteKit`
- * switch is the behavioural spec): every tag in the catalogue becomes one
+ * `Errors.toSvelteKit` — the catalogue-driven `translateError`. Every tag in the catalogue becomes one
  * SvelteKit `error()` / `redirect()` throw, and anything outside it falls
  * through untouched.
  */
@@ -16,21 +14,21 @@ import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
   resource: Schema.String,
   id: Schema.String,
-}) {}
+}) { }
 class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {
   message: Schema.optional(Schema.String),
-}) {}
+}) { }
 class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
   message: Schema.optional(Schema.String),
-}) {}
+}) { }
 class Redirect extends Schema.TaggedError<Redirect>()("Redirect", {
   to: Schema.String,
   status: Schema.Number,
-}) {}
+}) { }
 class HttpError extends Schema.TaggedError<HttpError>()("HttpError", {
   status: Schema.Number,
   message: Schema.String,
-}) {}
+}) { }
 /** Stands in for effect-jsonapi's `JsonapiError`: a status plus a document. */
 class JsonapiError extends Schema.TaggedError<JsonapiError>()("JsonapiError", {
   status: Schema.Number,

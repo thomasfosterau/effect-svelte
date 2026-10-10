@@ -1,6 +1,5 @@
 /**
- * The Svelte ↔ atom bridge (`useAtomResult` / `useAtom` / `invalidateAtomKeys`),
- * ported from the website application's `atom-bridge` suite. Three properties
+ * The Svelte ↔ atom bridge (`useAtomResult` / `useAtom` / `invalidateAtomKeys`). Three properties
  * matter, and none is visible in a type:
  *
  * 1. **A read subscribes**, so the value re-renders when the registry
