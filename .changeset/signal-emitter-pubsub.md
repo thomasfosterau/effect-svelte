@@ -1,5 +1,0 @@
----
-"@thomasfosterau/effect-svelte": minor
----
-
-`SignalEmitter` now buffers and multicasts, backed by a `PubSub`. Values emitted while no run of `emitter.stream` is connected are buffered and delivered first to the next run that connects, so the initial `emit` from a `$effect` (which usually runs before `useStream`'s run has connected) is no longer lost. Every run connected at once receives every value emitted while it is connected, where previously only the most recently started run did. By default the buffer keeps only the latest value, since the emitter bridges state; the new `SignalEmitterOptions` (`new SignalEmitter({ bufferSize })`) keeps more, and `bufferSize: 0` restores the old behaviour of dropping values emitted while no run is connected. `bufferSize` is rounded down to an integer (a negative size counts as `0`), and a non-finite one makes the constructor throw a `RangeError`. It limits only the buffer kept while no run is connected: a connected run that falls behind queues values without bound. Buffered values go only to the run that takes them: a run that connects while another is already connected starts with the next emitted value.
