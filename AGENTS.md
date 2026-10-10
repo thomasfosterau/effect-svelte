@@ -57,32 +57,11 @@ If a gate can't run here, say which and why in the PR body; never imply it ran.
 
 Issues are the backlog: when you find work you can't do now, file an issue rather than leaving a TODO. The issue is the spec — read its comments; later comments override the body. Record decisions and findings as issue comments, not in a README or `docs/`. Stop-and-report is a valid outcome: on a blocker outside the issue's scope, comment the evidence on the issue and stop. Scope cut mid-PR becomes a linked issue before merge.
 
-<!-- effect-solutions:start -->
-
-## Effect Best Practices
-
-**IMPORTANT:** Always consult effect-solutions before writing Effect code.
-
-1. Run `effect-solutions list` to see available guides
-2. Run `effect-solutions show <topic>...` for relevant patterns (supports multiple topics)
-3. Search `~/.local/share/effect-solutions/effect` for real implementations
-
-Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-modeling, error-handling, config, testing, cli.
-
-Never guess at Effect patterns - check the guide first.
-
-If `effect-solutions` is not installed, run `.claude/hooks/session-start.sh`
-(installs the CLI and clones the Effect reference repository).
-
-<!-- effect-solutions:end -->
-
-`effect-solutions` is a global CLI installed by the SessionStart hook, not a devDependency; `~/.local/share/effect-solutions/effect` is a clone of [Effect-TS/effect-smol](https://github.com/Effect-TS/effect-smol), with the v3 → v4 migration maps under `migration/` (start with `v3-to-v4.md`). If neither is available, read `node_modules/effect/dist/*.d.ts`.
-
 Both packages target Effect v4: `effect` and `@effect/platform-node` move together on the one exact version pinned in the catalog, and the published peer floor is `catalogs.peers` — currently `>=4.0.2` for both, the same release as the pin, so CI tests the floor (#164). HTTP lives under `effect/http/*` and `effect/http-api/*`; `Reactivity` and atoms under `effect/reactivity`, `AsyncResult` under `effect/reactivity/AsyncResult`. `@effect/platform` and `@effect/experimental` do not exist in v4.
 
 ## Agent sessions
 
-The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) repairs a broken `node` shim, installs dependencies against the lockfile, puts `vp` on PATH for non-interactive shells, and installs effect-solutions plus the effect-smol clone (both need network; failure is non-fatal). It hydrates no secrets, and none are needed: every gate runs offline. Publishing runs only in the Release workflow (OIDC). `examples/hacker-news` calls the live Algolia HN API at runtime, so its `dev` server needs network; its typecheck and build do not.
+The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) repairs a broken `node` shim, installs dependencies against the lockfile, and puts `vp` on PATH for non-interactive shells. It hydrates no secrets, and none are needed: every gate runs offline. Publishing runs only in the Release workflow (OIDC).
 
 ## Documentation surfaces
 
