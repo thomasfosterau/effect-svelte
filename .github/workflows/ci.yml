@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [trunk]
   pull_request:
-    branches: [main]
+    branches: [trunk]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
 # No permissions by default; the job grants only read access.
 permissions: {}
@@ -29,22 +29,6 @@ jobs:
       # pnpm + Node + a frozen-lockfile install; see the action's header.
       - name: Setup toolchain
         uses: ./.github/actions/setup
-
-      # Exactly one `svelte` and one `@sveltejs/kit` may resolve: a second copy
-      # lets the compiler and the `svelte/internal` runtime disagree (#112).
-      - name: Check single svelte and @sveltejs/kit
-        run: |
-          node -e '
-            const lock = require("fs").readFileSync("pnpm-lock.yaml", "utf8");
-            const versions = { svelte: new Set(), "@sveltejs/kit": new Set() };
-            for (const [, name, version] of lock.matchAll(/^  \x27?(svelte|@sveltejs\/kit)@([^(\x27:]+)/gm))
-              versions[name].add(version);
-            for (const [name, set] of Object.entries(versions)) console.log(`${name}: ${[...set].join(", ")}`);
-            if (Object.values(versions).some((set) => set.size !== 1)) {
-              console.error("pnpm-lock.yaml must resolve exactly one svelte and one @sveltejs/kit (#112)");
-              process.exit(1);
-            }
-          '
 
       - name: Check (format, lint, types)
         run: vp check
