@@ -87,7 +87,35 @@ export default defineConfig({
       // to Svelte templates (`{#if x}`), where an `Option` would be a breaking
       // API change for every consumer.
       "effect/prefer-option-over-null": "off",
+      // It flags any imported `make*` function as an Effect service constructor
+      // that should come in through a Layer. Every `make*` these packages
+      // import is a plain factory with no Layer behind it — a rune state
+      // holder (`makeResult`, `makeMutation`, `makeLiveStream`), a runtime
+      // builder (`makeServerRuntime`, `makeUniversalRuntime`) or a test
+      // helper (`makeRunHelpers`) — so the rule has no service to point at.
+      "effect/no-service-constructor-imports": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
+
+      // ---- Effect preset: published-API allowances -------------------------
+      // Each remaining site can only be fixed by changing a PUBLISHED
+      // signature, error class or thrown / logged behaviour, so the rule sits
+      // at `warn` (a new site is a defect, not headroom) until #185 decides
+      // each one. Once a rule's count reaches zero its line is deleted, so it
+      // is back at the preset's `error`. Counts as of the tooling-standard PR.
+      "effect/no-unsafe-dictionary-type": "warn", // 13
+      "effect/avoid-untagged-errors": "warn", // 7
+      "effect/avoid-data-tagged-error": "warn", // 6
+      "effect/no-unknown-returns": "warn", // 5
+      "effect/no-unknown-parameters": "warn", // 5
+      "effect/no-shape-in-symbol-names": "warn", // 5
+      "effect/effect-promise-vs-trypromise": "warn", // 3
+      "effect/use-console-service": "warn", // 2
+      "effect/avoid-native-object-helpers": "warn", // 2
+      "effect/no-known-value-widening": "warn", // 2
+      "effect/avoid-direct-json": "warn", // 1
+      "effect/no-chained-type-assertions": "warn", // 1
+      "effect/avoid-any": "warn", // 1
+      "effect/no-unknown-type-aliases": "warn", // 1
     },
     overrides: [
       // Build/test configs are evaluated by Vite and Vitest in bare Node,
@@ -117,6 +145,117 @@ export default defineConfig({
           "effect/use-filesystem-service": "off",
           "effect/use-path-service": "off",
           "effect/avoid-direct-json": "off",
+        },
+      },
+      // Import boundaries on EXTERNAL specifiers (AGENTS.md § Common
+      // pitfalls); the boundaries between this repo's own files are fallow
+      // zones in .fallowrc.json. effect-svelte must work in a plain Svelte
+      // app, so it never names SvelteKit at all.
+      {
+        files: ["packages/svelte/src/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: ["@sveltejs/kit", "@sveltejs/kit/**", "$app/**", "$env/**"],
+                  message:
+                    "effect-svelte must work in a plain Svelte app: SvelteKit belongs in effect-sveltekit.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      // effect-sveltekit's code runs on server and client alike except under
+      // `./server`, `./client`, `./adapter*` and the build hooks: a `$app/*`
+      // VALUE import there would break whichever side lacks it (a type-only
+      // import is erased, so it is allowed), and `$env/*` / `node:` never
+      // resolve on the client.
+      {
+        files: ["packages/sveltekit/src/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: ["$app/**"],
+                  allowTypeImports: true,
+                  message:
+                    "A `$app/*` value import belongs under ./server (`$app/server`) or ./client (`$app/navigation`, `$app/state`, `$app/forms`); the root entry is universal.",
+                },
+                {
+                  group: ["$env/**"],
+                  message:
+                    "Take configuration as an argument (`sveltekitConfig`); `$env/*` is the app's.",
+                },
+                {
+                  group: ["node:*"],
+                  message: "Node-only code belongs under ./adapter*; the root entry is universal.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // The server and client entries may reach their own `$app/*` modules.
+        files: [
+          "packages/sveltekit/src/server.ts",
+          "packages/sveltekit/src/server/**",
+          "packages/sveltekit/src/remote-functions.ts",
+          "packages/sveltekit/src/client.ts",
+          "packages/sveltekit/src/client/**",
+          "packages/sveltekit/src/Navigation.ts",
+          "packages/sveltekit/src/State.ts",
+          "packages/sveltekit/src/forms.ts",
+          "packages/sveltekit/src/internal/app-state.ts",
+          "packages/sveltekit/src/internal/enhance.ts",
+          "packages/sveltekit/src/internal/navigation-events.ts",
+        ],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [
+                {
+                  group: ["$env/**"],
+                  message:
+                    "Take configuration as an argument (`sveltekitConfig`); `$env/*` is the app's.",
+                },
+                {
+                  group: ["node:*"],
+                  message: "Node-only code belongs under ./adapter*.",
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // Node-only entries: the adapter (build hook + production server) and
+        // the Vite plugin.
+        files: ["packages/sveltekit/src/adapter/**", "packages/sveltekit/src/vite.ts"],
+        rules: {
+          "no-restricted-imports": "off",
+          // `adapter/serve.ts` starts the production HTTP SERVER with
+          // `node:http`'s `createServer`; the rule's fix (`HttpClient`) is for
+          // outbound requests.
+          "effect/use-http-client-service": "off",
+        },
+      },
+      // The adapter test's mock `Builder.generateServerInstance` must write
+      // synchronously: SvelteKit's contract for it returns `void`, and the
+      // test pins that `server.js` survives `adapt`'s earlier `rmSync(out)`.
+      // An Effect `FileSystem` write could land after that and hide an
+      // ordering bug. Every other file operation there uses `FileSystem`.
+      {
+        files: ["packages/sveltekit/tests/adapter.test.ts"],
+        rules: {
+          "effect/use-filesystem-service": "off",
+          "effect/avoid-sync-fs": "off",
         },
       },
       // Tests.

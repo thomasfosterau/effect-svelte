@@ -13,7 +13,7 @@
   "scripts": {
     "changeset": "changeset",
     "version": "changeset version && vp fmt && pnpm install --lockfile-only",
-    "release": "vp run -r build && changeset publish",
+    "release": "vp run -r build && pnpm -r --filter './packages/*' publish --access public --no-git-checks --ignore-scripts && changeset tag",
     "fallow": "fallow --summary",
     "fallow:audit": "fallow audit",
     "prepare": "vp config"
@@ -21,14 +21,12 @@
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@effect/language-service": "catalog:",
-    "@effect/platform-node": "catalog:",
     "@mpsuesser/oxlint-plugin-effect": "catalog:",
     "@sveltejs/kit": "catalog:",
     "@sveltejs/vite-plugin-svelte": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-istanbul": "catalog:",
     "effect": "catalog:",
-    "effect-solutions": "catalog:",
     "fallow": "catalog:",
     "happy-dom": "catalog:",
     "svelte": "catalog:",
@@ -38,7 +36,7 @@
     "vitest": "catalog:"
   },
   "engines": {
-    "node": "^22.19.0 || ^24.11.0 || >=26",
+    "node": ">=22",
     "pnpm": ">=11"
   },
   "packageManager": "pnpm@11.28.6"

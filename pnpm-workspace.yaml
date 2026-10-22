@@ -34,9 +34,6 @@ catalog:
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.4
-  # `vp exec effect-solutions show <topic>` — the Effect pattern reference
-  # AGENTS.md § Effect points agents at.
-  effect-solutions: ^0.5.3
   fallow: 3.34.1
   happy-dom: ^20.14.5
   magic-string: ^1.4.3
@@ -50,7 +47,7 @@ catalog:
   # package here type-checks through svelte-check, so there is no pure-TS
   # surface worth a second compiler, and without it the `@effect/tsgo` patch
   # and its `effecttsgo` lint preset have nothing to patch.
-  # Pinned exact; bumped by hand (Dependabot ignores its version updates).
+  # Pinned exact; Dependabot moves it in the `toolchain` group.
   # Every workspace package lists `typescript: "catalog:"`: without it,
   # peer auto-install resolves the alias's inner `typescript@6.0.x` as
   # `vite`'s optional peer, giving vite-plus-core (and so every plugin type) a
@@ -81,11 +78,20 @@ catalogs:
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
-  # Keep the transitive `platform-node-shared` on the same release as effect.
+  # Keep the transitive `platform-node-shared` on the same release line as
+  # `@effect/platform-node`. Dependabot cannot bump an overrides-only pin:
+  # move it by hand with every `effect` group PR (AGENTS.md).
   "@effect/platform-node-shared": 4.0.2
   # `effect` MUST be a singleton (see the header): force every resolution to
   # the catalog version so a hoisting reshuffle cannot introduce a second copy.
   effect: "catalog:"
+  # Security floors for dev-only transitive packages `pnpm audit --audit-level
+  # high` (CI) flags: shell-quote and launch-editor arrive via @changesets/cli,
+  # source-map-js via @vitest/coverage-istanbul > magicast. Drop each once its
+  # parent's own range excludes the vulnerable versions.
+  shell-quote: ">=1.11.0"
+  launch-editor: ">=2.14.2"
+  source-map-js: ">=1.2.2"
 
 allowBuilds:
   esbuild: true

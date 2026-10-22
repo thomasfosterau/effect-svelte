@@ -11,11 +11,13 @@
 # 1. Repairs a broken bare `node` shim (see below).
 # 2. Installs the dependencies against the lockfile, so `vp check` /
 #    `vp test` / `vp pack` can run in a fresh agent session.
-# 3. Puts `vp` on PATH. The global Vite+ launcher is not installed in cloud
-#    sessions, and `node_modules/.bin` is on nobody's PATH, so it writes a
-#    re-exec shim into `~/.local/bin` (a directory already on PATH and
-#    writable by the session user). A file survives where an `export` cannot:
-#    this script cannot change its caller's environment.
+# 3. Puts `vp`, `fallow` and `tsx` on PATH. The global Vite+ launcher is not
+#    installed in cloud sessions, and `node_modules/.bin` is on nobody's PATH,
+#    so it writes a `vp` re-exec shim and links `fallow` (the PreToolUse
+#    fallow gate runs it before every agent `git commit` / `git push`) and
+#    `tsx` (when installed) into `~/.local/bin`, a directory already on PATH
+#    and writable by the session user. A file survives where an `export`
+#    cannot: this script cannot change its caller's environment.
 #
 # ## Node, and why this repairs rather than clobbers
 #
@@ -31,7 +33,7 @@
 #
 # This hook hydrates NO secrets, and this repository needs none: every gate
 # runs offline against the lockfile. Publishing is the release workflow's job
-# and uses npm OIDC trusted publishing (docs/RELEASING.md).
+# and uses npm OIDC trusted publishing (PUBLISHING.md).
 #
 # ## Contract
 #
@@ -53,6 +55,19 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." &
 LOCAL_BIN="${HOME:-/root}/.local/bin"
 
 mkdir -p "$LOCAL_BIN" 2>/dev/null || log "cannot create $LOCAL_BIN; continuing"
+
+# Link a binary into ~/.local/bin, replacing a stale link but never a real file.
+link_tool() {
+  src="$1"
+  name="$(basename "$src")"
+  dest="$LOCAL_BIN/$name"
+  [ -x "$src" ] || return 0
+  # Leave a real (non-symlink) binary alone: something deliberately installed it.
+  if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+    return 0
+  fi
+  ln -sfn "$src" "$dest" 2>/dev/null || log "could not link $name"
+}
 
 # `vp` gets a re-exec shim rather than a plain symlink. A symlink always
 # resolves to $PROJECT_DIR's node_modules/vite-plus, even when invoked with
@@ -113,17 +128,26 @@ fi
 # ── 2. Dependencies ──────────────────────────────────────────────────────────
 # Unconditional, not only when node_modules is absent: a prebaked container can
 # carry a tree built from an OLDER lockfile, and stale dependencies masquerade
-# as `main` breakage. `--frozen-lockfile` is a sub-second no-op when in sync.
+# as `trunk` breakage. `--frozen-lockfile` is a sub-second no-op when in sync.
 if [ -f "$PROJECT_DIR/pnpm-lock.yaml" ]; then
   log "syncing dependencies against the lockfile…"
-  (cd "$PROJECT_DIR" && pnpm install --frozen-lockfile >/dev/null 2>&1) \
-    || (cd "$PROJECT_DIR" && corepack pnpm install --frozen-lockfile >/dev/null 2>&1) \
-    || (cd "$PROJECT_DIR" && npx --yes "pnpm@$(node -p 'require("./package.json").packageManager.split("@")[1]')" install --frozen-lockfile >/dev/null 2>&1) \
-    || log "dependency install failed; continuing"
+  # pnpm through corepack (which honours `packageManager`) when available,
+  # else the pnpm on PATH.
+  if command -v corepack >/dev/null 2>&1; then
+    (cd "$PROJECT_DIR" && corepack pnpm install --frozen-lockfile >/dev/null 2>&1) \
+      || (cd "$PROJECT_DIR" && pnpm install --frozen-lockfile >/dev/null 2>&1) \
+      || log "dependency install failed; continuing"
+  else
+    (cd "$PROJECT_DIR" && pnpm install --frozen-lockfile >/dev/null 2>&1) \
+      || log "dependency install failed; continuing"
+  fi
 fi
 
-# ── 3. `vp` on PATH ──────────────────────────────────────────────────────────
+# ── 3. `vp`, `fallow`, `tsx` on PATH ─────────────────────────────────────────
 # node_modules/.bin only exists after the install, so this runs after step 2.
 write_vp_shim
+for tool in fallow tsx; do
+  link_tool "$PROJECT_DIR/node_modules/.bin/$tool"
+done
 
 exit 0

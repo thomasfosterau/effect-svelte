@@ -1,21 +1,34 @@
-# Dependabot version-update configuration (the library standard's, via
-# effect-jsonapi / effect-drizzle-ext).
+# Dependabot version-update configuration.
 #
-# `groups` collect dependencies that MUST move together: the Effect 4 release
-# line is a lockstep-versioned singleton set (`effect` + `@effect/*`); the
-# Svelte toolchain moves as one; the vitest toolchain is pinned to vite-plus's
-# exact versions. vite-plus, its aliased `vite` / `vitest`, and the
-# `typescript` (TS6) alias are pinned exact (see pnpm-workspace.yaml) and are
-# only bumped by hand, so their *version* updates are ignored while
-# SECURITY updates stay enabled (the ignore is scoped to the
-# `version-update:semver-*` update types; a bare `dependency-name` ignore would
-# block security updates too).
+# The `npm` ecosystem at `/` reads the pnpm workspace, its catalogs and the
+# lockfile. `groups` collect the sets that MUST move together, so one PR moves
+# a whole set and a set can never drift apart:
 #
-# `cooldown` mirrors pnpm-workspace.yaml's `minimumReleaseAge`.
+# - `effect`: the Effect 4 release line is a lockstep-versioned singleton set
+#   (`effect` + every `@effect/*`); the catalog pin and the `catalogs.peers`
+#   floor move together (AGENTS.md § Effect). The `@effect/platform-node-shared`
+#   entry in pnpm-workspace.yaml's `overrides` is a transitive pin Dependabot
+#   cannot bump: move it by hand with this group (AGENTS.md § Common pitfalls).
+# - `toolchain`: vite-plus pins the `oxlint`, `oxfmt`, `oxlint-tsgolint` and
+#   `vitest` it carries, `vite` is vite-plus-core under an alias, the
+#   `vitest` / `@vitest/*` catalog entries must equal vite-plus's exact pin,
+#   the `typescript` alias (TS6) is what svelte-check and the declaration
+#   emit drive, and the Effect lint plugin runs inside that oxlint.
+# - `svelte`: the Svelte compiler, SvelteKit, the Vite plugin and svelte-check.
+# - `happy-dom`, `changesets`: their own sets.
+# - `minor-and-patch`: every remaining minor / patch update in one PR, so PR
+#   volume stays low; a major outside the sets above stays its own PR.
+#
+# Dependabot assigns a dependency to the FIRST group that matches, so the
+# groups run specific → general.
+#
+# `cooldown` mirrors pnpm-workspace.yaml's `minimumReleaseAge` (1 day), with
+# `@thomasfosterau/*` exempt as `minimumReleaseAgeExclude` exempts it.
 version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "trunk"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -31,50 +44,54 @@ updates:
         - "@thomasfosterau/*"
     groups:
       effect:
+        applies-to: version-updates
         patterns:
           - "effect"
           - "@effect/*"
+        update-types: ["major", "minor", "patch"]
+      toolchain:
+        applies-to: version-updates
+        patterns:
+          - "vite-plus"
+          - "vite"
+          - "vitest"
+          - "@vitest/*"
+          - "oxlint"
+          - "oxfmt"
+          - "oxlint-tsgolint"
+          - "typescript"
+          - "@typescript/typescript6"
+          - "@mpsuesser/oxlint-plugin-effect"
+        update-types: ["major", "minor", "patch"]
       svelte:
+        applies-to: version-updates
         patterns:
           - "svelte"
-          - "svelte-check"
           - "@sveltejs/*"
+          - "svelte-check"
+          - "svelte2tsx"
+        update-types: ["major", "minor", "patch"]
+      happy-dom:
+        applies-to: version-updates
+        patterns:
+          - "happy-dom"
+        update-types: ["major", "minor", "patch"]
       changesets:
+        applies-to: version-updates
         patterns:
           - "@changesets/*"
-    ignore:
-      - dependency-name: "typescript"
-        update-types:
-          [
-            "version-update:semver-major",
-            "version-update:semver-minor",
-            "version-update:semver-patch",
-          ]
-      - dependency-name: "vite"
-        update-types:
-          [
-            "version-update:semver-major",
-            "version-update:semver-minor",
-            "version-update:semver-patch",
-          ]
-      - dependency-name: "vitest"
-        update-types:
-          [
-            "version-update:semver-major",
-            "version-update:semver-minor",
-            "version-update:semver-patch",
-          ]
-      - dependency-name: "vite-plus"
-        update-types:
-          [
-            "version-update:semver-major",
-            "version-update:semver-minor",
-            "version-update:semver-patch",
-          ]
+        update-types: ["major", "minor", "patch"]
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types: ["minor", "patch"]
+
   - package-ecosystem: "github-actions"
     directories:
       - "/"
       - "/.github/actions/*"
+    target-branch: "trunk"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -82,5 +99,10 @@ updates:
     labels:
       - "dependencies"
     commit-message:
-      prefix: "ci"
-      include: "scope"
+      prefix: "chore"
+    cooldown:
+      default-days: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"

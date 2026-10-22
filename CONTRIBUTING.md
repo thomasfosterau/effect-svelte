@@ -1,66 +1,67 @@
 # Contributing to effect-svelte
 
-This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`). Conventions are in [AGENTS.md](AGENTS.md); this file is the setup, the commands and the checklists.
+This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`). Conventions are in [AGENTS.md](AGENTS.md); this file is the human setup, the hooks and the individual checks.
 
 ## Development setup
 
-### Prerequisites
-
-- Node.js `^22.19.0 || ^24.11.0 || >=26` (the root `engines.node`: the intersection of the dev toolchain's floors — SvelteKit 3, vite-plus, `@changesets/cli` and undici via `@effect/platform-node`); CI runs the latest stable Node (`node-version: latest`).
-- [pnpm](https://pnpm.io) 10 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
-- Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`, or the root scripts (`pnpm run check`, `pnpm run test`, `pnpm run build`).
-
-### Getting started
+- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node (`node-version: latest`).
+- [pnpm](https://pnpm.io) 11 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
+- Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`.
 
 ```bash
-pnpm install --frozen-lockfile
-vp check          # format, lint and type-check the whole workspace
-vp run -r test    # every package's Vitest suite
-vp run -r build   # every package's dist/, then the example apps
+pnpm install --frozen-lockfile   # dependencies + the Vite+ git hooks
+vp check                         # format + lint
+vp run check                     # type gate (svelte-check)
+vp run -r test:unit              # every package's Vitest suite
+vp run -r build                  # every package's dist/
 ```
 
-In an agent session the committed SessionStart hook ([.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)) does the install and puts `vp` on PATH; the devcontainer's `postCreateCommand` runs the same file.
+In an agent session the committed SessionStart hook ([.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)) does the install and puts `vp` and `fallow` on PATH; the devcontainer's `postCreateCommand` runs the same file.
 
-## Development workflow
+## Branches
 
-The gate commands are listed in [AGENTS.md § Commands](AGENTS.md#commands). Beyond those:
+Branch off `trunk`, rebase rather than merge, squash-merge with a conventional prefix: see [AGENTS.md](AGENTS.md#branches-and-pull-requests).
 
-| Command                                        | Description                               |
-| ---------------------------------------------- | ----------------------------------------- |
-| `vp check --fix`                               | Apply format and lint fixes.              |
-| `vp fmt` / `vp lint`                           | Either half of `vp check` on its own.     |
-| `vp test` / `vp test run tests/<file>.test.ts` | Inside a package: one suite, or one file. |
+## Git hooks
 
-Lint and format are configured once at the workspace root (`vite.config.ts`, which excludes `examples/**` from the type-aware lint because the examples only resolve after a build); each package's own `vite.config.ts` holds its `pack` and `test` config.
+Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editable [.vite-hooks/pre-commit](.vite-hooks/pre-commit) is committed. **pre-commit** runs `vp staged` (format + lint on staged files). There is no pre-push hook.
 
 ## Testing
 
 - Tests live in each package's `tests/` directory and import from `vite-plus/test`.
 - `packages/svelte` splits its suite into three Vitest projects: `tests/dom/` mounts components under happy-dom, `tests/ssr/` renders them with `svelte/server`, and everything else in `tests/` runs in plain Node.
 - `packages/sveltekit` has two projects: `tests/client/` runs rune-backed client code (with `$app/*` stand-ins) under happy-dom and the Svelte plugin, and everything else in `tests/` runs in plain Node.
-- Add tests for new behaviour; to exercise the published shape, add or extend an example app and its row in [examples/README.md](examples/README.md).
 
-## Changesets
+## Running individual checks
 
-This project uses [Changesets](https://github.com/changesets/changesets). If your change affects a published package, add a changeset describing it:
-
-```bash
-pnpm changeset          # pick the package(s) and a patch / minor / major bump
-pnpm changeset status   # preview pending releases
+```sh
+vp lint                                        # oxlint (with @mpsuesser/oxlint-plugin-effect)
+vp fmt                                         # oxfmt
+vp check --fix                                 # apply format and lint fixes
+vp run check                                   # the whole type gate
+vp run --filter ./packages/svelte check        # one package's type gate
+vp run -r test:unit                            # unit tests
+vp test run tests/some.test.ts                 # single file (from inside the package)
+vp run -r build                                # emit dist/
+vp run test:coverage                           # one Istanbul map for fallow
+vp run fallow                                  # dead code, dependencies, boundaries
+vp run fallow:audit                            # change-set review (not a CI gate)
 ```
-
-The changeset file is committed with your change. Releases happen when the owner merges the "Version Packages" PR; see [docs/RELEASING.md](docs/RELEASING.md) for the pipeline and the one-time setup.
 
 ## CI expectations
 
-[ci.yml](.github/workflows/ci.yml) runs one job on the latest stable Node (`latest`) for every push to and pull request against `main`: the gates listed in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `main` under the protected `release` environment.
+[ci.yml](.github/workflows/ci.yml) runs one job, `ci`, on the latest stable Node for every push to and pull request against `trunk`: the gates in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `trunk` under the protected `release` environment ([PUBLISHING.md](PUBLISHING.md)).
+
+## Changesets
+
+If your change affects a published package, add a changeset (`pnpm changeset`) and commit it with the change; `pnpm changeset status` previews pending releases. Releases happen when the owner merges the "chore: version packages" PR.
 
 ## Pre-PR checklist
 
-1. Run every gate in [AGENTS.md § Verification](AGENTS.md#verification) and note each result in the PR body.
-2. Add a changeset where [AGENTS.md § Branches and pull requests](AGENTS.md#branches-and-pull-requests) requires one.
-3. `git fetch origin main && git rebase origin/main` — never merge `main` into your branch.
-4. Update the docs: the package `README.md` (the npm API reference) for any exported change, `examples/README.md` if an example's coverage changed, `AGENTS.md` for a new invariant.
+1. Every gate in [AGENTS.md § Verification](AGENTS.md#verification), each with its final pass/fail in the PR body.
+2. A changeset where [AGENTS.md § Branches and pull requests](AGENTS.md#branches-and-pull-requests) requires one.
+3. `git fetch origin trunk && git rebase origin/trunk` — never merge `trunk` into your branch.
+4. Docs: the package `README.md` (the npm API reference) for any exported change; the package `CLAUDE.md` for a new invariant or entry.
 
 ## Commit messages
 
