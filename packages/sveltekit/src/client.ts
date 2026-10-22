@@ -18,7 +18,7 @@ export * as State from "./State.js";
 export * as Remote from "./Remote.js";
 
 // Reactive bridge: a remote query/resource as an AsyncResult.
-export { useRemoteQuery } from "./remote-reactive.js";
+export { useRemoteQuery, type RemoteQueryResult } from "./remote-reactive.js";
 
 // Realtime bridges: an SSE endpoint or a WebSocket as an Effect Stream
 // (counterpart to server-side `Endpoint.fromStream`).

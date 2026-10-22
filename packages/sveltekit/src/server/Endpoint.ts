@@ -36,6 +36,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type * as Scope from "effect/Scope";
@@ -331,7 +332,8 @@ export interface FromStreamOptions<A, R = never> {
    */
   readonly event?: string | ((value: A) => string | undefined);
   /**
-   * Encode an element into the `data:` payload. Defaults to `JSON.stringify`.
+   * Encode an element into the `data:` payload. Defaults to JSON (an element
+   * JSON cannot represent, such as a `bigint`, ends the stream with a defect).
    * Multi-line output is split across multiple `data:` lines automatically.
    */
   readonly data?: (value: A) => string;
@@ -355,6 +357,11 @@ export interface FromStreamOptions<A, R = never> {
    */
   readonly provide?: Layer.Layer<R> | Context.Context<R>;
 }
+
+/** `fromStream`'s default `data:` encoder: the element as a JSON string. */
+const encodeJson: <A>(value: A) => string = Schema.encodeSync(
+  Schema.fromJsonString(Schema.Unknown),
+);
 
 /**
  * Create a SvelteKit endpoint that streams an Effect `Stream` to the browser as
@@ -386,7 +393,7 @@ export const fromStream = <A, E, R = never>(
   stream: Stream.Stream<A, E, R>,
   options?: FromStreamOptions<A, R>,
 ): RequestHandler => {
-  const encodeData = options?.data ?? ((value: A): string => JSON.stringify(value));
+  const encodeData = options?.data ?? encodeJson;
   const eventOf = (value: A): string | undefined => {
     const name = options?.event;
     return Predicate.isFunction(name) ? name(value) : name;

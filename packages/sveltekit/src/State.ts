@@ -63,7 +63,7 @@ import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 import type * as Stream from "effect/Stream";
 import {
-  type CurrentPageShape,
+  type CurrentPageService,
   type NavigatingSnapshot,
   type PageSnapshot,
   type UpdateCheckError,
@@ -153,7 +153,7 @@ export function checkForUpdate(): Effect.Effect<boolean, UpdateCheckError> {
  * and `changes` streams it. Neither fails on the client; see
  * {@link CurrentPage} for the server.
  */
-export interface CurrentPageInterface extends CurrentPageShape<Page> {}
+export interface CurrentPageInterface extends CurrentPageService<Page> {}
 
 /**
  * The current SvelteKit page as an Effect service, so any client Effect can read

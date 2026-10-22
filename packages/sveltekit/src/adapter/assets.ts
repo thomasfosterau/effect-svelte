@@ -17,8 +17,10 @@
  */
 
 import * as Effect from "effect/Effect";
+import * as HashSet from "effect/HashSet";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as HttpPlatform from "effect/http/HttpPlatform";
@@ -52,72 +54,94 @@ export const fileSystem = (config: {
   readonly dir: string;
   /** The configured `manifest.appPath` — its `immutable/` subtree gets immutable caching. */
   readonly appPath: string;
-  /** The set of prerendered paths exported by the build output. */
-  readonly prerendered: ReadonlySet<string>;
-}): AssetSource<FileSystemAssetServices> => ({
-  serveAsset: (request, pathname) =>
-    Effect.gen(function* () {
-      // Only GET/HEAD reach static assets.
-      if (request.method !== "GET" && request.method !== "HEAD") return Option.none();
+  /**
+   * The prerendered paths exported by the build output (the build's
+   * `prerendered` `Set`, or any iterable of paths).
+   */
+  readonly prerendered: Iterable<string>;
+}): AssetSource<FileSystemAssetServices> => {
+  const prerendered = HashSet.fromIterable(config.prerendered);
+  return {
+    serveAsset: (request, pathname) =>
+      Effect.gen(function* () {
+        // Only GET/HEAD reach static assets.
+        if (request.method !== "GET" && request.method !== "HEAD") return Option.none();
 
-      const path = yield* Path.Path;
-      const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fs = yield* FileSystem.FileSystem;
 
-      const clientDir = path.join(config.dir, "client");
-      const prerenderedDir = path.join(config.dir, "prerendered");
-      const immutablePrefix = `/${config.appPath}/immutable/`;
+        const clientDir = path.join(config.dir, "client");
+        const prerenderedDir = path.join(config.dir, "prerendered");
+        const immutablePrefix = `/${config.appPath}/immutable/`;
 
-      /**
-       * Serve a file from `root` if `pathname` resolves to an existing file
-       * inside it (rejecting path traversal). `Option.none()` otherwise.
-       */
-      const serveFile = (
-        root: string,
-        candidate: string,
-        headers?: Record<string, string>,
-      ): Effect.Effect<
-        Option.Option<HttpServerResponse.HttpServerResponse>,
-        never,
-        FileSystemAssetServices
-      > =>
-        Effect.gen(function* () {
-          const filePath = path.join(root, candidate);
-          const relative = path.relative(root, filePath);
-          if (relative.startsWith("..") || path.isAbsolute(relative)) return Option.none();
+        /**
+         * Serve a file from `root` if `pathname` resolves to an existing file
+         * inside it (rejecting path traversal). `Option.none()` otherwise.
+         */
+        const serveFile = (
+          root: string,
+          candidate: string,
+          headers?: Record<string, string>,
+        ): Effect.Effect<
+          Option.Option<HttpServerResponse.HttpServerResponse>,
+          never,
+          FileSystemAssetServices
+        > =>
+          Effect.gen(function* () {
+            const filePath = path.join(root, candidate);
+            const relative = path.relative(root, filePath);
+            if (relative.startsWith("..") || path.isAbsolute(relative)) return Option.none();
 
-          const stat = yield* fs.stat(filePath).pipe(Effect.option);
-          if (Option.isNone(stat) || stat.value.type !== "File") return Option.none();
+            const stat = yield* fs.stat(filePath).pipe(Effect.option);
+            if (Option.isNone(stat) || stat.value.type !== "File") return Option.none();
 
-          const response = yield* HttpServerResponse.file(filePath, { headers }).pipe(Effect.orDie);
-          return Option.some(response);
-        });
+            const response = yield* HttpServerResponse.file(filePath, { headers }).pipe(
+              Effect.orDie,
+            );
+            return Option.some(response);
+          });
 
-      // 1. Static client assets (hashed build assets get immutable caching).
-      const isImmutable = pathname.startsWith(immutablePrefix);
-      const asset = yield* serveFile(
-        clientDir,
-        pathname,
-        isImmutable ? IMMUTABLE_HEADERS : undefined,
-      );
-      if (Option.isSome(asset)) return asset;
-
-      // 2. Prerendered pages.
-      if (config.prerendered.has(pathname) || config.prerendered.has(pathname + "/")) {
-        const candidates =
-          pathname === "/"
-            ? ["/index.html"]
-            : pathname.endsWith("/")
-              ? [`${pathname}index.html`, `${pathname.slice(0, -1)}.html`]
-              : [pathname, `${pathname}.html`, `${pathname}/index.html`];
-        // The first candidate that exists, tried in order.
-        return yield* Effect.findFirstFilter(candidates, (candidate) =>
-          serveFile(prerenderedDir, candidate).pipe(Effect.map(Result.fromOption(() => candidate))),
+        // 1. Static client assets (hashed build assets get immutable caching).
+        const isImmutable = pathname.startsWith(immutablePrefix);
+        const asset = yield* serveFile(
+          clientDir,
+          pathname,
+          isImmutable ? IMMUTABLE_HEADERS : undefined,
         );
-      }
+        if (Option.isSome(asset)) return asset;
 
-      return Option.none();
-    }),
-});
+        // 2. Prerendered pages.
+        if (HashSet.has(prerendered, pathname) || HashSet.has(prerendered, pathname + "/")) {
+          const candidates =
+            pathname === "/"
+              ? ["/index.html"]
+              : pathname.endsWith("/")
+                ? [`${pathname}index.html`, `${pathname.slice(0, -1)}.html`]
+                : [pathname, `${pathname}.html`, `${pathname}/index.html`];
+          // The first candidate that exists, tried in order.
+          return yield* Effect.findFirstFilter(candidates, (candidate) =>
+            serveFile(prerenderedDir, candidate).pipe(
+              Effect.map(Result.fromOption(() => candidate)),
+            ),
+          );
+        }
+
+        return Option.none();
+      }),
+  };
+};
+
+/**
+ * A {@link cloudflareAssets} binding's `fetch` rejected. The asset source's
+ * error channel is `never`, so this reaches the handler as a DEFECT (a 500),
+ * carrying what `fetch` rejected with as `cause`.
+ */
+export class AssetFetchError extends Schema.TaggedError<AssetFetchError>()("AssetFetchError", {
+  /** The request path the binding was asked for. */
+  url: Schema.String,
+  /** What the binding's `fetch` rejected with, or threw. */
+  cause: Schema.Defect(),
+}) {}
 
 /**
  * Serve static assets from a Cloudflare Workers static-assets binding (commonly
@@ -134,7 +158,10 @@ export const cloudflareAssets = (assets: {
   serveAsset: (request) =>
     Effect.gen(function* () {
       if (request.method !== "GET" && request.method !== "HEAD") return Option.none();
-      const response = yield* Effect.promise(async () => assets.fetch(request));
+      const response = yield* Effect.tryPromise({
+        try: async () => assets.fetch(request),
+        catch: (cause) => new AssetFetchError({ url: request.url, cause }),
+      }).pipe(Effect.orDie);
       if (response.status === 404) return Option.none();
       return Option.some(HttpServerResponse.fromWeb(response));
     }),

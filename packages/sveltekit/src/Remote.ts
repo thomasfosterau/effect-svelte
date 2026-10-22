@@ -143,12 +143,12 @@ export function callPrerender<Input, Output>(
 }
 
 /**
- * The shape of an enhanced remote form `submit` function. The promise result
- * is left open (SvelteKit returns `Promise<void>` in older versions and
- * `Promise<boolean>` in newer ones).
+ * The shape of an enhanced remote form `submit` function, as SvelteKit 3's
+ * `RemoteForm.submit`: it resolves with whether the submission was valid, and
+ * `updates` refreshes queries in the same round trip.
  */
-export type RemoteSubmit = () => PromiseLike<unknown> & {
-  updates: (...queries: Array<RemoteQuery<any> | RemoteQueryOverride>) => PromiseLike<unknown>;
+export type RemoteSubmit = () => PromiseLike<boolean> & {
+  updates: (...queries: Array<RemoteQuery<any> | RemoteQueryOverride>) => PromiseLike<boolean>;
 };
 
 /**
@@ -160,7 +160,7 @@ export type RemoteSubmit = () => PromiseLike<unknown> & {
  * failing.
  */
 export function submitForm(
-  submit: () => PromiseLike<unknown>,
+  submit: () => PromiseLike<boolean>,
 ): Effect.Effect<void, unknown, never> {
   return Effect.asVoid(fromRemotePromise(() => submit()));
 }

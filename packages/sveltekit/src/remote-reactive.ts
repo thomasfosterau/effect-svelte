@@ -2,6 +2,14 @@ import type { RemoteResource } from "$app/server";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
+ * What {@link useRemoteQuery} returns: the remote resource's state as an
+ * {@link AsyncResult.AsyncResult}, read reactively through `current`.
+ */
+export interface RemoteQueryResult<T> {
+  readonly current: AsyncResult.AsyncResult<T, unknown>;
+}
+
+/**
  * Bridges a SvelteKit remote resource (`query(...)`, `query.live(...)`,
  * `prerender(...)`) into Effect's native
  * {@link AsyncResult.AsyncResult} — the same result type the Svelte hooks in
@@ -29,9 +37,7 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
  * {/if}
  * ```
  */
-export function useRemoteQuery<T>(query: RemoteResource<T>): {
-  readonly current: AsyncResult.AsyncResult<T, unknown>;
-} {
+export function useRemoteQuery<T>(query: RemoteResource<T>): RemoteQueryResult<T> {
   return {
     get current() {
       // Read every reactive field so the consumer's effect tracks the resource.

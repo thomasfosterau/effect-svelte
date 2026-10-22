@@ -2,6 +2,7 @@ import type { Action, Actions, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Cause from "effect/Cause";
+import * as Console from "effect/Console";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import type { SvelteKitServices } from "./app-runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
@@ -156,8 +157,9 @@ export function endpoint<
           throw squashed;
         }
 
-        // Always log the full error server-side for debugging
-        console.error("Endpoint error:", Cause.pretty(cause));
+        // Always log the full error server-side for debugging, through Effect's
+        // default `Console` (the global console).
+        Effect.runSync(Console.error("Endpoint error:", Cause.pretty(cause)));
 
         // Return generic error message to client unless explicitly enabled
         const clientMessage = exposeErrors ? Cause.pretty(cause) : "Internal server error";
@@ -198,7 +200,7 @@ export {
  * Export the SvelteKit runtime utilities for advanced use cases.
  */
 export { SvelteKitRuntime, runWithSvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
-export { RemoteFunction } from "./remote-functions.js";
+export { RemoteFunction, RemoteFunctionUsageError } from "./remote-functions.js";
 
 /**
  * A general, Effect-idiomatic seam for *how the per-request execution context is
@@ -270,6 +272,7 @@ export { defer } from "./streamed-load.js";
  * - `KitRedirect`, `KitError`, `KitActionFailure` — the tagged error classes
  *   for use with `Effect.catchTag`, `instanceof`, etc.
  * - `KitTranslatorCase` — the argument type for `makeTranslator`.
+ * - `KitErrorBody` — the body `SvelteKit.error` / `KitError` carry.
  */
 export {
   SvelteKit,
@@ -279,6 +282,7 @@ export {
   type KitTranslatorCase,
   type KitErrorTranslator,
 } from "./kit.js";
+export type { KitErrorBody } from "./internal/error.js";
 
 /**
  * A `translateError` built from a tag-keyed catalogue:

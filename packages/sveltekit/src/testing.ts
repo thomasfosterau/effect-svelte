@@ -44,6 +44,7 @@ import type { Cookies, RequestEvent } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Arr from "effect/Array";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Rec from "effect/Record";
 import {
   makeRuntimeAdapter,
@@ -58,31 +59,53 @@ export type { RunHelpers, FormErrorMapper } from "./internal/remote-run.js";
 
 // ─── TestCookies ─────────────────────────────────────────────────────────────
 
-/** Map-backed Cookies implementation for use in {@link TestRequestEvent}. */
 type CookieParseOptions = Parameters<Cookies["get"]>[1];
 type CookieSerializeOptions = Parameters<Cookies["set"]>[2];
 
-class TestCookies {
-  private readonly store: Map<string, string>;
+/** One stored cookie. */
+interface TestCookie {
+  readonly name: string;
+  readonly value: string;
+}
 
-  constructor(initial: Record<string, string> = {}) {
-    this.store = new Map(Rec.toEntries(initial));
+/**
+ * In-memory Cookies implementation for use in {@link TestRequestEvent}: an
+ * ordered list, so `getAll()` returns cookies in the order they were first set
+ * (as SvelteKit's does), and `set` on an existing name replaces it in place.
+ */
+class TestCookies {
+  private store: ReadonlyArray<TestCookie>;
+
+  constructor(initial: Readonly<Record<string, string>> = {}) {
+    this.store = Arr.map(Rec.toEntries(initial), ([name, value]) => ({ name, value }));
   }
 
   get(name: string, _opts?: CookieParseOptions): string | undefined {
-    return this.store.get(name);
+    return Option.getOrUndefined(
+      Option.map(
+        Arr.findFirst(this.store, (cookie) => cookie.name === name),
+        (cookie) => cookie.value,
+      ),
+    );
   }
 
   getAll(_opts?: CookieParseOptions): Array<{ name: string; value: string }> {
-    return Arr.map(Arr.fromIterable(this.store.entries()), ([name, value]) => ({ name, value }));
+    return Arr.map(this.store, ({ name, value }) => ({ name, value }));
   }
 
   set(name: string, value: string, _opts?: CookieSerializeOptions): void {
-    this.store.set(name, value);
+    this.store = Option.match(
+      Arr.findFirstIndex(this.store, (cookie) => cookie.name === name),
+      {
+        onNone: () => Arr.append(this.store, { name, value }),
+        onSome: (index) =>
+          Arr.map(this.store, (cookie, i) => (i === index ? { name, value } : cookie)),
+      },
+    );
   }
 
   delete(name: string, _opts?: CookieSerializeOptions): void {
-    this.store.delete(name);
+    this.store = Arr.filter(this.store, (cookie) => cookie.name !== name);
   }
 
   serialize(name: string, value: string, _opts?: CookieSerializeOptions): string {
@@ -111,10 +134,10 @@ export interface TestRequestEventOptions {
    */
   readonly params?: Record<string, string>;
   /**
-   * Initial `event.locals` value. Defaults to `{}`.
-   * Cast to `App.Locals` — extend it with the properties your handlers need.
+   * Initial `event.locals` value, typed as your app's `App.Locals` (declare its
+   * fields in `src/app.d.ts`). Defaults to `{}`.
    */
-  readonly locals?: Record<string, unknown>;
+  readonly locals?: App.Locals;
   /**
    * Pre-seeded cookies as `{ name: value }` pairs.
    * The backing store supports `get`, `getAll`, `set`, `delete`, and
@@ -125,7 +148,7 @@ export interface TestRequestEventOptions {
    * The `event.platform` value, if any.
    * Pass a partial platform object matching the environment the handler targets.
    */
-  readonly platform?: unknown;
+  readonly platform?: App.Platform;
   /**
    * The `fetch` implementation used by `event.fetch`.
    * Defaults to `globalThis.fetch`. Pass a custom function to intercept or
@@ -144,8 +167,8 @@ type TestRequestEventFixture = Omit<
   "cookies" | "locals" | "platform" | "tracing" | "isRemoteRequest"
 > & {
   readonly cookies: Omit<Cookies, "parse">;
-  readonly locals: object;
-  readonly platform: unknown;
+  readonly locals: App.Locals;
+  readonly platform: App.Platform | undefined;
 };
 
 /**

@@ -79,7 +79,7 @@ const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
     const app = yield* makeHandler({
       server: new FakeServer(),
       appPath: "_app",
-      prerendered: new Set(["/about", "/", "/blog/"]),
+      prerendered: ["/about", "/", "/blog/"],
       base: "",
       dir: yield* makeBuildDir(),
       env: { FROM_TEST: "yes" },

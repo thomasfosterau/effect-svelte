@@ -12,6 +12,7 @@ import type {
   RemoteCommand,
   RemoteForm,
   RemoteFormInput,
+  RemoteLiveQueryFunction,
   RemotePrerenderFunction,
   RemoteQueryFunction,
   RemoteFormInvalidField as InvalidField,
@@ -63,10 +64,22 @@ const helpersFromProvider = (
     formError,
   );
 
+/**
+ * Thrown synchronously, when a remote function is DEFINED, by a
+ * `RemoteFunction` factory called with arguments no overload accepts (a
+ * schema with no handler), or that needs an API the installed SvelteKit lacks.
+ * It is a programming error in the `*.remote.ts` module, never a request
+ * failure.
+ */
+export class RemoteFunctionUsageError extends Schema.TaggedError<RemoteFunctionUsageError>()(
+  "RemoteFunctionUsageError",
+  { message: Schema.String },
+) {}
+
 function unavailable(name: string): never {
-  throw new Error(
-    `${name} is not available in the installed SvelteKit version. Update @sveltejs/kit to use this API.`,
-  );
+  throw new RemoteFunctionUsageError({
+    message: `${name} is not available in the installed SvelteKit version. Update @sveltejs/kit to use this API.`,
+  });
 }
 
 /** Any validator argument the remote helpers accept in the handler-with-validation position. */
@@ -125,7 +138,9 @@ const makeQuery = <Env>(run: Runner): QueryFn<Env> => {
     }
 
     if (!arg2) {
-      throw new Error("query requires a handler function when a schema is provided");
+      throw new RemoteFunctionUsageError({
+        message: "query requires a handler function when a schema is provided",
+      });
     }
 
     return AppServer.query(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
@@ -198,22 +213,30 @@ function getRequested(): <Result>(...args: unknown[]) => Result {
   return requestedFn;
 }
 
-/** The public shape of `query.live`, parameterised by its handler env. */
+/**
+ * The public shape of `query.live`, parameterised by its handler env: kit 3's
+ * `query.live` overloads with an Effect handler that produces the
+ * `AsyncIterable` of values.
+ */
 export interface QueryLiveFn<Env> {
   <Input, Output>(
     validate: "unchecked",
     fn: (arg: Input) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
-  ): RemoteQueryFunction<Input, Output>;
+  ): RemoteLiveQueryFunction<Input, Output>;
   <Sch extends StandardSchemaV1, Output>(
     schema: Sch,
     fn: (
       arg: StandardSchemaV1.InferOutput<Sch>,
     ) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
-  ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
+  ): RemoteLiveQueryFunction<
+    StandardSchemaV1.InferInput<Sch>,
+    Output,
+    StandardSchemaV1.InferOutput<Sch>
+  >;
   <S extends Schema.Top, Output>(
     schema: S,
     fn: (arg: S["Type"]) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
-  ): RemoteQueryFunction<S["Encoded"], Output>;
+  ): RemoteLiveQueryFunction<S["Encoded"], Output, S["Type"]>;
 }
 
 const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
@@ -225,11 +248,10 @@ const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
     return live(toKitValidator(validate), (arg: In) => run(fn(arg)));
   };
   // SAFETY: every `QueryLiveFn` overload is (validator, handler), which `impl`
-  // forwards to kit's `query.live`. Kit 3 returns a `RemoteLiveQueryFunction`,
-  // which the published `QueryLiveFn` declares as `RemoteQueryFunction`; the two
-  // share the callable/`current`/`loading` surface but are not comparable, so
-  // the conversion goes through `unknown` until that published type is fixed.
-  return impl as unknown as QueryLiveFn<Env>;
+  // forwards unchanged to kit's `query.live`, so each overload returns exactly
+  // what the matching kit overload returns; `impl`'s single generic signature
+  // cannot name the validated-input type parameter each overload fixes.
+  return impl as QueryLiveFn<Env>;
 };
 
 /** The public shape of the `form` helper, parameterised by its handler env. */
@@ -269,7 +291,9 @@ const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> => {
     }
 
     if (!arg2) {
-      throw new Error("form requires a handler function when a schema is provided");
+      throw new RemoteFunctionUsageError({
+        message: "form requires a handler function when a schema is provided",
+      });
     }
 
     return AppServer.form(toKitValidator(arg1), (data: In, issue: InvalidField<In>) =>
@@ -310,7 +334,9 @@ const makeCommand = <Env>(run: Runner): CommandFn<Env> => {
     }
 
     if (!arg2) {
-      throw new Error("command requires a handler function when a schema is provided");
+      throw new RemoteFunctionUsageError({
+        message: "command requires a handler function when a schema is provided",
+      });
     }
 
     return AppServer.command(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
@@ -375,7 +401,9 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
     }
 
     if (!Predicate.isFunction(arg2)) {
-      throw new Error("prerender requires a handler function when a schema is provided");
+      throw new RemoteFunctionUsageError({
+        message: "prerender requires a handler function when a schema is provided",
+      });
     }
 
     return AppServer.prerender(toKitValidator(arg1), (arg: In) => run(arg2(arg)), arg3);

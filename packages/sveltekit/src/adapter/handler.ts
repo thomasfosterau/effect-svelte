@@ -30,10 +30,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { AssetSource, type FileSystemAssetServices } from "./assets.js";
 
-export { AssetSource, type FileSystemAssetServices } from "./assets.js";
+export { AssetFetchError, AssetSource, type FileSystemAssetServices } from "./assets.js";
 
 /**
  * The services required by the SvelteKit HTTP application when serving assets
@@ -65,8 +66,8 @@ export interface SvelteKitHandlerOptions {
    * headers.
    */
   readonly appPath: string;
-  /** The set of prerendered paths exported by the build output (`./manifest.js`). */
-  readonly prerendered: ReadonlySet<string>;
+  /** The prerendered paths exported by the build output (`./manifest.js`'s `Set`, or any iterable). */
+  readonly prerendered: Iterable<string>;
   /** The configured `paths.base`, exported by the build output (`./manifest.js`). */
   readonly base: string;
   /** Absolute path of the build output directory (contains `client/`, `server/`, `prerendered/`). */
@@ -217,6 +218,22 @@ export const makeHandler = (
   });
 
 /**
+ * The SvelteKit server's `init` or `respond` rejected. SvelteKit turns a
+ * route's own errors into responses, so a rejection is a bug in the server
+ * build; the handler's error channel is `never`, so this reaches the platform
+ * as a DEFECT (a 500), carrying what SvelteKit rejected with as `cause`.
+ */
+export class SvelteKitServerError extends Schema.TaggedError<SvelteKitServerError>()(
+  "SvelteKitServerError",
+  {
+    /** Which `Server` method rejected. */
+    operation: Schema.Literals(["init", "respond"]),
+    /** What the method rejected with, or threw. */
+    cause: Schema.Defect(),
+  },
+) {}
+
+/**
  * The platform-neutral SSR core. Like {@link makeHandler}, but the asset source
  * and the server-asset `read` capability are injected, so the same SvelteKit
  * `HttpApp` can run on Node (file-system assets) or on Cloudflare Workers
@@ -254,12 +271,14 @@ export const makeHandlerWith = <RAssets = never>(
 
     // Initialise the SvelteKit server. `read` backs `read()` from `$app/server`.
     const server = options.server;
-    yield* Effect.promise(() =>
-      server.init({
-        env: options.env ?? {},
-        read: options.read,
-      }),
-    );
+    yield* Effect.tryPromise({
+      try: () =>
+        server.init({
+          env: options.env ?? {},
+          read: options.read,
+        }),
+      catch: (cause) => new SvelteKitServerError({ operation: "init", cause }),
+    }).pipe(Effect.orDie);
 
     // The HTTP handler itself, evaluated once per request.
     return Effect.gen(function* () {
@@ -287,11 +306,13 @@ export const makeHandlerWith = <RAssets = never>(
 
       // 2. Server-side rendering.
       const webRequest = toWebRequest(request, url, requestContext);
-      const response = yield* Effect.promise(() =>
-        server.respond(webRequest, {
-          getClientAddress: () => clientAddressOf(request, config),
-        }),
-      );
+      const response = yield* Effect.tryPromise({
+        try: () =>
+          server.respond(webRequest, {
+            getClientAddress: () => clientAddressOf(request, config),
+          }),
+        catch: (cause) => new SvelteKitServerError({ operation: "respond", cause }),
+      }).pipe(Effect.orDie);
       return HttpServerResponse.fromWeb(response);
     });
   });

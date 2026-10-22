@@ -13,7 +13,7 @@
  */
 
 import type { NavigationTarget, NavigationType } from "$app/navigation";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
@@ -50,7 +50,7 @@ export interface ReadonlyPage {
   readonly route: { readonly id: string | null };
   readonly status: number;
   readonly error: unknown;
-  readonly data: Record<string, unknown>;
+  readonly data: App.PageData;
   readonly state: unknown;
   readonly form: unknown;
   // SvelteKit 3: the target of the current shallow navigation, or `null`.
@@ -180,9 +180,10 @@ export function snapshotNavigating(
  * request fails, so this signals misuse (e.g. calling it during server
  * rendering, where there is no `window`) rather than a network error.
  */
-export class UpdateCheckError extends Data.TaggedError("UpdateCheckError")<{
-  readonly cause: unknown;
-}> {}
+export class UpdateCheckError extends Schema.TaggedError<UpdateCheckError>()("UpdateCheckError", {
+  /** What `updated.check()` rejected with, or threw. */
+  cause: Schema.Defect(),
+}) {}
 
 /**
  * Runs `check` (SvelteKit's `updated.check`) as an Effect that succeeds with
@@ -200,19 +201,19 @@ export function checkForUpdateWith(
 
 // ─── CurrentPage ─────────────────────────────────────────────────────────────
 
-/** The service shape behind `State.CurrentPage`. */
-export interface CurrentPageShape<P extends ReadonlyPage = ReadonlyPage> {
+/** The service behind `State.CurrentPage`: a snapshot and a stream of page changes. */
+export interface CurrentPageService<P extends ReadonlyPage = ReadonlyPage> {
   /** Snapshots the current page when run. */
   readonly get: Effect.Effect<PageSnapshot<P>>;
   /** The current page, then a fresh snapshot whenever any of its fields changes. */
   readonly changes: Stream.Stream<PageSnapshot<P>>;
 }
 
-/** Builds a {@link CurrentPageShape} reading `readPage()` and watching it with `watch`. */
+/** Builds a {@link CurrentPageService} reading `readPage()` and watching it with `watch`. */
 export function makeCurrentPage<P extends ReadonlyPage>(
   readPage: () => P,
   watch: Watch,
-): CurrentPageShape<P> {
+): CurrentPageService<P> {
   const read = (): PageSnapshot<P> => snapshotPage(readPage());
   return { get: Effect.sync(read), changes: watchedStream(watch, read) };
 }

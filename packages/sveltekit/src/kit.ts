@@ -46,7 +46,7 @@ import { fail as kitFail, redirect as kitRedirect } from "@sveltejs/kit";
 import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import { causeToThrowable, throwKitError } from "./internal/error.js";
+import { causeToThrowable, throwKitError, type KitErrorBody } from "./internal/error.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ export class KitError extends Error {
 
   constructor(
     readonly status: number,
-    readonly body?: string | Record<string, unknown>,
+    readonly body?: KitErrorBody,
   ) {
     super(`HTTP ${status}`);
     this.name = "KitError";
@@ -86,9 +86,7 @@ export class KitError extends Error {
  * An Effect-native form-action failure. Yield via {@link SvelteKit.fail};
  * translated at the request boundary by {@link SvelteKit.translate}.
  */
-export class KitActionFailure<
-  T extends Record<string, unknown> = Record<string, unknown>,
-> extends Error {
+export class KitActionFailure<T = undefined> extends Error {
   readonly _tag = "KitActionFailure" as const;
 
   constructor(
@@ -188,10 +186,8 @@ export const SvelteKit = {
    * yield* SvelteKit.error(403, { message: "Forbidden" });
    * ```
    */
-  error: (
-    status: number,
-    body?: string | Record<string, unknown>,
-  ): Effect.Effect<never, KitError> => Effect.fail(new KitError(status, body)),
+  error: (status: number, body?: KitErrorBody): Effect.Effect<never, KitError> =>
+    Effect.fail(new KitError(status, body)),
 
   /**
    * Fail with a form-action failure. Equivalent to SvelteKit's `fail()` but as

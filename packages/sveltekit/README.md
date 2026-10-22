@@ -3,9 +3,12 @@
 Effect integration for SvelteKit: load/action/endpoint wrappers, remote
 functions, an `effectKit()` Vite plugin, and an Effect HTTP deployment adapter.
 
-It depends on
+It lists
 [`@thomasfosterau/effect-svelte`](https://www.npmjs.com/package/@thomasfosterau/effect-svelte)
-for the Svelte runes hooks.
+as a dependency, so a compatible version is always installed alongside it. To
+import its Svelte runes hooks (`useDerived`, `AsyncResult`, …) in your own
+code, add it to your app's dependencies too: pnpm only lets a package import
+what it lists itself.
 
 ## Install
 
@@ -42,17 +45,17 @@ optional `effectKit()` Vite plugin lets route files export bare Effects instead.
 
 ## API
 
-| Entry point                        | What it provides                                                                                                                                                                                                                                                  |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace, `Hooks` (`reroute`, `transport`), `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                               |
-| `…/server`                         | Server wrappers (`serverLoad`, `action`, `actions`, `endpoint`), `Hooks`, `Endpoint`, `makeServerRuntime`, the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `Errors`, `RemoteFunction`, request decoding (`decodeParams`, `decodeJson`, …) |
-| `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery`                                                                                                                  |
-| `…/vite`                           | The `effectKit()` Vite plugin (auto-wraps bare-Effect route exports)                                                                                                                                                                                              |
-| `…/adapter`                        | The Effect HTTP deployment adapter (`effectAdapter`)                                                                                                                                                                                                              |
-| `…/adapter/handler`                | The SvelteKit app as an Effect HTTP app (`makeHandler`, `makeHandlerWith`, `AssetSource`, `toWebHandler`)                                                                                                                                                         |
-| `…/adapter/serve`                  | The Node server the adapter's `index.js` runs (`serve`, `layer`)                                                                                                                                                                                                  |
-| `…/testing`                        | A fake `RequestEvent` and runners for unit-testing server wrappers and remote functions (`TestRequestEvent`, `runServerLoad`, `runAction`, `runEndpoint`, `runRemote`)                                                                                            |
-| `…/internal/auto`                  | Referenced by `effectKit()`'s generated code; not a public API                                                                                                                                                                                                    |
+| Entry point                        | What it provides                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace, `Hooks` (`reroute`, `transport`), `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                                                                                         |
+| `…/server`                         | Server wrappers (`serverLoad`, `action`, `actions`, `endpoint`), `Hooks`, `Endpoint`, `makeServerRuntime`, the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `Errors`, `RemoteFunction` / `RemoteFunctionUsageError`, `KitError` / `KitErrorBody`, request decoding (`decodeParams`, `decodeJson`, …) |
+| `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery` / `RemoteQueryResult`                                                                                                                                                      |
+| `…/vite`                           | The `effectKit()` Vite plugin (auto-wraps bare-Effect route exports)                                                                                                                                                                                                                                                        |
+| `…/adapter`                        | The Effect HTTP deployment adapter (`effectAdapter`)                                                                                                                                                                                                                                                                        |
+| `…/adapter/handler`                | The SvelteKit app as an Effect HTTP app (`makeHandler`, `makeHandlerWith`, `AssetSource`, `toWebHandler`, the `SvelteKitServerError` / `AssetFetchError` defects)                                                                                                                                                           |
+| `…/adapter/serve`                  | The Node server the adapter's `index.js` runs (`serve`, `layer`)                                                                                                                                                                                                                                                            |
+| `…/testing`                        | A fake `RequestEvent` and runners for unit-testing server wrappers and remote functions (`TestRequestEvent`, `runServerLoad`, `runAction`, `runEndpoint`, `runRemote`)                                                                                                                                                      |
+| `…/internal/auto`                  | Referenced by `effectKit()`'s generated code; not a public API                                                                                                                                                                                                                                                              |
 
 ### At a glance
 

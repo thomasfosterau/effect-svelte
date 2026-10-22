@@ -47,6 +47,7 @@ import {
   type ServerLoad,
 } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
+import * as Console from "effect/Console";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -349,7 +350,7 @@ export const makeRuntimeAdapter = <R>(
         const translated = Result.try(() => translateError(exit.cause));
         return Result.getOrElse(translated, (err) => {
           if (isRedirect(err) || isHttpError(err)) throw err;
-          console.error("Endpoint error:", Cause.pretty(exit.cause));
+          Effect.runSync(Console.error("Endpoint error:", Cause.pretty(exit.cause)));
           const message = options?.exposeErrors
             ? Cause.pretty(exit.cause)
             : "Internal server error";

@@ -5,6 +5,14 @@ import * as Predicate from "effect/Predicate";
 import { untrack } from "svelte";
 
 /**
+ * What {@link useScope} returns: the component's scope, read through
+ * `current`, which is `null` until the component mounts and the scope exists.
+ */
+export interface ScopeRef {
+  readonly current: Scope.Closeable | null;
+}
+
+/**
  * Creates an Effect Scope that is tied to the component lifecycle.
  * The scope is created when the component mounts and closed when it unmounts.
  *
@@ -27,7 +35,7 @@ import { untrack } from "svelte";
  * </script>
  * ```
  */
-export function useScope(): { get current(): Scope.Closeable | null } {
+export function useScope(): ScopeRef {
   let scope = $state<Scope.Closeable | null>(null);
 
   $effect(() => {

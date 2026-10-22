@@ -1,4 +1,5 @@
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import { createContext } from "svelte";
 import { defaultSvelteRuntime } from "./runtime.js";
 import type { RuntimeLike } from "./internal/run.js";
@@ -14,18 +15,30 @@ import type { RuntimeLike } from "./internal/run.js";
 const [getRuntime, provideRuntimeInternal] = createContext<RuntimeLike<never>>();
 
 /**
+ * Thrown by {@link getRuntime} and `RuntimeContext.get` when no parent
+ * component provided a runtime. It is thrown synchronously (these are Svelte
+ * context lookups, not Effects), and its `message` says which context was
+ * missing.
+ */
+class RuntimeNotFoundError extends Schema.TaggedError<RuntimeNotFoundError>()(
+  "RuntimeNotFoundError",
+  { message: Schema.String },
+) {}
+
+/**
  * Retrieves the Effect runtime from Svelte context.
  *
  * @returns The runtime provided via provideRuntime
- * @throws Will throw if called outside of a component with a provided runtime
+ * @throws {RuntimeNotFoundError} if called outside of a component with a provided runtime
  */
 function getRuntimeContext(): RuntimeLike<never> {
   const runtime = getRuntime();
   if (runtime === undefined) {
-    throw new Error(
-      "effect-svelte: No Effect runtime found in context. " +
+    throw new RuntimeNotFoundError({
+      message:
+        "effect-svelte: No Effect runtime found in context. " +
         "Make sure you have called provideRuntime() in a parent component.",
-    );
+    });
   }
   return runtime;
 }
@@ -120,14 +133,20 @@ function createRuntimeContext<R>(name?: string): RuntimeContext<R> {
       return Result.getOrThrowWith(
         Result.try(get),
         () =>
-          new Error(
-            `effect-svelte: No Effect runtime found for ${label}. ` +
+          new RuntimeNotFoundError({
+            message:
+              `effect-svelte: No Effect runtime found for ${label}. ` +
               "Call its `provide(runtime)` in a parent component during initialisation.",
-          ),
+          }),
       );
     },
   };
 }
 
-export { createRuntimeContext, getRuntimeContext as getRuntime, provideRuntime };
+export {
+  createRuntimeContext,
+  getRuntimeContext as getRuntime,
+  provideRuntime,
+  RuntimeNotFoundError,
+};
 export type { RuntimeContext, RuntimeLike };

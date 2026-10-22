@@ -31,7 +31,7 @@
 
 import { applyAction as kitApplyAction, deserialize as kitDeserialize } from "$app/forms";
 import type { ActionResult } from "$app/forms";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import { makeSubmitFunction } from "./internal/enhance.js";
 
@@ -94,10 +94,10 @@ export const enhance = makeSubmitFunction;
  * page's base URL, or a `beforeNavigate` / `onNavigate` callback that throws. Recover with
  * `Effect.catchTag("ApplyActionError", ...)`.
  */
-export class ApplyActionError extends Data.TaggedError("ApplyActionError")<{
+export class ApplyActionError extends Schema.TaggedError<ApplyActionError>()("ApplyActionError", {
   /** The rejection reason, or the value thrown, as SvelteKit produced it. */
-  readonly cause: unknown;
-}> {}
+  cause: Schema.Defect(),
+}) {}
 
 /**
  * Apply an `ActionResult` to the page (updating `page.form` / `page.status`,
