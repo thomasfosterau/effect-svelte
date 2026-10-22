@@ -36,12 +36,12 @@ declare const universalLoad: typeof import("../src/universal.js").load;
 // defaults to `any`).
 
 // The `params` type a handler accepted by `Wrap` sees, at default generics.
-type HandlerParams<Fn> = Fn extends (event: infer E, ...rest: never[]) => unknown
+type HandlerParams<Fn> = Fn extends (event: infer E, ...rest: never[]) => void
   ? E extends { params: infer P }
     ? P
     : never
   : never;
-type WrapperParams<Wrap> = Wrap extends (fn: infer Fn, ...rest: never[]) => unknown
+type WrapperParams<Wrap> = Wrap extends (fn: infer Fn, ...rest: never[]) => void
   ? HandlerParams<Fn>
   : never;
 
@@ -51,9 +51,9 @@ type KitActionParams = HandlerParams<Action>;
 type KitRequestHandlerParams = HandlerParams<RequestHandler>;
 type KitLoadParams = HandlerParams<Load>;
 
-// A concrete route (`[id]`) and a root-layout shape (optional child params).
+// A concrete route (`[id]`) and a root layout's params (optional child params).
 type RouteParams = { id: string };
-type LayoutShape = { type?: string; id?: string };
+type RootLayoutParams = { type?: string; id?: string };
 
 // The runtime-bound wrappers are `declare`d (never constructed) so this suite
 // stays a pure type check.
@@ -116,30 +116,36 @@ export function typeChecks() {
 
   // ── 4. a root-layout shape (optional child params) annotates cleanly ──────
   // across every wrapper that takes a `Params` generic.
-  const layoutServerLoad: ServerLoad<LayoutShape> = serverLoad(() => Effect.succeed({ ok: true }));
-  const layoutAction: Action<LayoutShape> = action(() => Effect.succeed({ ok: true }));
-  const layoutActions: Actions<LayoutShape> = actions({ save: () => Effect.succeed({ ok: true }) });
-  const layoutEndpoint: RequestHandler<LayoutShape> = endpoint(() =>
+  const layoutServerLoad: ServerLoad<RootLayoutParams> = serverLoad(() =>
+    Effect.succeed({ ok: true }),
+  );
+  const layoutAction: Action<RootLayoutParams> = action(() => Effect.succeed({ ok: true }));
+  const layoutActions: Actions<RootLayoutParams> = actions({
+    save: () => Effect.succeed({ ok: true }),
+  });
+  const layoutEndpoint: RequestHandler<RootLayoutParams> = endpoint(() =>
     Effect.succeed(new Response()),
   );
-  const layoutUniversal: Load<LayoutShape> = universalLoad(() => Effect.succeed({ ok: true }));
-  expectTypeOf(layoutServerLoad).toMatchTypeOf<ServerLoad<LayoutShape>>();
-  expectTypeOf(layoutAction).toMatchTypeOf<Action<LayoutShape>>();
-  expectTypeOf(layoutActions).toMatchTypeOf<Actions<LayoutShape>>();
-  expectTypeOf(layoutEndpoint).toMatchTypeOf<RequestHandler<LayoutShape>>();
-  expectTypeOf(layoutUniversal).toMatchTypeOf<Load<LayoutShape>>();
+  const layoutUniversal: Load<RootLayoutParams> = universalLoad(() => Effect.succeed({ ok: true }));
+  expectTypeOf(layoutServerLoad).toMatchTypeOf<ServerLoad<RootLayoutParams>>();
+  expectTypeOf(layoutAction).toMatchTypeOf<Action<RootLayoutParams>>();
+  expectTypeOf(layoutActions).toMatchTypeOf<Actions<RootLayoutParams>>();
+  expectTypeOf(layoutEndpoint).toMatchTypeOf<RequestHandler<RootLayoutParams>>();
+  expectTypeOf(layoutUniversal).toMatchTypeOf<Load<RootLayoutParams>>();
 
   // Runtime-bound wrappers accept the same root-layout shape.
-  const adapterLayout: ServerLoad<LayoutShape> = adapter.serverLoad(() =>
+  const adapterLayout: ServerLoad<RootLayoutParams> = adapter.serverLoad(() =>
     Effect.succeed({ ok: true }),
   );
-  const serverLayout: ServerLoad<LayoutShape> = server.serverLoad(() =>
+  const serverLayout: ServerLoad<RootLayoutParams> = server.serverLoad(() =>
     Effect.succeed({ ok: true }),
   );
-  const universalLayout: Load<LayoutShape> = universal.load(() => Effect.succeed({ ok: true }));
-  expectTypeOf(adapterLayout).toMatchTypeOf<ServerLoad<LayoutShape>>();
-  expectTypeOf(serverLayout).toMatchTypeOf<ServerLoad<LayoutShape>>();
-  expectTypeOf(universalLayout).toMatchTypeOf<Load<LayoutShape>>();
+  const universalLayout: Load<RootLayoutParams> = universal.load(() =>
+    Effect.succeed({ ok: true }),
+  );
+  expectTypeOf(adapterLayout).toMatchTypeOf<ServerLoad<RootLayoutParams>>();
+  expectTypeOf(serverLayout).toMatchTypeOf<ServerLoad<RootLayoutParams>>();
+  expectTypeOf(universalLayout).toMatchTypeOf<Load<RootLayoutParams>>();
 }
 
 describe("route-param wrappers mirror SvelteKit's base param constraint", () => {

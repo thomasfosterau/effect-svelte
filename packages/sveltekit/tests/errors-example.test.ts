@@ -7,8 +7,10 @@ import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vite-plus/test";
 
 // ---- example start ----
+import type { ServerLoadEvent } from "@sveltejs/kit";
 import * as Errors from "../src/errors.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
+import { TestRequestEvent } from "../src/testing.js";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
@@ -44,20 +46,12 @@ export const { serverLoad, endpoint } = makeRuntimeAdapter(RequestRuntime.fromLa
 });
 // ---- example end ----
 
-const event = () =>
-  ({
-    request: new Request("http://localhost/"),
-    fetch,
-    cookies: {} as any,
-    locals: {},
-    params: {},
-    platform: undefined,
-    route: { id: null },
-    setHeaders: () => undefined,
-    url: new URL("http://localhost/"),
-    isDataRequest: false,
-    isSubRequest: false,
-  }) as any;
+const event = (): ServerLoadEvent => ({
+  ...TestRequestEvent(),
+  parent: () => Promise.resolve({}),
+  depends: () => undefined,
+  untrack: (fn) => fn(),
+});
 
 describe("Errors module example", () => {
   it.each([

@@ -25,6 +25,9 @@ import type {
 } from "@sveltejs/kit/hooks";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Predicate from "effect/Predicate";
+import * as Rec from "effect/Record";
+import * as Result from "effect/Result";
 import {
   makeServerRuntime,
   makeUniversalRuntime,
@@ -34,6 +37,16 @@ import {
 import { causeToThrowable } from "./error.js";
 
 type AnyEffect = Effect.Effect<unknown, unknown, never>;
+
+/**
+ * The function form of a user export: called with the hook / load argument, it
+ * returns an Effect to run or a plain SvelteKit value to pass through. Its
+ * result is only known at runtime (`Effect.isEffect` tells the two apart).
+ */
+type UserFn<Arg> = (arg: Arg) => unknown;
+
+/** The argument-less function form of a user `init` export (see {@link UserFn}). */
+type UserThunk = () => unknown;
 
 type AnyRuntime = ServerRuntime<any, any> | UniversalRuntime<any, any>;
 
@@ -74,9 +87,9 @@ const universalRuntimeOf = (mod?: RuntimeModule): UniversalRuntime<any, any> => 
 };
 
 /** Run an effect without any request context (e.g. `init` hooks). */
-async function runBare(effect: AnyEffect, runtime?: AnyRuntime): Promise<unknown> {
+async function runBare<A, E>(effect: Effect.Effect<A, E>, runtime?: AnyRuntime): Promise<A> {
   const exit = runtime
-    ? ((await runtime.runtime.runPromiseExit(effect)) as Exit.Exit<unknown, unknown>)
+    ? await runtime.runtime.runPromiseExit(effect)
     : await Effect.runPromiseExit(effect);
 
   return Exit.match(exit, {
@@ -87,11 +100,21 @@ async function runBare(effect: AnyEffect, runtime?: AnyRuntime): Promise<unknown
   });
 }
 
-function isEffectValue(value: unknown): value is AnyEffect {
-  return Effect.isEffect(value as never);
-}
+/**
+ * Detect an Effect returned by (or exported as) a user hook. Its requirements
+ * are typed `never`: the user's export may only need what the runtime provides,
+ * and anything else surfaces as a missing-service defect when it runs.
+ */
+const isUserEffect = (value: unknown): value is AnyEffect => Effect.isEffect(value);
 
-type LoadLikeInput = undefined | AnyEffect | ((event: any) => unknown);
+/** A user export's Effect form as is, or the result of calling its function form with `arg`. */
+const resolveExport = <Arg>(value: AnyEffect | UserFn<Arg>, arg: Arg) =>
+  Effect.isEffect(value) ? value : value(arg);
+
+type LoadLikeInput = undefined | AnyEffect | UserFn<any>;
+
+/** The page data a universal `load` resolves to. */
+type LoadData = Awaited<ReturnType<Load>>;
 
 /**
  * Wraps a value intended to be a SvelteKit universal `load` export.
@@ -101,32 +124,36 @@ export function wrapLoad<T extends LoadLikeInput>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Load {
-  if (value === undefined) return undefined as never;
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes a `Load`
+    // (an async function of the load event), matching the conditional return.
+    return undefined as never;
+  }
 
-  return (async (event: Parameters<Load>[0]) => {
-    const result = isEffectValue(value) ? value : (value as (event: unknown) => unknown)(event);
-    if (!isEffectValue(result)) return result;
+  const load = async (event: Parameters<Load>[0]) => {
+    const result = resolveExport(value, event);
+    if (!Effect.isEffect(result)) return result;
 
     // Reuse the universal runtime's load wrapper so client/server detection
     // and per-request services stay in one place.
+    // SAFETY: the effect is the user's `load`; its value is the page data,
+    // which SvelteKit itself validates when the load resolves.
     return universalRuntimeOf(runtimeMod).load(
-      () => result as Effect.Effect<Record<string, unknown>, unknown, never>,
+      () => result as Effect.Effect<LoadData, unknown, never>,
     )(event);
-  }) as never;
+  };
+  // SAFETY: see the `undefined` case above; a non-Effect result is the user's
+  // own `load` return value, passed through unchanged.
+  return load as never;
 }
 
 /** Shared implementation for server-side, event-based wrappers. */
-function wrapServerEvent<T extends LoadLikeInput>(
-  value: T,
-  runtimeMod?: RuntimeModule,
-): undefined | ((event: RequestEvent) => Promise<unknown>) {
+function wrapServerEvent<T extends LoadLikeInput>(value: T, runtimeMod?: RuntimeModule) {
   if (value === undefined) return undefined;
 
   return async (event: RequestEvent) => {
-    const result = isEffectValue(value)
-      ? value
-      : (value as (event: RequestEvent) => unknown)(event);
-    if (!isEffectValue(result)) return result;
+    const result = resolveExport(value, event);
+    if (!Effect.isEffect(result)) return result;
 
     return serverRuntimeOf(runtimeMod).runPromise(event, result);
   };
@@ -140,6 +167,9 @@ export function wrapServerLoad<T extends LoadLikeInput>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : ServerLoad {
+  // SAFETY: `wrapServerEvent` returns `undefined` for `undefined` and otherwise
+  // an async function of the request event that runs the effect or passes the
+  // user's plain return value through — a `ServerLoad`.
   return wrapServerEvent(value, runtimeMod) as never;
 }
 
@@ -150,6 +180,9 @@ export function wrapAction<T extends LoadLikeInput>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Action {
+  // SAFETY: `wrapServerEvent` returns `undefined` for `undefined` and otherwise
+  // an async function of the request event that runs the effect or passes the
+  // user's plain return value through — an `Action`.
   return wrapServerEvent(value, runtimeMod) as never;
 }
 
@@ -160,39 +193,51 @@ export function wrapActions<T extends Record<string, LoadLikeInput> | undefined>
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Actions {
-  if (value === undefined) return undefined as never;
-  if (typeof value !== "object" || value === null) return value as never;
-
-  const wrapped: Actions = {};
-  for (const [key, fn] of Object.entries(value)) {
-    const wrappedAction = wrapAction(fn as LoadLikeInput, runtimeMod);
-    if (wrappedAction !== undefined) {
-      wrapped[key] = wrappedAction;
-    }
+  if (value === undefined || !Predicate.isObjectOrArray(value)) {
+    // SAFETY: `undefined` and non-objects pass through untouched, as before;
+    // an object becomes a record of wrapped actions (entries that are
+    // `undefined` are dropped), which is an `Actions`.
+    return value as never;
   }
+
+  const wrapped = Rec.filterMap(value, (fn) => {
+    const wrappedAction = wrapServerEvent(fn, runtimeMod);
+    return wrappedAction === undefined ? Result.fail(undefined) : Result.succeed(wrappedAction);
+  });
+  // SAFETY: see above.
   return wrapped as never;
 }
 
 /**
  * Wraps a SvelteKit `handle` hook export.
  */
-export function wrapHandle<
-  T extends undefined | AnyEffect | ((args: Parameters<Handle>[0]) => unknown),
->(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : Handle {
-  if (value === undefined) return undefined as never;
+export function wrapHandle<T extends undefined | AnyEffect | UserFn<Parameters<Handle>[0]>>(
+  value: T,
+  runtimeMod?: RuntimeModule,
+): T extends undefined ? undefined : Handle {
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes the
+    // `Handle` below, matching the conditional return.
+    return undefined as never;
+  }
 
   const handle: Handle = (input) => {
-    const result = isEffectValue(value)
-      ? value
-      : (value as (args: Parameters<Handle>[0]) => unknown)(input);
-    if (!isEffectValue(result)) return result as Response | Promise<Response>;
+    const result = resolveExport(value, input);
+    if (!Effect.isEffect(result)) {
+      // SAFETY: a non-Effect result is the user's own `handle` return value
+      // (a `Response` or a promise of one), passed through unchanged.
+      return result as Response | Promise<Response>;
+    }
 
     // Route through `handle` so the per-request runtime is installed on
     // `event.locals` for the rest of the request, like the explicit wrapper.
+    // SAFETY: the effect is the user's `handle`, which resolves to the
+    // `Response`; the runtime's `Handle` is async, so it returns a promise.
     return serverRuntimeOf(runtimeMod).handle(
       () => result as Effect.Effect<Response, unknown, never>,
     )(input) as Promise<Response>;
   };
+  // SAFETY: see the `undefined` case above.
   return handle as never;
 }
 
@@ -200,48 +245,69 @@ export function wrapHandle<
  * Wraps a SvelteKit `handleFetch` hook export.
  */
 export function wrapHandleFetch<
-  T extends undefined | AnyEffect | ((args: Parameters<HandleFetch>[0]) => unknown),
+  T extends undefined | AnyEffect | UserFn<Parameters<HandleFetch>[0]>,
 >(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : HandleFetch {
-  if (value === undefined) return undefined as never;
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes the
+    // `HandleFetch` below, matching the conditional return.
+    return undefined as never;
+  }
 
   const handleFetch: HandleFetch = async (args) => {
-    const result = isEffectValue(value)
-      ? value
-      : (value as (args: Parameters<HandleFetch>[0]) => unknown)(args);
-    if (!isEffectValue(result)) return result as Response | Promise<Response>;
+    const result = resolveExport(value, args);
+    if (!Effect.isEffect(result)) {
+      // SAFETY: a non-Effect result is the user's own `handleFetch` return value
+      // (a `Response` or a promise of one), passed through unchanged.
+      return result as Response | Promise<Response>;
+    }
 
+    // SAFETY: the effect is the user's `handleFetch`, which resolves to the
+    // `Response`.
     return serverRuntimeOf(runtimeMod).runPromise(args.event, result) as Promise<Response>;
   };
+  // SAFETY: see the `undefined` case above.
   return handleFetch as never;
 }
 
 type AnyHandleError = HandleServerError | HandleClientError;
+type HandleErrorInput = Parameters<AnyHandleError>[0];
+type HandleErrorOutput = ReturnType<AnyHandleError>;
 
 /**
  * Wraps a SvelteKit `handleError` hook export.
  */
-export function wrapHandleError<
-  T extends undefined | AnyEffect | ((args: Parameters<AnyHandleError>[0]) => unknown),
->(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : AnyHandleError {
-  if (value === undefined) return undefined as never;
+export function wrapHandleError<T extends undefined | AnyEffect | UserFn<HandleErrorInput>>(
+  value: T,
+  runtimeMod?: RuntimeModule,
+): T extends undefined ? undefined : AnyHandleError {
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes the
+    // async `handleError` below, matching the conditional return.
+    return undefined as never;
+  }
 
-  return (async (args: Parameters<AnyHandleError>[0]) => {
-    const result = isEffectValue(value)
-      ? value
-      : (value as (args: Parameters<AnyHandleError>[0]) => unknown)(args);
-    if (!isEffectValue(result)) return result as ReturnType<AnyHandleError>;
+  const handleError = async (args: HandleErrorInput) => {
+    const result = resolveExport(value, args);
+    if (!isUserEffect(result)) {
+      // SAFETY: a non-Effect result is the user's own `handleError` return
+      // value, passed through unchanged.
+      return result as HandleErrorOutput;
+    }
 
     // Server errors carry a RequestEvent; client errors carry a NavigationEvent.
-    const event = (args as { event?: RequestEvent }).event;
-    const isServerEvent = event !== undefined && "request" in event;
-
-    if (isServerEvent) {
-      return serverRuntimeOf(runtimeMod).runPromise(event, result) as ReturnType<AnyHandleError>;
+    const event = args.event;
+    if (event !== undefined && "request" in event) {
+      // SAFETY: the effect is the user's `handleError`, which resolves to
+      // its `App.Error` (or nothing).
+      return serverRuntimeOf(runtimeMod).runPromise(event, result) as HandleErrorOutput;
     }
 
     // Client-side: run on the bare app runtime (no request services).
-    return runBare(result, runtimeOfModule(runtimeMod)) as ReturnType<AnyHandleError>;
-  }) as never;
+    // SAFETY: as above.
+    return runBare(result, runtimeOfModule(runtimeMod)) as HandleErrorOutput;
+  };
+  // SAFETY: see the `undefined` case above.
+  return handleError as never;
 }
 
 /**
@@ -250,11 +316,14 @@ export function wrapHandleError<
  * error-handling pipeline (i.e. they are not silently swallowed). Use the
  * explicit `endpoint()` helper if you need the `exposeErrors` toggle.
  */
-export function wrapEndpoint<T extends undefined | AnyEffect | ((event: RequestEvent) => unknown)>(
+export function wrapEndpoint<T extends undefined | AnyEffect | UserFn<RequestEvent>>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : (event: RequestEvent) => Response | Promise<Response> {
-  return wrapServerEvent(value as LoadLikeInput, runtimeMod) as never;
+  // SAFETY: `wrapServerEvent` returns `undefined` for `undefined` and otherwise
+  // an async function of the request event that runs the effect or passes the
+  // user's plain return value (a `Response`) through.
+  return wrapServerEvent(value, runtimeMod) as never;
 }
 
 type RerouteEvent = Parameters<Reroute>[0];
@@ -264,20 +333,30 @@ type RerouteEvent = Parameters<Reroute>[0];
  * universal runtime with an `HttpClient` backed by the event's `fetch`, on both
  * the server and the client.
  */
-export function wrapReroute<T extends undefined | AnyEffect | ((event: RerouteEvent) => unknown)>(
+export function wrapReroute<T extends undefined | AnyEffect | UserFn<RerouteEvent>>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Reroute {
-  if (value === undefined) return undefined as never;
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes the
+    // `reroute` below, matching the conditional return.
+    return undefined as never;
+  }
 
-  return ((event: RerouteEvent) => {
-    const result = isEffectValue(value)
-      ? value
-      : (value as (event: RerouteEvent) => unknown)(event);
-    if (!isEffectValue(result)) return result as ReturnType<Reroute>;
+  const reroute = (event: RerouteEvent) => {
+    const result = resolveExport(value, event);
+    if (!Effect.isEffect(result)) {
+      // SAFETY: a non-Effect result is the user's own `reroute` return value
+      // (a pathname, a promise of one, or nothing), passed through unchanged.
+      return result as ReturnType<Reroute>;
+    }
 
+    // SAFETY: the effect is the user's `reroute`, which resolves to the
+    // pathname (or nothing).
     return universalRuntimeOf(runtimeMod).runPromise(event.fetch, result) as ReturnType<Reroute>;
-  }) as never;
+  };
+  // SAFETY: see the `undefined` case above.
+  return reroute as never;
 }
 
 /**
@@ -285,18 +364,24 @@ export function wrapReroute<T extends undefined | AnyEffect | ((event: RerouteEv
  * `init` runs once at startup; there is no request event available, but the
  * application runtime's services (if configured) are.
  */
-export function wrapInit<T extends undefined | AnyEffect | (() => unknown)>(
+export function wrapInit<T extends undefined | AnyEffect | UserThunk>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : () => Promise<void> {
-  if (value === undefined) return undefined as never;
+  if (value === undefined) {
+    // SAFETY: `undefined` in, `undefined` out; anything else becomes the async
+    // `init` below, matching the conditional return.
+    return undefined as never;
+  }
 
-  return (async () => {
-    const result = isEffectValue(value) ? value : (value as () => unknown)();
-    if (!isEffectValue(result)) {
+  const init = async () => {
+    const result = Effect.isEffect(value) ? value : value();
+    if (!isUserEffect(result)) {
       await result;
       return;
     }
     await runBare(result, runtimeOfModule(runtimeMod));
-  }) as never;
+  };
+  // SAFETY: see the `undefined` case above.
+  return init as never;
 }

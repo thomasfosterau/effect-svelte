@@ -228,18 +228,19 @@ export const requestServicesLayer: Layer.Layer<
   SvelteKitRequestEvent
 > = Layer.mergeAll(SvelteKitCookies.layer, SvelteKitResponseHeaders.layer, SvelteKitLocals.layer);
 
+/** The three request services {@link requestServicesFrom} builds from an event. */
+interface RequestServices {
+  cookies: SvelteKitCookiesInterface;
+  responseHeaders: SvelteKitResponseHeadersInterface;
+  locals: App.Locals;
+}
+
 /**
  * Build all three request services directly from a {@link RequestEvent},
  * without going through {@link SvelteKitRequestEvent}. Used internally by
  * `requestLayer` in `app-runtime.ts` to avoid an extra indirection.
  */
-export const requestServicesFrom = (
-  event: RequestEvent,
-): {
-  cookies: SvelteKitCookiesInterface;
-  responseHeaders: SvelteKitResponseHeadersInterface;
-  locals: App.Locals;
-} => {
+export const requestServicesFrom = (event: RequestEvent): RequestServices => {
   const { cookies } = event;
   return {
     cookies: {

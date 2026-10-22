@@ -40,6 +40,7 @@
  */
 
 import type { Transporter } from "@sveltejs/kit/hooks";
+import * as Arr from "effect/Array";
 import { markerTransporter } from "./transport.js";
 
 /**
@@ -53,7 +54,7 @@ export class ResponseHeaders extends globalThis.Headers {
    * `set-cookie` all survive.
    */
   appendTo(target: globalThis.Headers): void {
-    for (const cookie of this.getSetCookie()) target.append("set-cookie", cookie);
+    Arr.forEach(this.getSetCookie(), (cookie) => target.append("set-cookie", cookie));
     this.forEach((value, key) => {
       if (key !== "set-cookie") target.append(key, value);
     });

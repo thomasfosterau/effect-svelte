@@ -54,7 +54,7 @@
 import { redirect as kitRedirect } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Predicate from "effect/Predicate";
-import { throwKitError } from "./internal/error.js";
+import { throwKitError, type KitErrorBody } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
 /** Any value carrying a string `_tag` — `Schema.TaggedError`, `Data.TaggedError`, … */
@@ -138,7 +138,9 @@ const defaultBody = (error: AnyTagged): string =>
     : error._tag;
 
 const throwError = (status: number, body: string | App.Error): never =>
-  throwKitError(status, body as string | Readonly<Record<string, unknown>>);
+  // SAFETY: an `App.Error` is a plain object of string-keyed fields; it lacks
+  // only the implicit index signature an interface never carries.
+  throwKitError(status, body as KitErrorBody);
 
 const apply = (entry: CatalogueEntry<AnyTagged>, error: AnyTagged): never => {
   if (Predicate.isNumber(entry)) return throwError(entry, defaultBody(error));
@@ -192,6 +194,9 @@ export const toSvelteKit = <E extends Tagged = AnyTagged>(
   catalogue: Catalogue<E>,
   options: ToSvelteKitOptions = {},
 ): KitErrorTranslator => {
+  // SAFETY: every key of a `Catalogue<E>` is one of `E`'s tags and its entry is
+  // a `CatalogueEntry` of the matching member, which is an `AnyTagged`; the
+  // lookup below is guarded by `Object.hasOwn`, so absent keys read `undefined`.
   const entries = catalogue as Readonly<Record<string, CatalogueEntry<AnyTagged> | undefined>>;
   const fallback = options.fallback ?? SvelteKit.translate;
   return (cause) => {

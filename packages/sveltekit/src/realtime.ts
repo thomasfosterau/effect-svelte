@@ -9,6 +9,7 @@
  * closes, so a `Stream.take` / component teardown tears down the connection.
  */
 
+import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
@@ -89,7 +90,7 @@ export const fromEventSource = (
   url: string,
   options?: FromEventSourceOptions,
 ): Stream.Stream<SseMessage, EventSourceError> => {
-  const Impl = options?.implementation ?? (globalThis.EventSource as EventSourceConstructor);
+  const Impl: EventSourceConstructor = options?.implementation ?? globalThis.EventSource;
   // Effect v4's `Stream.callback` runs the returned Effect as the stream's
   // setup, inside the stream's scope; it is not a cleanup. Open the source
   // with `acquireRelease` so it is closed when that scope closes.
@@ -112,7 +113,7 @@ export const fromEventSource = (
             };
 
             source.addEventListener("message", onMessage);
-            for (const name of options?.events ?? []) source.addEventListener(name, onMessage);
+            Arr.forEach(options?.events ?? [], (name) => source.addEventListener(name, onMessage));
 
             source.addEventListener("error", () => {
               // EventSource reconnects on its own unless it has closed for good.
@@ -195,6 +196,8 @@ export const fromWebSocket = (
   url: string,
   options?: FromWebSocketOptions,
 ): Stream.Stream<string | ArrayBuffer | Blob, WebSocketError> => {
+  // SAFETY: the platform `WebSocket` constructor only reads `protocols`; it is
+  // typed as a mutable `string[]`, but a `ReadonlyArray` is equally valid input.
   const Impl = options?.implementation ?? (globalThis.WebSocket as WebSocketConstructor);
   return Stream.callback<string | ArrayBuffer | Blob, WebSocketError>(
     (queue) =>

@@ -53,6 +53,8 @@ import * as Exit from "effect/Exit";
 import type * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Rec from "effect/Record";
+import * as Result from "effect/Result";
 import type { SvelteRouteParams } from "./internal/route-params.js";
 import { SvelteKit } from "./kit.js";
 
@@ -96,8 +98,8 @@ export interface RequestRuntimeProvider<R, E = never> {
 const runnersFromManagedRuntime = <R>(
   rt: ManagedRuntime.ManagedRuntime<R, unknown>,
 ): RequestRuntimeRunners<R> => ({
-  runPromiseExit: (effect) => rt.runPromiseExit(effect) as Promise<Exit.Exit<never, unknown>>,
-  runFork: (effect) => rt.runFork(effect) as Fiber.Fiber<never, unknown>,
+  runPromiseExit: (effect) => rt.runPromiseExit(effect),
+  runFork: (effect) => rt.runFork(effect),
 });
 
 /** Runners backed by a built service `Context` (run on the default scheduler). */
@@ -110,9 +112,7 @@ const runnersFromContext = <R>(context: Context.Context<R>): RequestRuntimeRunne
 const runnersFor = <R>(
   target: ManagedRuntime.ManagedRuntime<R, unknown> | Context.Context<R>,
 ): RequestRuntimeRunners<R> =>
-  ManagedRuntime.isManagedRuntime(target)
-    ? runnersFromManagedRuntime(target as ManagedRuntime.ManagedRuntime<R, unknown>)
-    : runnersFromContext(target as Context.Context<R>);
+  Context.isContext(target) ? runnersFromContext(target) : runnersFromManagedRuntime(target);
 
 /** Options for {@link RequestRuntime.fromLayerPerRequest}. */
 export interface FromLayerPerRequestOptions {
@@ -141,7 +141,7 @@ export const RequestRuntime = {
   fromManagedRuntime: <R, E>(
     rt: ManagedRuntime.ManagedRuntime<R, E>,
   ): RequestRuntimeProvider<R, E> => {
-    const runners = runnersFromManagedRuntime(rt as ManagedRuntime.ManagedRuntime<R, unknown>);
+    const runners = runnersFromManagedRuntime(rt);
     return { run: () => runners };
   },
 
@@ -153,10 +153,7 @@ export const RequestRuntime = {
   fromLayer: <R, E>(layer: Layer.Layer<R, E>): RequestRuntimeProvider<R, E> => {
     let runners: RequestRuntimeRunners<R> | undefined;
     return {
-      run: () =>
-        (runners ??= runnersFromManagedRuntime(
-          ManagedRuntime.make(layer) as ManagedRuntime.ManagedRuntime<R, unknown>,
-        )),
+      run: () => (runners ??= runnersFromManagedRuntime(ManagedRuntime.make(layer))),
     };
   },
 
@@ -199,15 +196,13 @@ export const RequestRuntime = {
       return {
         runPromiseExit: async (effect) => {
           const rt = ManagedRuntime.make(layer(event));
-          try {
-            return (await rt.runPromiseExit(effect)) as Exit.Exit<never, unknown>;
-          } finally {
-            await teardown(rt);
-          }
+          // Tear the runtime down once the effect settles; a teardown failure
+          // rejects in place of the exit.
+          return rt.runPromiseExit(effect).finally(() => teardown(rt));
         },
         runFork: (effect) => {
           const rt = ManagedRuntime.make(layer(event));
-          const fiber = rt.runFork(effect) as Fiber.Fiber<never, unknown>;
+          const fiber = rt.runFork(effect);
           fiber.addObserver(() => void teardown(rt));
           return fiber;
         },
@@ -307,12 +302,15 @@ export const makeRuntimeAdapter = <R>(
     effect: Effect.Effect<A, unknown, R>,
   ): Promise<A> => {
     const exit = await provider.run(event).runPromiseExit(effect);
-    try {
-      if (Exit.isSuccess(exit)) return exit.value;
-      return translateError(exit.cause);
-    } finally {
-      provider.disposeAfterResponse?.(event);
-    }
+    // Settle (the translator throws for a failure), then dispose, then
+    // surface the settled value or rethrow what the translator threw.
+    const settled = Result.try(() =>
+      Exit.isSuccess(exit) ? exit.value : translateError(exit.cause),
+    );
+    provider.disposeAfterResponse?.(event);
+    return Result.getOrElse(settled, (thrown) => {
+      throw thrown;
+    });
   };
 
   const action: RuntimeAdapter<R>["action"] = (fn) => (event) =>
@@ -333,40 +331,36 @@ export const makeRuntimeAdapter = <R>(
       ),
     action,
     actions: (map) => {
-      const wrapped: Record<string, Action<any, any, any>> = {};
-      for (const [key, fn] of Object.entries(map)) wrapped[key] = action(fn);
-      return wrapped as never;
+      return Rec.map(map, (fn) => action(fn));
     },
     endpoint: (fn, options) => async (event) => {
       const effect = fn(event).pipe(
-        Effect.withSpan(
-          `${(event as RequestEvent).request.method} ${(event as RequestEvent).route.id ?? "(unknown)"}`,
-          { kind: "server" },
-        ),
+        Effect.withSpan(`${event.request.method} ${event.route.id ?? "(unknown)"}`, {
+          kind: "server",
+        }),
       );
-      const exit = await provider.run(event as RequestEvent).runPromiseExit(effect);
-      try {
+      const exit = await provider.run(event).runPromiseExit(effect);
+      // Run the translator (default: SvelteKit.translate). SvelteKit
+      // control-flow objects (redirect, error, KitRedirect, KitError) are
+      // thrown so SvelteKit can handle them. Anything unrecognised is wrapped
+      // in an EffectCauseError and becomes a 500 Response below.
+      const settled = Result.try(() => {
         if (Exit.isSuccess(exit)) return exit.value;
-        // Run the translator (default: SvelteKit.translate). SvelteKit
-        // control-flow objects (redirect, error, KitRedirect, KitError) are
-        // thrown so SvelteKit can handle them. Anything unrecognised is wrapped
-        // in an EffectCauseError and caught below to produce a 500 Response.
-        try {
-          return translateError(exit.cause);
-        } catch (err) {
+        const translated = Result.try(() => translateError(exit.cause));
+        return Result.getOrElse(translated, (err) => {
           if (isRedirect(err) || isHttpError(err)) throw err;
           console.error("Endpoint error:", Cause.pretty(exit.cause));
           const message = options?.exposeErrors
             ? Cause.pretty(exit.cause)
             : "Internal server error";
-          return new Response(JSON.stringify({ error: message }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-      } finally {
-        provider.disposeAfterResponse?.(event as RequestEvent);
-      }
+          // `Response.json` serialises the body and sets `Content-Type: application/json`.
+          return Response.json({ error: message }, { status: 500 });
+        });
+      });
+      provider.disposeAfterResponse?.(event);
+      return Result.getOrElse(settled, (thrown) => {
+        throw thrown;
+      });
     },
   };
 };

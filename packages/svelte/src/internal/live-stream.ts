@@ -37,6 +37,12 @@ export interface LiveResultState<A, E> {
   failCause(cause: Cause.Cause<E>): void;
 }
 
+/** The controller {@link makeLiveStream} returns. */
+export interface LiveStream<A, E, R> {
+  /** Start a new subscription, returning a teardown that interrupts it. */
+  readonly subscribe: (stream: Stream.Stream<A, E, R>) => () => void;
+}
+
 /**
  * Orchestrates a live `Stream` subscription against a {@link LiveResultState}.
  *
@@ -52,10 +58,7 @@ export interface LiveResultState<A, E> {
 export function makeLiveStream<A, E, R>(
   runtime: RuntimeLike<R>,
   state: LiveResultState<A, E>,
-): {
-  /** Start a new subscription, returning a teardown that interrupts it. */
-  readonly subscribe: (stream: Stream.Stream<A, E, R>) => () => void;
-} {
+): LiveStream<A, E, R> {
   // Identifies the live subscription. A superseded run's late emission (or
   // exit) is dropped by comparing against this token, so a fiber that is being
   // interrupted cannot clobber the value the newer subscription just set.

@@ -60,6 +60,9 @@ export function useWritableRef<A, R = never>(
   ref: SubscriptionRef.SubscriptionRef<A>,
   options: UseWritableRefOptions<R> = {},
 ): UseWritableRefReturn<A> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   // Read the initial value synchronously so it is available before (and during

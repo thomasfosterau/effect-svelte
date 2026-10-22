@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vite-plus/test";
-import { isHttpError, isRedirect } from "@sveltejs/kit";
+import { assert, describe, expect, it } from "vite-plus/test";
+import { isActionFailure, isHttpError, isRedirect } from "@sveltejs/kit";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
 import {
   TestRequestEvent,
   runServerLoad,
@@ -49,8 +50,9 @@ describe("TestRequestEvent", () => {
       params: { id: "99" },
       locals: { user: { id: "u1" } },
     });
-    expect((event.params as any).id).toBe("99");
-    expect((event.locals as any).user).toEqual({ id: "u1" });
+    expect(event.params.id).toBe("99");
+    assert(Predicate.hasProperty(event.locals, "user"), "expected locals.user");
+    expect(event.locals.user).toEqual({ id: "u1" });
   });
 
   it("cookies: get returns pre-seeded values", () => {
@@ -78,8 +80,8 @@ describe("TestRequestEvent", () => {
   });
 
   it("accepts a custom fetch function", async () => {
-    const mockFetch = async () => new Response("mocked");
-    const event = TestRequestEvent({ fetch: mockFetch as any });
+    const mockFetch: typeof fetch = async () => new Response("mocked");
+    const event = TestRequestEvent({ fetch: mockFetch });
     const res = await event.fetch("http://example.com");
     expect(await res.text()).toBe("mocked");
   });
@@ -119,7 +121,7 @@ const makeCounterLayer = (): Layer.Layer<Counter> => {
 describe("runServerLoad", () => {
   it("returns the effect's success value", async () => {
     const event = TestRequestEvent({ params: { id: "7" } });
-    const data = await runServerLoad((e) => Effect.succeed({ id: (e.params as any).id }), event);
+    const data = await runServerLoad((e) => Effect.succeed({ id: e.params.id }), event);
     expect(data).toEqual({ id: "7" });
   });
 
@@ -141,14 +143,14 @@ describe("runServerLoad", () => {
   it("translates KitRedirect → redirect() throw", async () => {
     const event = TestRequestEvent();
     await expect(runServerLoad(() => SvelteKit.redirect(302, "/login"), event)).rejects.toSatisfy(
-      (e: unknown) => isRedirect(e),
+      isRedirect,
     );
   });
 
   it("translates KitError → error() throw", async () => {
     const event = TestRequestEvent();
     await expect(runServerLoad(() => SvelteKit.error(404, "Not found"), event)).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 404,
+      (e) => isHttpError(e) && e.status === 404,
     );
   });
 
@@ -174,7 +176,7 @@ describe("runServerLoad", () => {
     const event = TestRequestEvent();
     await expect(
       runServerLoad(() => Effect.fail(new AppError("down")), event, { translateError }),
-    ).rejects.toSatisfy((e: unknown) => isHttpError(e) && (e as any).status === 503);
+    ).rejects.toSatisfy((e) => isHttpError(e) && e.status === 503);
   });
 });
 
@@ -199,20 +201,21 @@ describe("runAction", () => {
       event,
       { layer: makeCounterLayer() },
     );
-    expect((result as any).count).toBe(1);
+    expect(result.count).toBe(1);
   });
 
   it("translates KitActionFailure → ActionFailure return", async () => {
     const event = TestRequestEvent({ method: "POST" });
-    const result = await runAction(() => SvelteKit.fail(422, { email: "taken" }), event);
-    expect((result as any).status).toBe(422);
-    expect((result as any).data).toEqual({ email: "taken" });
+    const result: unknown = await runAction(() => SvelteKit.fail(422, { email: "taken" }), event);
+    assert(isActionFailure(result), "expected an ActionFailure");
+    expect(result.status).toBe(422);
+    expect(result.data).toEqual({ email: "taken" });
   });
 
   it("throws on KitError", async () => {
     const event = TestRequestEvent({ method: "POST" });
     await expect(runAction(() => SvelteKit.error(403, "Forbidden"), event)).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 403,
+      (e) => isHttpError(e) && e.status === 403,
     );
   });
 });
@@ -223,7 +226,7 @@ describe("runEndpoint", () => {
   it("returns the Response on success", async () => {
     const event = TestRequestEvent({ url: "http://localhost/api/ping" });
     const response = await runEndpoint(
-      (_event) => Effect.succeed(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+      (_event) => Effect.succeed(Response.json({ ok: true }, { status: 200 })),
       event,
     );
     expect(response.status).toBe(200);
@@ -237,7 +240,7 @@ describe("runEndpoint", () => {
         Effect.gen(function* () {
           const counter = yield* Counter;
           yield* counter.increment();
-          return new Response(JSON.stringify({ count: yield* counter.value() }));
+          return Response.json({ count: yield* counter.value() });
         }),
       event,
       { layer: makeCounterLayer() },
@@ -301,7 +304,7 @@ describe("runRemote", () => {
     const event = TestRequestEvent();
     const { run } = runRemote(event);
     await expect(run(SvelteKit.error(401, "Unauthorized"))).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 401,
+      (e) => isHttpError(e) && e.status === 401,
     );
   });
 
@@ -309,7 +312,7 @@ describe("runRemote", () => {
     const event = TestRequestEvent();
     const { runForm } = runRemote(event);
     const result = await runForm(Effect.succeed({ saved: true }), {
-      issue: {} as any,
+      issue: {},
       data: {},
     });
     expect(result).toEqual({ saved: true });
@@ -325,18 +328,18 @@ describe("runRemote", () => {
       },
     });
     await expect(
-      runForm(Effect.fail(new Error("validation failed")), { issue: {} as any, data: {} }),
+      runForm(Effect.fail(new Error("validation failed")), { issue: {}, data: {} }),
     ).rejects.toThrow("form invalid");
-    expect(capturedError).toBeInstanceOf(Error);
-    expect((capturedError as Error).message).toBe("validation failed");
+    assert.instanceOf(capturedError, Error);
+    expect(capturedError.message).toBe("validation failed");
   });
 
   it("runForm falls back to translateError when no formError provided", async () => {
     const event = TestRequestEvent();
     const { runForm } = runRemote(event);
     await expect(
-      runForm(SvelteKit.error(503, "Service unavailable"), { issue: {} as any, data: {} }),
-    ).rejects.toSatisfy((e: unknown) => isHttpError(e) && (e as any).status === 503);
+      runForm(SvelteKit.error(503, "Service unavailable"), { issue: {}, data: {} }),
+    ).rejects.toSatisfy((e) => isHttpError(e) && e.status === 503);
   });
 
   it("each runRemote call gets an independent runtime", async () => {
@@ -373,7 +376,7 @@ describe("runRemote", () => {
     const event = TestRequestEvent();
     const { run } = runRemote(event, { translateError });
     await expect(run(Effect.fail(new ServiceUnavailable()))).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 503,
+      (e) => isHttpError(e) && e.status === 503,
     );
   });
 });
@@ -389,7 +392,7 @@ describe("Layer injection round-trip", () => {
         Effect.gen(function* () {
           const counter = yield* Counter;
           yield* counter.increment();
-          return { id: (e.params as any).id, count: yield* counter.value() };
+          return { id: e.params.id, count: yield* counter.value() };
         }),
       event,
       { layer: makeCounterLayer() },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import { apiClient } from "../src/api-client.js";
@@ -16,12 +17,15 @@ describe("apiClient", () => {
   it("builds a typed client that encodes the request and decodes the response", async () => {
     const seen: Array<string> = [];
     const fakeFetch: typeof globalThis.fetch = (input) => {
-      seen.push(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+      seen.push(Predicate.isString(input) ? input : input instanceof URL ? input.href : input.url);
       return Promise.resolve(
-        new Response(JSON.stringify({ id: "1", name: "Ada" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
+        Response.json(
+          { id: "1", name: "Ada" },
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
       );
     };
 
@@ -40,10 +44,13 @@ describe("apiClient", () => {
   it("surfaces a decode failure when the response does not match the schema", async () => {
     const fakeFetch: typeof globalThis.fetch = () =>
       Promise.resolve(
-        new Response(JSON.stringify({ id: 1 }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
+        Response.json(
+          { id: 1 },
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
       );
 
     const exit = await Effect.runPromise(

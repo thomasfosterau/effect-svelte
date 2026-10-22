@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import { Reactivity } from "effect/reactivity";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 import type { ResultState } from "./result.svelte.js";
@@ -87,12 +88,12 @@ export function makeMutation<A, E, I, C, R>(
         if (Exit.isSuccess(exit)) {
           state.settle(exit);
           callbacks.onSuccess?.(exit.value, input, context);
-          const keys =
-            typeof callbacks.invalidates === "function"
-              ? callbacks.invalidates(input)
-              : callbacks.invalidates;
+          const keys = Predicate.isFunction(callbacks.invalidates)
+            ? callbacks.invalidates(input)
+            : callbacks.invalidates;
           if (keys !== undefined) {
-            // Requires the runtime to provide Reactivity (documented contract).
+            // SAFETY: `invalidates` requires the runtime to provide `Reactivity` (the
+            // documented contract of the option); `R` does not record it.
             runFork(runtime as RuntimeLike<Reactivity.Reactivity>)(Reactivity.invalidate(keys));
           }
           callbacks.onSettled?.(input, context);

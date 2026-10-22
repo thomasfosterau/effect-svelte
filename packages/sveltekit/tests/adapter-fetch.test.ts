@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { Server } from "@sveltejs/kit";
+import type { Server, ServerInitOptions } from "@sveltejs/kit";
 import * as Layer from "effect/Layer";
 import { AssetSource, makeHandlerWith, toWebHandler } from "../src/adapter/handler.js";
 
 /** Fake SvelteKit Server: echoes SSR request details, marks them with x-ssr. */
-class FakeServer {
-  async init(_options: { env: Record<string, string> }): Promise<void> {}
+class FakeServer implements Server {
+  async init(_options: ServerInitOptions): Promise<void> {}
   async respond(request: Request): Promise<Response> {
-    return new Response(JSON.stringify({ url: request.url, method: request.method }), {
-      headers: { "content-type": "application/json", "x-ssr": "1" },
-    });
+    return Response.json(
+      { url: request.url, method: request.method },
+      {
+        headers: { "content-type": "application/json", "x-ssr": "1" },
+      },
+    );
   }
 }
 
@@ -26,7 +29,7 @@ const fakeAssets = {
 const makeFetch = () =>
   toWebHandler(
     makeHandlerWith({
-      server: new FakeServer() as unknown as Server,
+      server: new FakeServer(),
       env: { FROM_TEST: "yes" },
       assets: AssetSource.cloudflareAssets(fakeAssets),
       read: () => {
@@ -67,7 +70,7 @@ describe("toWebHandler with AssetSource.cloudflareAssets", () => {
   it("supports a custom AssetSource", async () => {
     const fetchHandler = toWebHandler(
       makeHandlerWith({
-        server: new FakeServer() as unknown as Server,
+        server: new FakeServer(),
         assets: AssetSource.cloudflareAssets({
           fetch: async (request) =>
             new URL(request.url).pathname === "/custom"

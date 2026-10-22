@@ -25,6 +25,7 @@
  * `mount` is enough to see the settled result; asynchronous ones are released
  * and observed through `Deferred`s and the probe's `onSuccess`, never a timer.
  */
+import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -33,7 +34,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Reactivity } from "effect/reactivity";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { flushSync, mount, unmount } from "svelte";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, assert, describe, expect, it } from "vite-plus/test";
 import { useDerived } from "../../src/derived.svelte.js";
 import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
@@ -55,42 +56,42 @@ afterEach(mounter.cleanup);
 const runtime = Context.empty();
 
 /** Mounts the probe and runs the hook's mount effects synchronously. */
-interface ProbeProps {
-  readonly use: () => { readonly current: AsyncResult.AsyncResult<unknown, unknown> };
-  readonly onSuccess?: (value: unknown) => void;
+interface ProbeProps<A, E> {
+  readonly use: () => { readonly current: AsyncResult.AsyncResult<A, E> };
+  readonly onSuccess?: (value: A) => void;
   readonly onFailure?: () => void;
 }
 
-const mountProbe = (props: ProbeProps) => {
-  const target = mounter.mount(ResultProbe, props);
+const mountProbe = <A, E>(props: ProbeProps<A, E>) => {
+  const target = mounter.mount<ProbeProps<A, E>>(ResultProbe, props);
   flushSync();
   return target;
 };
 
 /** A promise that resolves with the first value the probe reports as `Success`. */
-const nextSuccess = () => {
-  let resolve!: (value: unknown) => void;
-  const promise = new Promise<unknown>((r) => (resolve = r));
-  return { promise, onSuccess: (value: unknown) => resolve(value) };
+const nextSuccess = <A>() => {
+  let resolve!: (value: A) => void;
+  const promise = new Promise<A>((r) => (resolve = r));
+  return { promise, onSuccess: (value: A) => resolve(value) };
 };
 
 /**
  * Records every value the probe reports as `Success` (a waiting `Success`
  * included); `until` resolves once one matches, even if it already arrived.
  */
-const successLog = () => {
-  const values: Array<unknown> = [];
-  const waiters: Array<{ match: (value: unknown) => boolean; resolve: () => void }> = [];
+const successLog = <A>() => {
+  const values: Array<A> = [];
+  const waiters: Array<{ match: (value: A) => boolean; resolve: () => void }> = [];
   return {
     values,
-    onSuccess: (value: unknown) => {
+    onSuccess: (value: A) => {
       values.push(value);
-      for (const waiter of waiters.splice(0)) {
+      Arr.forEach(waiters.splice(0), (waiter) => {
         if (waiter.match(value)) waiter.resolve();
         else waiters.push(waiter);
-      }
+      });
     },
-    until: (match: (value: unknown) => boolean): Promise<void> =>
+    until: (match: (value: A) => boolean): Promise<void> =>
       values.some(match)
         ? Promise.resolve()
         : new Promise<void>((resolve) => waiters.push({ match, resolve })),
@@ -685,7 +686,8 @@ describe("useReactiveStream", () => {
           useReactiveStream(
             () => ["probe", dep.n],
             () => {
-              const gate = interrupted[dep.n - 1]!;
+              const gate = interrupted[dep.n - 1];
+              assert.isDefined(gate);
               return Effect.suspend(() => {
                 starts++;
                 return Effect.never;
@@ -871,11 +873,11 @@ describe("useReactiveMutation", () => {
 
     // Read by the keys thunk, the effect thunk, the mutation Effect and the
     // re-run query: none of them is the caller's dependency.
-    for (const box of [keysDep, effectDep, inner, queried]) {
+    Arr.forEach([keysDep, effectDep, inner, queried], (box) => {
       box.n++;
       flushSync();
       expect(runs).toBe(1);
-    }
+    });
     expect(mutations).toBe(1);
     expect(queries).toBe(2);
 
@@ -937,11 +939,11 @@ describe("useMutation", () => {
 
     // Read by `fn`, the mutation Effect, the callbacks and the re-run query:
     // none of them is the caller's dependency.
-    for (const box of [fnDep, inner, callbackDep, queried]) {
+    Arr.forEach([fnDep, inner, callbackDep, queried], (box) => {
       box.n++;
       flushSync();
       expect(runs).toBe(1);
-    }
+    });
     expect(mutations).toBe(1);
     expect(queries).toBe(2);
 

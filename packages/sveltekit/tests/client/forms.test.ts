@@ -9,12 +9,13 @@
 import type { ActionResult, SubmitFunction } from "$app/forms";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { afterEach, describe, expect, expectTypeOf, it } from "vite-plus/test";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
+import { afterEach, assert, describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
 import type {
   EnhanceHandlers,
@@ -31,15 +32,14 @@ afterEach(resetFormsStubs);
  * Runs `effect` and returns the single error it failed with on the error
  * channel (a `Fail` reason), asserting it did not die.
  */
-const failureOf = async (effect: Effect.Effect<unknown, unknown, never>): Promise<unknown> => {
+const failureOf = async <E>(effect: Effect.Effect<unknown, E, never>): Promise<E> => {
   const exit = await Effect.runPromise(Effect.exit(effect));
-  expect(Exit.isFailure(exit)).toBe(true);
-  if (!Exit.isFailure(exit)) return undefined;
+  assert(Exit.isFailure(exit), "expected the effect to fail");
   expect(Cause.hasDies(exit.cause)).toBe(false);
   expect(exit.cause.reasons).toHaveLength(1);
   const [reason] = exit.cause.reasons;
-  expect(reason !== undefined && Cause.isFailReason(reason)).toBe(true);
-  return reason !== undefined && Cause.isFailReason(reason) ? reason.error : undefined;
+  assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
+  return reason.error;
 };
 
 const redirect: ActionResult = { type: "redirect", status: 303, location: "/done" };
@@ -94,11 +94,22 @@ describe("Forms.applyAction", () => {
 });
 
 describe("Forms.enhance with failing handlers", () => {
-  class Invalid extends Data.TaggedError("Invalid")<{ readonly field: string }> {}
+  class Invalid extends Schema.TaggedError<Invalid>()("Invalid", { field: Schema.String }) {}
+
+  /** Every error the handlers in these tests fail with. */
+  type HandlerError = Invalid | Forms.ApplyActionError;
+
+  /** Handlers forwarded as `undefined`: an absent, optional `onResult`. */
+  interface OptionalOnResult {
+    readonly onResult?: undefined;
+  }
 
   /** A `SubmitFunction` input whose `cancel()` is recorded in `cancelled`. */
-  const submitInput = (): { input: SubmitInput; cancelled: () => boolean } => {
+  const submitInput = () => {
     let cancelled = false;
+    // SAFETY: `Forms.enhance`'s submit phase only calls `cancel()` on its input
+    // (the handlers these tests run read nothing else), so the other fields of
+    // a `SubmitInput` are never touched.
     const input = {
       cancel: () => {
         cancelled = true;
@@ -114,12 +125,14 @@ describe("Forms.enhance with failing handlers", () => {
    */
   const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
     const callback = await submit(submitInput().input);
-    if (typeof callback !== "function") throw new Error("expected a result callback");
+    if (!Predicate.isFunction(callback)) throw new Error("expected a result callback");
     let updates = 0;
     const update = () => {
       updates++;
       return Promise.resolve();
     };
+    // SAFETY: `Forms.enhance`'s result phase reads only `result` and `update`
+    // from SvelteKit's callback options; the rest are never touched.
     await callback({ result, update } as Parameters<typeof callback>[0]);
     return updates;
   };
@@ -144,7 +157,7 @@ describe("Forms.enhance with failing handlers", () => {
   it("calls update() only when a successful onResult calls it", async () => {
     const seen: Array<unknown> = [];
     const submit = Forms.enhance({
-      onResult: ({ update }) => Effect.promise(() => update()),
+      onResult: ({ update }) => Effect.tryPromise(() => update()),
       onError: (error) => Effect.sync(() => seen.push(error)),
     });
 
@@ -154,7 +167,7 @@ describe("Forms.enhance with failing handlers", () => {
 
   it("does not call onError when onResult succeeds or recovers", async () => {
     const seen: Array<unknown> = [];
-    const onError = (error: unknown) => Effect.sync(() => seen.push(error));
+    const onError = (error: Forms.ApplyActionError) => Effect.sync(() => seen.push(error));
 
     await runEnhanced(
       Forms.enhance({ onResult: ({ result }) => Forms.applyAction(result), onError }),
@@ -241,9 +254,10 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("runs onError on the provided runtime", async () => {
-    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
-      "Reporter",
-    ) {}
+    class Reporter extends Context.Service<
+      Reporter,
+      { readonly report: (e: HandlerError) => void }
+    >()("Reporter") {}
     const reported: Array<unknown> = [];
     const runtime = Context.make(Reporter, { report: (e) => reported.push(e) });
     const submit = Forms.enhance(
@@ -370,7 +384,7 @@ describe("Forms.enhance with failing handlers", () => {
     Forms.enhance({
       onResult: ({ result }) => Forms.applyAction(result),
       // @ts-expect-error: a misspelt handler is rejected, not ignored
-      onEror: (error: unknown) => Effect.log(error),
+      onEror: (error: Forms.ApplyActionError) => Effect.log(error),
     });
 
     // A narrower annotation would let an error through unhandled.
@@ -395,10 +409,11 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("joins onError's requirements with the handlers'", () => {
-    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
-      "Reporter",
-    ) {}
-    const report = (error: unknown) =>
+    class Reporter extends Context.Service<
+      Reporter,
+      { readonly report: (e: HandlerError) => void }
+    >()("Reporter") {}
+    const report = (error: HandlerError) =>
       Effect.gen(function* () {
         const reporter = yield* Reporter;
         reporter.report(error);
@@ -417,12 +432,13 @@ describe("Forms.enhance with failing handlers", () => {
 
   it("reports a missing or wrong runtime on the call or the runtime, not a handler", () => {
     class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
-    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
-      "Reporter",
-    ) {}
+    class Reporter extends Context.Service<
+      Reporter,
+      { readonly report: (e: HandlerError) => void }
+    >()("Reporter") {}
     // Passed by name, so TypeScript infers its requirements before those of
     // the handlers whose parameters are not annotated.
-    const report = (error: unknown) =>
+    const report = (error: HandlerError) =>
       Effect.gen(function* () {
         const reporter = yield* Reporter;
         reporter.report(error);
@@ -500,16 +516,17 @@ describe("Forms.enhance with failing handlers", () => {
   it("accepts handlers that require different services from one runtime", () => {
     class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
     class Clock extends Context.Service<Clock, { readonly now: number }>()("Clock") {}
-    class Reporter extends Context.Service<Reporter, { readonly report: (e: unknown) => void }>()(
-      "Reporter",
-    ) {}
-    const greet = Effect.gen(function* () {
+    class Reporter extends Context.Service<
+      Reporter,
+      { readonly report: (e: HandlerError) => void }
+    >()("Reporter") {}
+    const greet = Effect.fn("greet")(function* () {
       yield* Greeter;
     });
-    const tick = Effect.gen(function* () {
+    const tick = Effect.fn("tick")(function* () {
       yield* Clock;
     });
-    const report = (error: unknown) =>
+    const report = (error: HandlerError) =>
       Effect.gen(function* () {
         const reporter = yield* Reporter;
         reporter.report(error);
@@ -518,23 +535,23 @@ describe("Forms.enhance with failing handlers", () => {
     const both = Context.add(greeter, Clock, { now: 0 });
 
     // Each handler's requirements count, not only the first one's.
-    Forms.enhance({ onSubmit: () => greet, onResult: () => tick }, { runtime: both });
+    Forms.enhance({ onSubmit: () => greet(), onResult: () => tick() }, { runtime: both });
     Forms.enhance(
       {
-        onSubmit: ({ cancel }) => greet.pipe(Effect.andThen(Effect.sync(cancel))),
-        onResult: ({ update }) => tick.pipe(Effect.andThen(Effect.promise(() => update()))),
+        onSubmit: ({ cancel }) => greet().pipe(Effect.andThen(Effect.sync(cancel))),
+        onResult: ({ update }) => tick().pipe(Effect.andThen(Effect.tryPromise(() => update()))),
       },
       { runtime: both },
     );
     Forms.enhance(
       {
-        onSubmit: () => greet.pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
+        onSubmit: () => greet().pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
         onError: (error) => report(error),
       },
       { runtime: Context.add(greeter, Reporter, { report: () => {} }) },
     );
     Forms.enhance(
-      { onSubmit: () => greet, onResult: () => tick, onError: report },
+      { onSubmit: () => greet(), onResult: () => tick(), onError: report },
       {
         runtime: ManagedRuntime.make(
           Layer.mergeAll(
@@ -548,49 +565,49 @@ describe("Forms.enhance with failing handlers", () => {
 
     // A runtime missing one handler's service is still rejected, on the runtime.
     Forms.enhance(
-      { onSubmit: () => greet, onResult: () => tick },
+      { onSubmit: () => greet(), onResult: () => tick() },
       // @ts-expect-error: the runtime does not provide Clock (onResult)
       { runtime: greeter },
     );
     Forms.enhance(
       {
-        onSubmit: ({ cancel }) => greet.pipe(Effect.andThen(Effect.sync(cancel))),
-        onResult: ({ update }) => tick.pipe(Effect.andThen(Effect.promise(() => update()))),
+        onSubmit: ({ cancel }) => greet().pipe(Effect.andThen(Effect.sync(cancel))),
+        onResult: ({ update }) => tick().pipe(Effect.andThen(Effect.tryPromise(() => update()))),
       },
       // @ts-expect-error: the runtime does not provide Clock (onResult)
       { runtime: greeter },
     );
     Forms.enhance(
       {
-        onSubmit: () => greet.pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
+        onSubmit: () => greet().pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
         onError: report,
       },
       // @ts-expect-error: the runtime does not provide Reporter (onError)
       { runtime: greeter },
     );
     // @ts-expect-error: the handlers require Greeter and Clock, so a runtime is required
-    Forms.enhance({ onSubmit: () => greet, onResult: () => tick });
+    Forms.enhance({ onSubmit: () => greet(), onResult: () => tick() });
   });
 
   it("lets a generic wrapper forward its options", () => {
     class Greeter extends Context.Service<Greeter, { readonly hi: string }>()("Greeter") {}
-    const greet = Effect.gen(function* () {
+    const greet = Effect.fn("greet")(function* () {
       yield* Greeter;
     });
     const greeter = Context.make(Greeter, { hi: "hello" });
 
     const wrap = <R>(handlers: EnhanceHandlers<R>, ...options: EnhanceOptionsArgs<R>) =>
       Forms.enhance(handlers, ...options);
-    wrap({ onSubmit: () => greet }, { runtime: greeter });
+    wrap({ onSubmit: () => greet() }, { runtime: greeter });
     wrap({ onSubmit: () => Effect.void });
     // @ts-expect-error: onSubmit requires Greeter, so a runtime is required
-    wrap({ onSubmit: () => greet });
+    wrap({ onSubmit: () => greet() });
 
     const wrapWithRuntime = <R>(
       handlers: EnhanceHandlers<R>,
       options: { readonly runtime: EnhanceRuntime<R> },
     ) => Forms.enhance(handlers, options);
-    wrapWithRuntime({ onSubmit: () => greet }, { runtime: greeter });
+    wrapWithRuntime({ onSubmit: () => greet() }, { runtime: greeter });
 
     // An optional runtime would let handlers that require services run without one.
     const wrapOptional = <R>(handlers: EnhanceHandlers<R>, options: EnhanceOptions<R>) =>
@@ -617,8 +634,8 @@ describe("Forms.enhance with failing handlers", () => {
     // so requirements typed as `any` or `unknown` (to which a union with
     // `unknown` collapses) count as none, and no runtime is demanded (see
     // `RequiredServices`).
-    const anyR = Effect.void as Effect.Effect<void, never, any>;
-    const unknownR = Effect.void as Effect.Effect<void, never, unknown>;
+    const anyR: Effect.Effect<void, never, any> = Effect.void;
+    const unknownR: Effect.Effect<void, never, unknown> = Effect.void;
 
     expectTypeOf(Forms.enhance({ onSubmit: () => anyR })).toEqualTypeOf<SubmitFunction>();
     Forms.enhance({ onResult: () => anyR });
@@ -630,7 +647,7 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("accepts handlers forwarded as undefined", () => {
-    const optional: { readonly onResult?: undefined } = { onResult: undefined };
+    const optional: OptionalOnResult = { onResult: undefined };
     Forms.enhance({ onSubmit: () => Effect.void, ...optional });
     Forms.enhance({ onSubmit: undefined, onResult: undefined, onError: undefined });
 

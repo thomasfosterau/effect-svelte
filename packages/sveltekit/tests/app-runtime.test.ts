@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
-import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
+import { assert, describe, expect, it } from "vite-plus/test";
+import { error, isHttpError, isRedirect, redirect, type RequestEvent } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -7,21 +7,7 @@ import * as Layer from "effect/Layer";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
-
-const mockEvent = () =>
-  ({
-    request: new Request("http://localhost/"),
-    fetch,
-    cookies: {} as any,
-    locals: {},
-    params: {},
-    platform: undefined,
-    route: { id: null },
-    setHeaders: () => undefined,
-    url: new URL("http://localhost/"),
-    isDataRequest: false,
-    isSubRequest: false,
-  }) as any;
+import { mockEvent, mockLoadEvent, toServerLoadEvent } from "./fixtures/request-event.js";
 
 class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
   "test/Greeter",
@@ -90,7 +76,7 @@ describe("makeServerRuntime", () => {
     const actions = runtime.actions({
       create: () => Effect.map(Greeter, (g) => ({ created: g.greet("create") })),
     });
-    expect(await actions.create!(mockEvent())).toEqual({ created: "hello create" });
+    expect(await actions.create(mockEvent())).toEqual({ created: "hello create" });
 
     const get = runtime.endpoint(() =>
       Effect.map(Greeter, (g) => new Response(g.greet("endpoint"))),
@@ -99,9 +85,9 @@ describe("makeServerRuntime", () => {
 
     const resolved = new Response("handled");
     const handle = runtime.handle(({ event, resolve }) =>
-      Effect.flatMap(Greeter, () => Effect.promise(async () => resolve(event))),
+      Effect.flatMap(Greeter, () => Effect.tryPromise(async () => resolve(event))),
     );
-    const response = await handle({ event: mockEvent(), resolve: async () => resolved } as any);
+    const response = await handle({ event: mockEvent(), resolve: async () => resolved });
     expect(response).toBe(resolved);
   });
 
@@ -124,7 +110,9 @@ describe("makeServerRuntime", () => {
     expect(await fetchResponse.text()).toBe("hello fetch / /api");
 
     const handleError = runtime.handleError(({ error }) =>
-      Effect.map(Greeter, (g) => ({ message: g.greet(String((error as Error).message)) })),
+      Effect.map(Greeter, (g) => ({
+        message: g.greet(error instanceof Error ? error.message : String(error)),
+      })),
     );
     const appError = await handleError({
       kind: "unknown",
@@ -150,13 +138,9 @@ describe("makeServerRuntime", () => {
         redirect(302, "/elsewhere");
       }),
     );
-    try {
-      await load(mockEvent());
-      throw new Error("expected a redirect to be thrown");
-    } catch (thrown) {
-      expect(isRedirect(thrown)).toBe(true);
-      expect((thrown as { location: string }).location).toBe("/elsewhere");
-    }
+    await expect(load(mockEvent())).rejects.toSatisfy(
+      (thrown) => isRedirect(thrown) && thrown.location === "/elsewhere",
+    );
   });
 
   it("passes error() through to SvelteKit", async () => {
@@ -166,13 +150,9 @@ describe("makeServerRuntime", () => {
         error(404, "Not found");
       }),
     );
-    try {
-      await load(mockEvent());
-      throw new Error("expected an HttpError to be thrown");
-    } catch (thrown) {
-      expect(isHttpError(thrown)).toBe(true);
-      expect((thrown as { status: number }).status).toBe(404);
-    }
+    await expect(load(mockEvent())).rejects.toSatisfy(
+      (thrown) => isHttpError(thrown) && thrown.status === 404,
+    );
   });
 
   it("throws an EffectCauseError on failure", async () => {
@@ -192,13 +172,9 @@ describe("makeServerRuntime", () => {
       },
     });
     const load = runtime.serverLoad(() => Effect.fail(new NotFound()));
-    try {
-      await load(mockEvent());
-      throw new Error("expected an HttpError");
-    } catch (thrown) {
-      expect(isHttpError(thrown)).toBe(true);
-      expect((thrown as { status: number }).status).toBe(404);
-    }
+    await expect(load(mockEvent())).rejects.toSatisfy(
+      (thrown) => isHttpError(thrown) && thrown.status === 404,
+    );
   });
 
   it("dispose() runs the layer's finalizers", async () => {
@@ -245,7 +221,7 @@ describe("per-request runtime", () => {
       }),
     );
     const handle = runtime.handle(({ event, resolve }) =>
-      Effect.promise(async () => resolve(event)),
+      Effect.tryPromise(async () => resolve(event)),
     );
 
     const event = mockEvent();
@@ -254,12 +230,12 @@ describe("per-request runtime", () => {
     let installedDuringResolve = false;
     const response = await handle({
       event,
-      resolve: async (resolveEvent: any) => {
+      resolve: async (resolveEvent: RequestEvent) => {
         installedDuringResolve = runtime.requestRuntime(resolveEvent) !== undefined;
-        const data = await load(resolveEvent);
-        return new Response(JSON.stringify(data));
+        const data = await load(toServerLoadEvent(resolveEvent));
+        return Response.json(data);
       },
-    } as any);
+    });
 
     expect(installedDuringResolve).toBe(true);
     expect(await response.json()).toEqual({ message: "hello /", hasClient: true });
@@ -269,15 +245,16 @@ describe("per-request runtime", () => {
     const runtime = makeServerRuntime(greeterLayer);
     const handle = runtime.handle(({ event, resolve }) =>
       Effect.gen(function* () {
-        const rt = runtime.requestRuntime(event)!;
-        const greeting = yield* Effect.promise(() =>
+        const rt = runtime.requestRuntime(event);
+        assert(rt !== undefined, "expected handle to install a per-request runtime");
+        const greeting = yield* Effect.tryPromise(() =>
           rt.runPromise(
             Effect.map(Effect.zip(Greeter, SvelteKitRequestEvent), ([greeter, ev]) =>
               greeter.greet(ev.url.pathname),
             ),
           ),
         );
-        return yield* Effect.promise(async () => resolve(event)).pipe(
+        return yield* Effect.tryPromise(async () => resolve(event)).pipe(
           Effect.as(new Response(greeting)),
         );
       }),
@@ -286,7 +263,7 @@ describe("per-request runtime", () => {
     const response = await handle({
       event: mockEvent(),
       resolve: async () => new Response(),
-    } as any);
+    });
     expect(await response.text()).toBe("hello /");
   });
 
@@ -298,7 +275,7 @@ describe("per-request runtime", () => {
     const loadB = runtimeB.serverLoad(() => Effect.map(Other, (o) => ({ who: o.who() })));
 
     const handleA = runtimeA.handle(({ event, resolve }) =>
-      Effect.promise(async () => resolve(event)),
+      Effect.tryPromise(async () => resolve(event)),
     );
 
     const event = mockEvent();
@@ -306,13 +283,13 @@ describe("per-request runtime", () => {
     let runtimeBInstalled = true;
     await handleA({
       event,
-      resolve: async (resolveEvent: any) => {
+      resolve: async (resolveEvent: RequestEvent) => {
         // locals carries runtime A's per-request runtime, not B's.
         runtimeBInstalled = runtimeB.requestRuntime(resolveEvent) !== undefined;
-        resultB = await loadB(resolveEvent);
+        resultB = await loadB(toServerLoadEvent(resolveEvent));
         return new Response();
       },
-    } as any);
+    });
 
     // B's load must run on B's layer (Other), not A's — so it falls back.
     expect(runtimeBInstalled).toBe(false);
@@ -321,19 +298,6 @@ describe("per-request runtime", () => {
 });
 
 describe("makeUniversalRuntime", () => {
-  const clientEvent = () =>
-    ({
-      url: new URL("http://localhost/"),
-      params: {},
-      route: { id: null },
-      fetch,
-      data: {},
-      depends: () => undefined,
-      parent: async () => ({}),
-      setHeaders: () => undefined,
-      untrack: <T>(fn: () => T) => fn(),
-    }) as any;
-
   it("provides app layer services on client-style events", async () => {
     const runtime = makeUniversalRuntime(greeterLayer);
     const load = runtime.load(() =>
@@ -343,14 +307,15 @@ describe("makeUniversalRuntime", () => {
         return { message: greeter.greet("client"), hasClient: client !== undefined };
       }),
     );
-    const result = await load(clientEvent());
+    const result = await load(mockLoadEvent());
     expect(result).toEqual({ message: "hello client", hasClient: true });
   });
 
   it("provides app layer services on server-style events", async () => {
     const runtime = makeUniversalRuntime(greeterLayer);
     const load = runtime.load(() => Effect.map(Greeter, (g) => ({ message: g.greet("server") })));
-    const result = await load(mockEvent());
+    // A server-side universal load: the event carries the `request`.
+    const result = await load({ ...mockEvent(), data: {} });
     expect(result).toEqual({ message: "hello server" });
   });
 
@@ -367,8 +332,8 @@ describe("makeUniversalRuntime", () => {
     const runtime = makeUniversalRuntime(countingLayer);
     const load = runtime.load(() => Effect.map(Greeter, (g) => ({ message: g.greet("x") })));
 
-    await load(clientEvent());
-    await load(mockEvent());
+    await load(mockLoadEvent());
+    await load({ ...mockEvent(), data: {} });
 
     expect(builds).toBe(1);
   });

@@ -3,16 +3,17 @@
  * SvelteKit `error()` / `redirect()` throw, and anything outside it falls
  * through untouched.
  */
-import { error, isHttpError, isRedirect } from "@sveltejs/kit";
+import { error, isHttpError, isRedirect, type ServerLoadEvent } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
+import { afterEach, assert, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import * as Errors from "../src/errors.js";
 import { EffectCauseError } from "../src/internal/error.js";
 import { KitError } from "../src/kit.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
+import { TestRequestEvent } from "../src/testing.js";
 
 class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
   resource: Schema.String,
@@ -33,6 +34,13 @@ class HttpError extends Schema.TaggedError<HttpError>()("HttpError", {
   message: Schema.String,
 }) {}
 /** Stands in for effect-jsonapi's `JsonapiError`: a status plus a document. */
+/** A JSON:API error document, as {@link JsonapiError.toDocument} builds it. */
+const JsonapiDocument = Schema.Struct({
+  jsonapi: Schema.Struct({ version: Schema.String }),
+  errors: Schema.Array(Schema.Struct({ status: Schema.String, detail: Schema.String })),
+});
+const JsonapiDocumentJson = Schema.fromJsonString(JsonapiDocument);
+
 class JsonapiError extends Schema.TaggedError<JsonapiError>()("JsonapiError", {
   status: Schema.Number,
   errors: Schema.Array(Schema.Struct({ status: Schema.String, detail: Schema.String })),
@@ -50,18 +58,32 @@ const translateError = Errors.toSvelteKit<AppError>({
   Forbidden: 403,
   Redirect: "redirect",
   HttpError: "status",
-  JsonapiError: (e) => error(e.status, JSON.stringify(e.toDocument())),
+  JsonapiError: (e) => error(e.status, Schema.encodeSync(JsonapiDocumentJson)(e.toDocument())),
 });
 
-type Thrown = { status?: number; location?: string; body?: { message?: string } };
+/** What `translate` throws for `cause`; fails the test if it returns instead. */
+const thrownBy = (translate: (cause: Cause.Cause<unknown>) => never, cause: Cause.Cause<unknown>) =>
+  Effect.runSync(
+    Effect.flip(
+      Effect.try({
+        try: () => translate(cause),
+        catch: (thrown) => thrown,
+      }),
+    ),
+  );
 
-const captureThrow = (cause: Cause.Cause<unknown>): Thrown => {
-  try {
-    translateError(cause);
-  } catch (thrown) {
-    return thrown as Thrown;
-  }
-  throw new Error("translateError did not throw");
+/** The SvelteKit `HttpError` that `translateError` throws for `cause`. */
+const httpErrorFor = (cause: Cause.Cause<unknown>) => {
+  const thrown = thrownBy(translateError, cause);
+  assert(isHttpError(thrown), "expected translateError to throw a SvelteKit HttpError");
+  return thrown;
+};
+
+/** The SvelteKit `Redirect` that `translateError` throws for `cause`. */
+const redirectFor = (cause: Cause.Cause<unknown>) => {
+  const thrown = thrownBy(translateError, cause);
+  assert(isRedirect(thrown), "expected translateError to throw a SvelteKit Redirect");
+  return thrown;
 };
 
 describe("Errors.toSvelteKit", () => {
@@ -70,55 +92,53 @@ describe("Errors.toSvelteKit", () => {
   });
 
   it("maps NotFound to a 404 with the catalogue's message", () => {
-    const thrown = captureThrow(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
-    expect(isHttpError(thrown)).toBe(true);
+    const thrown = httpErrorFor(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
     expect(thrown.status).toBe(404);
-    expect(thrown.body?.message).toBe("notes abc not found");
+    expect(thrown.body.message).toBe("notes abc not found");
   });
 
   it("maps Unauthorized to a 401 carrying the error's own message", () => {
-    const thrown = captureThrow(Cause.fail(new Unauthorized({ message: "Sign in" })));
+    const thrown = httpErrorFor(Cause.fail(new Unauthorized({ message: "Sign in" })));
     expect(thrown.status).toBe(401);
-    expect(thrown.body?.message).toBe("Sign in");
+    expect(thrown.body.message).toBe("Sign in");
   });
 
   it("falls back to the tag when the error has no message", () => {
-    const thrown = captureThrow(Cause.fail(new Forbidden({})));
+    const thrown = httpErrorFor(Cause.fail(new Forbidden({})));
     expect(thrown.status).toBe(403);
-    expect(thrown.body?.message).toBe("Forbidden");
+    expect(thrown.body.message).toBe("Forbidden");
   });
 
   it("maps Redirect to a SvelteKit redirect with the supplied status and location", () => {
-    const thrown = captureThrow(Cause.fail(new Redirect({ to: "/notes/abc", status: 303 })));
-    expect(isRedirect(thrown)).toBe(true);
+    const thrown = redirectFor(Cause.fail(new Redirect({ to: "/notes/abc", status: 303 })));
     expect(thrown.status).toBe(303);
     expect(thrown.location).toBe("/notes/abc");
   });
 
   it("defaults a non-3xx redirect status to 303", () => {
-    const thrown = captureThrow(Cause.fail(new Redirect({ to: "/", status: 200 })));
+    const thrown = redirectFor(Cause.fail(new Redirect({ to: "/", status: 200 })));
     expect(thrown.status).toBe(303);
   });
 
   it("maps a 'status' entry to error(e.status, e.message)", () => {
-    const thrown = captureThrow(Cause.fail(new HttpError({ status: 409, message: "Conflict" })));
+    const thrown = httpErrorFor(Cause.fail(new HttpError({ status: 409, message: "Conflict" })));
     expect(thrown.status).toBe(409);
-    expect(thrown.body?.message).toBe("Conflict");
+    expect(thrown.body.message).toBe("Conflict");
   });
 
   it("turns an out-of-range 'status' into a 500", () => {
-    const thrown = captureThrow(Cause.fail(new HttpError({ status: 200, message: "odd" })));
+    const thrown = httpErrorFor(Cause.fail(new HttpError({ status: 200, message: "odd" })));
     expect(thrown.status).toBe(500);
   });
 
   it("hands a function entry full control (a JSON:API document body)", () => {
-    const thrown = captureThrow(
+    const thrown = httpErrorFor(
       Cause.fail(
         new JsonapiError({ status: 422, errors: [{ status: "422", detail: "expected string" }] }),
       ),
     );
     expect(thrown.status).toBe(422);
-    const document = JSON.parse(thrown.body?.message ?? "{}");
+    const document = Schema.decodeUnknownSync(JsonapiDocumentJson)(thrown.body.message);
     expect(document.errors).toHaveLength(1);
     expect(document.jsonapi.version).toBe("1.1");
   });
@@ -127,19 +147,18 @@ describe("Errors.toSvelteKit", () => {
     const withCode = Errors.toSvelteKit<NotFound>({
       NotFound: {
         status: 404,
-        message: (e) =>
-          ({ message: `${e.resource} missing`, code: "NOT_FOUND" }) as unknown as App.Error,
+        message: (e) => {
+          // An App.Error (Kit 3 requires its `status`) with an extra property,
+          // which SvelteKit spreads into the body.
+          const body = { status: 404, message: `${e.resource} missing`, code: "NOT_FOUND" };
+          return body;
+        },
       },
     });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    let thrown: unknown;
-    try {
-      withCode(Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
-    } catch (caught) {
-      thrown = caught;
-    }
-    expect(isHttpError(thrown, 404)).toBe(true);
-    expect((thrown as { body: unknown }).body).toEqual({
+    const thrown = thrownBy(withCode, Cause.fail(new NotFound({ resource: "notes", id: "abc" })));
+    assert(isHttpError(thrown, 404), "expected a SvelteKit 404 HttpError");
+    expect(thrown.body).toEqual({
       status: 404,
       message: "notes missing",
       code: "NOT_FOUND",
@@ -149,7 +168,7 @@ describe("Errors.toSvelteKit", () => {
   });
 
   it("matches a tagged error that surfaced as a defect", () => {
-    const thrown = captureThrow(Cause.die(new NotFound({ resource: "notes", id: "x" })));
+    const thrown = httpErrorFor(Cause.die(new NotFound({ resource: "notes", id: "x" })));
     expect(thrown.status).toBe(404);
   });
 
@@ -159,7 +178,7 @@ describe("Errors.toSvelteKit", () => {
   });
 
   it("still passes the Kit control-flow errors through by default", () => {
-    const thrown = captureThrow(Cause.fail(new KitError(418, "teapot")));
+    const thrown = httpErrorFor(Cause.fail(new KitError(418, "teapot")));
     expect(thrown.status).toBe(418);
   });
 
@@ -190,20 +209,12 @@ describe("Errors.toSvelteKit", () => {
 });
 
 describe("Errors.toSvelteKit through makeRuntimeAdapter", () => {
-  const mockEvent = () =>
-    ({
-      request: new Request("http://localhost/"),
-      fetch,
-      cookies: {} as any,
-      locals: {},
-      params: {},
-      platform: undefined,
-      route: { id: null },
-      setHeaders: () => undefined,
-      url: new URL("http://localhost/"),
-      isDataRequest: false,
-      isSubRequest: false,
-    }) as any;
+  const mockEvent = (): ServerLoadEvent => ({
+    ...TestRequestEvent(),
+    parent: () => Promise.resolve({}),
+    depends: () => undefined,
+    untrack: (fn) => fn(),
+  });
 
   it("makes the app's kit.ts a one-liner", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {

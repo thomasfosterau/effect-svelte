@@ -29,6 +29,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 import { AssetSource, type FileSystemAssetServices } from "./assets.js";
 
@@ -124,25 +125,24 @@ const originOf = (request: HttpServerRequest.HttpServerRequest, config: HandlerC
 };
 
 /** Resolve the client address, honouring ADDRESS_HEADER / XFF_DEPTH if configured. */
+/**
+ * The client address in an `X-Forwarded-For` value: the entry `xffDepth` hops
+ * from the right, or the leftmost one when `xffDepth` is out of range.
+ */
+const forwardedForAddress = (value: string, xffDepth: number): string => {
+  const addresses = value.split(",").map((address) => address.trim());
+  const inRange = xffDepth >= 1 && xffDepth <= addresses.length;
+  return addresses[inRange ? addresses.length - xffDepth : 0] ?? "";
+};
+
 const clientAddressOf = (
   request: HttpServerRequest.HttpServerRequest,
   config: HandlerConfig,
 ): string => {
   const addressHeader = Option.getOrUndefined(config.addressHeader)?.toLowerCase();
-  if (addressHeader) {
-    const value = request.headers[addressHeader];
-    if (value) {
-      if (addressHeader === "x-forwarded-for") {
-        const addresses = value.split(",").map((address) => address.trim());
-        if (config.xffDepth < 1 || config.xffDepth > addresses.length) {
-          return addresses[0] ?? "";
-        }
-        return addresses[addresses.length - config.xffDepth]!;
-      }
-      return value;
-    }
-  }
-  return Option.getOrElse(request.remoteAddress, () => "");
+  const value = addressHeader === undefined ? undefined : request.headers[addressHeader];
+  if (!value) return Option.getOrElse(request.remoteAddress, () => "");
+  return addressHeader === "x-forwarded-for" ? forwardedForAddress(value, config.xffDepth) : value;
 };
 
 /** Build a web `Request` for SvelteKit from an `HttpServerRequest`. */
@@ -269,12 +269,10 @@ export const makeHandlerWith = <RAssets = never>(
       const origin = originOf(request, config);
       const url = new URL(request.url, origin);
 
-      let pathname: string;
-      try {
-        pathname = decodeURIComponent(url.pathname);
-      } catch {
-        return HttpServerResponse.empty({ status: 400 });
-      }
+      // A malformed percent-encoding (`decodeURIComponent` throws) is a 400.
+      const decoded = Result.try(() => decodeURIComponent(url.pathname));
+      if (Result.isFailure(decoded)) return HttpServerResponse.empty({ status: 400 });
+      const pathname = decoded.success;
 
       // 1. Static client assets / prerendered pages, via the injected source.
       //    Only GET/HEAD reach assets; build a body-less request for the source.
@@ -321,6 +319,9 @@ export const toWebHandler = <RAssets, E>(
   const build = (): Promise<(request: Request) => Promise<Response>> =>
     (built ??= Effect.runPromise(app).then(
       (inner) =>
+        // SAFETY: `layer` provides `RAssets`, and the web handler provides the
+        // `HttpServerRequest`, so the handler needs no per-request context; the
+        // conditional type only stays unresolved while `RAssets` is generic.
         HttpEffect.toWebHandlerLayer(inner, layer).handler as (
           request: Request,
         ) => Promise<Response>,

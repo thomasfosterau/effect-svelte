@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, assert, describe, expect, it } from "vite-plus/test";
+import * as Arr from "effect/Array";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Cause from "effect/Cause";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Queue from "effect/Queue";
@@ -18,11 +22,14 @@ import { MultiplierLayer } from "./service.js";
  * the `<svelte:boundary>` await settles (microtask) → the DOM updates. A couple
  * of rounds of "wait a tick, flush" covers that chain.
  */
-const settle = async (): Promise<void> => {
-  for (let i = 0; i < 3; i++) {
+const settle = (): Promise<void> => {
+  const rounds = async (remaining: number): Promise<void> => {
+    if (remaining === 0) return;
     await new Promise((resolve) => setTimeout(resolve, 5));
     await tick();
-  }
+    return rounds(remaining - 1);
+  };
+  return rounds(3);
 };
 
 const mountTarget = (): HTMLElement => {
@@ -34,26 +41,34 @@ const mountTarget = (): HTMLElement => {
 const text = (target: HTMLElement, id: string): string | null =>
   target.querySelector(`[data-testid="${id}"]`)?.textContent?.trim() ?? null;
 
-/** Polls `check` (with a `tick()` between attempts) until it returns `true` or the timeout elapses. */
-const waitFor = async (check: () => boolean, timeoutMs = 2000): Promise<void> => {
-  const deadline = Date.now() + timeoutMs;
-  while (!check()) {
-    if (Date.now() > deadline) throw new Error("waitFor: timed out");
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await tick();
-  }
+/**
+ * Polls `check` (with a `tick()` between attempts) until it returns `true`;
+ * rejects with a `TimeoutError` once `timeoutMs` elapses.
+ */
+const waitFor = (check: () => boolean, timeoutMs = 2000): Promise<void> => {
+  const poll: Effect.Effect<void, Cause.UnknownError> = Effect.suspend(() =>
+    check()
+      ? Effect.void
+      : Effect.sleep(Duration.millis(5)).pipe(
+          Effect.andThen(Effect.tryPromise(() => tick())),
+          Effect.andThen(poll),
+        ),
+  );
+  return Effect.runPromise(Effect.timeout(poll, Duration.millis(timeoutMs)));
 };
 
-const mounted: Array<{ component: Record<string, unknown>; target: HTMLElement }> = [];
-const track = <T extends Record<string, unknown>>(component: T, target: HTMLElement): void => {
+type Mounted = Parameters<typeof unmount>[0];
+
+const mounted: Array<{ component: Mounted; target: HTMLElement }> = [];
+const track = (component: Mounted, target: HTMLElement): void => {
   mounted.push({ component, target });
 };
 
 afterEach(() => {
-  for (const { component, target } of mounted.splice(0)) {
+  Arr.forEach(mounted.splice(0), ({ component, target }) => {
     void unmount(component);
     target.remove();
-  }
+  });
 });
 
 describe("useLiveStream (DOM boundary)", () => {
@@ -173,7 +188,11 @@ describe("useLiveStream (DOM boundary)", () => {
       props: {
         runtime,
         cursorRef,
-        makeFor: (cursor: number) => Stream.fromQueue(queues[cursor]!),
+        makeFor: (cursor: number) => {
+          const queue = queues[cursor];
+          assert.isDefined(queue);
+          return Stream.fromQueue(queue);
+        },
       },
     });
     track(component, target);

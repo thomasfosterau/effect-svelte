@@ -7,12 +7,12 @@
   `onFailure` whenever it is a `Failure`), so a test can await the settle
   instead of polling against a wall clock.
 -->
-<script lang="ts">
-  import type * as AsyncResult from "effect/reactivity/AsyncResult";
+<script lang="ts" generics="A, E">
+  import * as AsyncResult from "effect/reactivity/AsyncResult";
 
   interface Props {
-    use: () => { readonly current: AsyncResult.AsyncResult<unknown, unknown> };
-    onSuccess?: ((value: unknown) => void) | undefined;
+    use: () => { readonly current: AsyncResult.AsyncResult<A, E> };
+    onSuccess?: ((value: A) => void) | undefined;
     onFailure?: (() => void) | undefined;
   }
 
@@ -23,11 +23,11 @@
 
   $effect(() => {
     const current = hook.current;
-    if (current._tag === "Success") onSuccess?.(current.value);
-    if (current._tag === "Failure") onFailure?.();
+    if (AsyncResult.isSuccess(current)) onSuccess?.(current.value);
+    if (AsyncResult.isFailure(current)) onFailure?.();
   });
 </script>
 
 <span data-testid="tag">{hook.current._tag}</span>
 <span data-testid="waiting">{String(hook.current.waiting)}</span>
-<span data-testid="value">{hook.current._tag === "Success" ? String(hook.current.value) : ""}</span>
+<span data-testid="value">{AsyncResult.isSuccess(hook.current) ? String(hook.current.value) : ""}</span>

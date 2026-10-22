@@ -1,67 +1,87 @@
 import { describe, expect, it } from "vite-plus/test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { Server } from "@sveltejs/kit";
+import type { Server, ServerInitOptions } from "@sveltejs/kit";
 import * as HttpBody from "effect/http/HttpBody";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpServer from "effect/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
+import * as Schema from "effect/Schema";
 import { makeHandler, type SvelteKitHandlerOptions } from "../src/adapter/handler.js";
 
 /**
  * Fake SvelteKit Server that records init options and echoes request details
  * back as JSON, marking SSR responses with an `x-ssr` header.
  */
-let lastInitOptions: { env: Record<string, string> } | undefined;
+let lastInitOptions: ServerInitOptions | undefined;
 
-class FakeServer {
-  async init(options: { env: Record<string, string> }): Promise<void> {
+class FakeServer implements Server {
+  async init(options: ServerInitOptions): Promise<void> {
     lastInitOptions = options;
   }
 
   async respond(request: Request, options: { getClientAddress(): string }): Promise<Response> {
     const body = request.method === "POST" ? await request.text() : null;
-    return new Response(
-      JSON.stringify({
+    return Response.json(
+      {
         url: request.url,
         method: request.method,
         body,
         clientAddress: options.getClientAddress(),
-      }),
+      },
       { headers: { "content-type": "application/json", "x-ssr": "1" } },
     );
   }
 }
 
-/** Create a fake build output directory with client assets and prerendered pages. */
-const makeBuildDir = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), "effect-handler-test-"));
-  mkdirSync(join(dir, "client", "_app", "immutable", "chunks"), { recursive: true });
-  mkdirSync(join(dir, "prerendered", "blog"), { recursive: true });
-  mkdirSync(join(dir, "server"), { recursive: true });
+/** The request details {@link FakeServer} echoes back from SSR. */
+const EchoedRequest = Schema.Struct({
+  url: Schema.String,
+  method: Schema.String,
+  body: Schema.NullOr(Schema.String),
+  clientAddress: Schema.String,
+});
 
-  writeFileSync(join(dir, "client", "favicon.png"), "fake-favicon");
-  writeFileSync(join(dir, "client", "_app", "immutable", "chunks", "app.js"), "console.log(1)");
-  writeFileSync(join(dir, "prerendered", "about.html"), "<html>about</html>");
-  writeFileSync(join(dir, "prerendered", "index.html"), "<html>home</html>");
-  writeFileSync(join(dir, "prerendered", "blog", "index.html"), "<html>blog</html>");
-  writeFileSync(join(dir, "server", "asset.txt"), "server-asset");
+const decodeEchoedRequest = Schema.decodeUnknownEffect(EchoedRequest);
+
+/** Create a fake build output directory with client assets and prerendered pages. */
+const makeBuildDir = Effect.fn("makeBuildDir")(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const dir = yield* fs.makeTempDirectoryScoped({ prefix: "effect-handler-test-" });
+  yield* fs.makeDirectory(path.join(dir, "client", "_app", "immutable", "chunks"), {
+    recursive: true,
+  });
+  yield* fs.makeDirectory(path.join(dir, "prerendered", "blog"), { recursive: true });
+  yield* fs.makeDirectory(path.join(dir, "server"), { recursive: true });
+
+  yield* fs.writeFileString(path.join(dir, "client", "favicon.png"), "fake-favicon");
+  yield* fs.writeFileString(
+    path.join(dir, "client", "_app", "immutable", "chunks", "app.js"),
+    "console.log(1)",
+  );
+  yield* fs.writeFileString(path.join(dir, "prerendered", "about.html"), "<html>about</html>");
+  yield* fs.writeFileString(path.join(dir, "prerendered", "index.html"), "<html>home</html>");
+  yield* fs.writeFileString(
+    path.join(dir, "prerendered", "blog", "index.html"),
+    "<html>blog</html>",
+  );
+  yield* fs.writeFileString(path.join(dir, "server", "asset.txt"), "server-asset");
 
   return dir;
-};
+});
 
 /** Boot the handler on a test server and return the pre-configured HttpClient. */
 const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
   Effect.gen(function* () {
     const app = yield* makeHandler({
-      server: new FakeServer() as unknown as Server,
+      server: new FakeServer(),
       appPath: "_app",
       prerendered: new Set(["/about", "/", "/blog/"]),
       base: "",
-      dir: makeBuildDir(),
+      dir: yield* makeBuildDir(),
       env: { FROM_TEST: "yes" },
       ...options,
     });
@@ -69,11 +89,10 @@ const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
     return yield* HttpClient.HttpClient;
   });
 
-const run = <A>(effect: Effect.Effect<A, unknown, never>): Promise<A> =>
-  Effect.runPromise(effect as Effect.Effect<A, never, never>);
+const run = <A, E>(effect: Effect.Effect<A, E, never>): Promise<A> => Effect.runPromise(effect);
 
-const withTestServer = <A>(
-  effect: Effect.Effect<A, unknown, HttpClient.HttpClient | HttpServer.HttpServer>,
+const withTestServer = <A, E>(
+  effect: Effect.Effect<A, E, HttpClient.HttpClient | HttpServer.HttpServer>,
   options?: Partial<SvelteKitHandlerOptions>,
 ): Promise<A> =>
   run(
@@ -165,11 +184,11 @@ describe("makeHandler", () => {
         const response = yield* client.get("/dynamic/route?q=1");
         expect(response.status).toBe(200);
         expect(response.headers["x-ssr"]).toBe("1");
-        return yield* response.json;
+        return yield* decodeEchoedRequest(yield* response.json);
       }),
     );
-    expect((body as { url: string }).url).toMatch(/\/dynamic\/route\?q=1$/);
-    expect((body as { method: string }).method).toBe("GET");
+    expect(body.url).toMatch(/\/dynamic\/route\?q=1$/);
+    expect(body.method).toBe("GET");
   });
 
   it("forwards request bodies to SSR", async () => {
@@ -179,11 +198,11 @@ describe("makeHandler", () => {
         const response = yield* client.post("/api/things", {
           body: HttpBody.text("hello from the test"),
         });
-        return yield* response.json;
+        return yield* decodeEchoedRequest(yield* response.json);
       }),
     );
-    expect((body as { body: string }).body).toBe("hello from the test");
-    expect((body as { method: string }).method).toBe("POST");
+    expect(body.body).toBe("hello from the test");
+    expect(body.method).toBe("POST");
   });
 
   it("provides the client address to SSR", async () => {
@@ -191,10 +210,10 @@ describe("makeHandler", () => {
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient;
         const response = yield* client.get("/whoami");
-        return yield* response.json;
+        return yield* decodeEchoedRequest(yield* response.json);
       }),
     );
-    expect((body as { clientAddress: string }).clientAddress).toMatch(/127\.0\.0\.1|::1|::ffff/);
+    expect(body.clientAddress).toMatch(/127\.0\.0\.1|::1|::ffff/);
   });
 
   it("respects the ORIGIN configuration for SSR request URLs", async () => {
@@ -202,7 +221,7 @@ describe("makeHandler", () => {
       Effect.gen(function* () {
         const client = yield* testClient();
         const response = yield* client.get("/some/page");
-        return yield* response.json;
+        return yield* decodeEchoedRequest(yield* response.json);
       }).pipe(
         Effect.scoped,
         Effect.provide(NodeHttpServer.layerTest),
@@ -212,7 +231,7 @@ describe("makeHandler", () => {
         ),
       ),
     );
-    expect((body as { url: string }).url).toBe("https://example.com/some/page");
+    expect(body.url).toBe("https://example.com/some/page");
   });
 
   it("does not allow path traversal outside the client directory", async () => {

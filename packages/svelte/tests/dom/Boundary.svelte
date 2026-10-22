@@ -15,6 +15,8 @@
     hasInitial?: boolean;
   } = $props();
 
+  // SAFETY: the only caller passing `hasInitial: true` (live-stream.test.ts)
+  // also passes `initial`, so here `initial` holds the caller's `A`.
   const live = hasInitial
     ? useLiveStream<A, string, never>(make, { runtime, initial: initial as A })
     : useLiveStream<A, string, never>(make, { runtime });

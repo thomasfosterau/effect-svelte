@@ -18,6 +18,7 @@
 
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as HttpPlatform from "effect/http/HttpPlatform";
@@ -108,10 +109,10 @@ export const fileSystem = (config: {
             : pathname.endsWith("/")
               ? [`${pathname}index.html`, `${pathname.slice(0, -1)}.html`]
               : [pathname, `${pathname}.html`, `${pathname}/index.html`];
-        for (const candidate of candidates) {
-          const page = yield* serveFile(prerenderedDir, candidate);
-          if (Option.isSome(page)) return page;
-        }
+        // The first candidate that exists, tried in order.
+        return yield* Effect.findFirstFilter(candidates, (candidate) =>
+          serveFile(prerenderedDir, candidate).pipe(Effect.map(Result.fromOption(() => candidate))),
+        );
       }
 
       return Option.none();

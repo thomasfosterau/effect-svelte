@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { NavigationEvent } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import { handleError, init } from "../src/client/Hooks.js";
 
-const navigationEvent = (pathname = "/") =>
-  ({
-    url: new URL(`http://localhost${pathname}`),
-    params: {},
-    route: { id: null },
-  }) as any;
+const navigationEvent = (pathname = "/"): NavigationEvent => ({
+  url: new URL(`http://localhost${pathname}`),
+  params: {},
+  route: { id: null },
+});
 
 describe("client Hooks.handleError", () => {
   it("runs an effect and returns the App.Error shape", async () => {
     const hook = handleError(({ error, event }) =>
-      Effect.succeed({ message: `${(error as Error).message} @ ${event.url.pathname}` }),
+      Effect.succeed({
+        message: `${Predicate.isError(error) ? error.message : String(error)} @ ${event.url.pathname}`,
+      }),
     );
     const result = await hook({
       kind: "unknown",

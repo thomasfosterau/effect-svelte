@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { readdirSync } from "node:fs";
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join, posix } from "node:path";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as Arr from "effect/Array";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 
 /**
  * SvelteKit v3's remote-functions subsystem treats any module whose path matches
@@ -25,27 +26,27 @@ import { dirname, join, posix } from "node:path";
  */
 const REMOTE_MODULE_PATTERN = /[/.]remote(\.[^/]+)+$/;
 
-const here = dirname(fileURLToPath(import.meta.url));
-const pkgRoot = join(here, "..");
+/** Runs `effect` with Node's `FileSystem` and `Path` services provided. */
+const run = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>): Promise<A> =>
+  Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)));
+
+/** The package root (the parent of this `tests/` directory). */
+const pkgRoot = Effect.fn("pkgRoot")(function* () {
+  const path = yield* Path.Path;
+  return yield* path.fromFileUrl(new URL("..", import.meta.url));
+});
 
 /** Recursively collect files under `dir`, returned as POSIX paths relative to `dir`. */
-function collect(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const abs = join(entry.parentPath, entry.name);
-    out.push(
-      posix.normalize(
-        abs
-          .slice(dir.length + 1)
-          .split("\\")
-          .join("/"),
-      ),
-    );
-  }
-  return out;
-}
+const collect = Effect.fn("collect")(function* (dir: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  if (!(yield* fs.exists(dir))) return [];
+  const entries = yield* fs.readDirectory(dir, { recursive: true });
+  const files = yield* Effect.filter(entries, (entry) =>
+    Effect.map(fs.stat(path.join(dir, entry)), (info) => info.type === "File"),
+  );
+  return Arr.map(files, (file) => path.normalize(file).replaceAll("\\", "/"));
+});
 
 describe("published module naming vs SvelteKit remote-module matcher", () => {
   it("sanity-checks the matcher against known cases", () => {
@@ -58,24 +59,31 @@ describe("published module naming vs SvelteKit remote-module matcher", () => {
     expect(REMOTE_MODULE_PATTERN.test("dist/remote-reactive.js")).toBe(false);
   });
 
-  it("no source module builds to a name kit would treat as a remote module", () => {
-    // Under `unbundle: true` (see vite.config.ts) dist mirrors src filenames, so
-    // the source tree is the source of truth for the published module names.
-    const offenders = collect(join(pkgRoot, "src"))
-      .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
-      // model the built output name (`.ts` -> `.js`)
-      .map((f) => f.replace(/\.ts$/, ".js"))
-      .filter((f) => REMOTE_MODULE_PATTERN.test(f));
+  it("no source module builds to a name kit would treat as a remote module", () =>
+    run(
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        // Under `unbundle: true` (see vite.config.ts) dist mirrors src filenames, so
+        // the source tree is the source of truth for the published module names.
+        const offenders = (yield* collect(path.join(yield* pkgRoot(), "src")))
+          .filter((f) => f.endsWith(".ts") && !f.endsWith(".d.ts"))
+          // model the built output name (`.ts` -> `.js`)
+          .map((f) => f.replace(/\.ts$/, ".js"))
+          .filter((f) => REMOTE_MODULE_PATTERN.test(f));
 
-    expect(offenders).toEqual([]);
-  });
+        expect(offenders).toEqual([]);
+      }),
+    ));
 
-  it("no built dist module matches the remote-module matcher (when dist is present)", () => {
-    const dist = join(pkgRoot, "dist");
-    if (!existsSync(dist)) return; // dist is only present after `vp pack`
-    const offenders = collect(dist).filter(
-      (f) => (f.endsWith(".js") || f.endsWith(".d.ts")) && REMOTE_MODULE_PATTERN.test(f),
-    );
-    expect(offenders).toEqual([]);
-  });
+  it("no built dist module matches the remote-module matcher (when dist is present)", () =>
+    run(
+      Effect.gen(function* () {
+        const path = yield* Path.Path;
+        // dist is only present after `vp pack`; `collect` finds nothing without it.
+        const offenders = (yield* collect(path.join(yield* pkgRoot(), "dist"))).filter(
+          (f) => (f.endsWith(".js") || f.endsWith(".d.ts")) && REMOTE_MODULE_PATTERN.test(f),
+        );
+        expect(offenders).toEqual([]);
+      }),
+    ));
 });

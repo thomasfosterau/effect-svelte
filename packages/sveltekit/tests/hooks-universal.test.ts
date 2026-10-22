@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import * as HttpClient from "effect/http/HttpClient";
 import { reroute, transport, transporter } from "../src/Hooks.js";
 
@@ -30,7 +31,7 @@ describe("Hooks.reroute", () => {
 
 describe("Hooks.transport", () => {
   it("re-exports the transport helpers", () => {
-    expect(typeof transport).toBe("function");
-    expect(typeof transporter).toBe("function");
+    expect(Predicate.isFunction(transport)).toBe(true);
+    expect(Predicate.isFunction(transporter)).toBe(true);
   });
 });

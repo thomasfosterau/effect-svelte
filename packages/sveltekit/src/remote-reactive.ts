@@ -43,7 +43,7 @@ export function useRemoteQuery<T>(query: RemoteResource<T>): {
         return AsyncResult.fail<unknown, T>(error, { waiting: loading });
       }
       if (ready) {
-        return AsyncResult.success<T, unknown>(query.current as T, { waiting: loading });
+        return AsyncResult.success<T, unknown>(query.current, { waiting: loading });
       }
       return AsyncResult.initial<T, unknown>(loading);
     },

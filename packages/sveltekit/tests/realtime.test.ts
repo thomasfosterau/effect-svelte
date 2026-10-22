@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -11,30 +12,42 @@ import * as Realtime from "../src/realtime.js";
  * loop tick is not enough — `Stream.callback`'s setup effect runs across several
  * microtasks — so poll until the socket exists before driving it.
  */
-const awaitSocket = async (): Promise<FakeSocket> => {
-  for (let i = 0; i < 200 && FakeSocket.instances.length === 0; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
+const awaitSocket = async (attempts = 200): Promise<FakeSocket> => {
   const socket = FakeSocket.instances[0];
-  if (socket === undefined) throw new Error("socket was never opened");
-  return socket;
+  if (socket !== undefined) return socket;
+  if (attempts === 0) throw new Error("socket was never opened");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  return awaitSocket(attempts - 1);
 };
+
+/**
+ * The fields of the DOM `MessageEvent` / `CloseEvent` the realtime streams
+ * read, which a test's fake event carries.
+ */
+interface FakeEvent {
+  readonly type?: string;
+  readonly data?: string;
+  readonly lastEventId?: string;
+  readonly wasClean?: boolean;
+  readonly code?: number;
+  readonly reason?: string;
+}
 
 /** A minimal, drivable fake of the DOM `WebSocket` / `EventSource` surface. */
 class FakeSocket {
   static instances: Array<FakeSocket> = [];
   readyState = 1;
   binaryType = "blob";
-  private listeners: Record<string, Array<(e: unknown) => void>> = {};
+  private listeners: Record<string, Array<(e: FakeEvent) => void>> = {};
 
   constructor(
     readonly url: string,
-    readonly protocols?: unknown,
+    readonly protocols?: string | ReadonlyArray<string>,
   ) {
     FakeSocket.instances.push(this);
   }
 
-  addEventListener(type: string, fn: (e: unknown) => void): void {
+  addEventListener(type: string, fn: (e: FakeEvent) => void): void {
     (this.listeners[type] ??= []).push(fn);
   }
 
@@ -45,10 +58,20 @@ class FakeSocket {
     this.readyState = 3;
   }
 
-  emit(type: string, event: unknown): void {
-    for (const fn of this.listeners[type] ?? []) fn(event);
+  emit(type: string, event: FakeEvent): void {
+    Arr.forEach(this.listeners[type] ?? [], (fn) => fn(event));
   }
 }
+
+// SAFETY: `fromWebSocket` touches only `binaryType`, `addEventListener`,
+// `readyState` and `close` on the socket, all of which `FakeSocket` implements,
+// and reads only the `FakeEvent` fields of the events it dispatches.
+const FakeWebSocket: Realtime.WebSocketConstructor = FakeSocket as never;
+
+// SAFETY: `fromEventSource` touches only `addEventListener`, `readyState` and
+// `close` on the source, all of which `FakeSocket` implements, and reads only
+// the `FakeEvent` fields of the events it dispatches.
+const FakeEventSource: Realtime.EventSourceConstructor = FakeSocket as never;
 
 /** A constructor that throws as `new WebSocket(url)` / `new EventSource(url)` do for an invalid URL. */
 const invalidUrl = new SyntaxError("The URL 'x' is invalid.");
@@ -59,6 +82,12 @@ class ThrowingSocket {
     throw invalidUrl;
   }
 }
+
+// SAFETY: the constructor always throws, so no instance is ever used as a socket.
+const ThrowingWebSocket: Realtime.WebSocketConstructor = ThrowingSocket as never;
+
+// SAFETY: the constructor always throws, so no instance is ever used as a source.
+const ThrowingEventSource: Realtime.EventSourceConstructor = ThrowingSocket as never;
 
 /**
  * Run a stream that is expected to fail and return its typed error, asserting
@@ -76,14 +105,15 @@ const runToError = async <E>(stream: Stream.Stream<unknown, E>): Promise<E> => {
   if (reason === undefined || !Cause.isFailReason(reason)) {
     throw new Error(`expected a typed failure, got ${Cause.pretty(exit.cause)}`);
   }
-  return reason.error as E;
+  if (Cause.isTimeoutError(reason.error)) throw new Error("the stream timed out");
+  return reason.error;
 };
 
 describe("Realtime.fromWebSocket", () => {
   it("fails with WebSocketError carrying the cause when the constructor throws", async () => {
     ThrowingSocket.attempts = 0;
     const error = await runToError(
-      Realtime.fromWebSocket("x", { implementation: ThrowingSocket as never }),
+      Realtime.fromWebSocket("x", { implementation: ThrowingWebSocket }),
     );
     expect(error).toBeInstanceOf(Realtime.WebSocketError);
     expect(error._tag).toBe("WebSocketError");
@@ -95,7 +125,7 @@ describe("Realtime.fromWebSocket", () => {
   it("emits each message's data as a stream element", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(
         Stream.take(2),
         Stream.runCollect,
       ),
@@ -111,9 +141,7 @@ describe("Realtime.fromWebSocket", () => {
   it("ends the stream on a clean close", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
-        Stream.runCollect,
-      ),
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(Stream.runCollect),
     );
     const socket = await awaitSocket();
     socket.emit("message", { data: "only" });
@@ -126,9 +154,7 @@ describe("Realtime.fromWebSocket", () => {
   it("fails with WebSocketError on an unclean close", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
-        Stream.runCollect,
-      ),
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(Stream.runCollect),
     );
     const socket = await awaitSocket();
     socket.emit("close", { wasClean: false, code: 1006, reason: "boom" });
@@ -140,9 +166,7 @@ describe("Realtime.fromWebSocket", () => {
   it("closes the socket when the stream fails", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
-        Stream.runCollect,
-      ),
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(Stream.runCollect),
     );
     const socket = await awaitSocket();
     expect(socket.closeCalls).toBe(0);
@@ -157,7 +181,7 @@ describe("Realtime.fromWebSocket", () => {
   it("closes the socket when the stream ends", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(
         Stream.take(1),
         Stream.runCollect,
       ),
@@ -173,9 +197,7 @@ describe("Realtime.fromWebSocket", () => {
   it("closes the socket when the stream is interrupted", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
-        Stream.runCollect,
-      ),
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(Stream.runCollect),
     );
     const socket = await awaitSocket();
     expect(socket.closeCalls).toBe(0);
@@ -188,9 +210,7 @@ describe("Realtime.fromWebSocket", () => {
   it("does not close a socket that has already closed", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromWebSocket("ws://x", { implementation: FakeSocket as never }).pipe(
-        Stream.runCollect,
-      ),
+      Realtime.fromWebSocket("ws://x", { implementation: FakeWebSocket }).pipe(Stream.runCollect),
     );
     const socket = await awaitSocket();
     socket.readyState = 3;
@@ -207,7 +227,7 @@ describe("Realtime.fromEventSource", () => {
     const error = await runToError(
       Realtime.fromEventSource("x", {
         withCredentials: true,
-        implementation: ThrowingSocket as never,
+        implementation: ThrowingEventSource,
       }),
     );
     expect(error).toBeInstanceOf(Realtime.EventSourceError);
@@ -220,7 +240,7 @@ describe("Realtime.fromEventSource", () => {
   it("emits decoded SSE messages", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromEventSource("/events", { implementation: FakeSocket as never }).pipe(
+      Realtime.fromEventSource("/events", { implementation: FakeEventSource }).pipe(
         Stream.take(1),
         Stream.runCollect,
       ),
@@ -237,7 +257,7 @@ describe("Realtime.fromEventSource", () => {
     const fiber = Effect.runFork(
       Realtime.fromEventSource("/events", {
         events: ["tick"],
-        implementation: FakeSocket as never,
+        implementation: FakeEventSource,
       }).pipe(Stream.take(1), Stream.runCollect),
     );
     const socket = await awaitSocket();
@@ -250,7 +270,7 @@ describe("Realtime.fromEventSource", () => {
   it("closes the source when the stream ends", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromEventSource("/events", { implementation: FakeSocket as never }).pipe(
+      Realtime.fromEventSource("/events", { implementation: FakeEventSource }).pipe(
         Stream.take(1),
         Stream.runCollect,
       ),
@@ -266,7 +286,7 @@ describe("Realtime.fromEventSource", () => {
   it("closes the source when the stream is interrupted", async () => {
     FakeSocket.instances = [];
     const fiber = Effect.runFork(
-      Realtime.fromEventSource("/events", { implementation: FakeSocket as never }).pipe(
+      Realtime.fromEventSource("/events", { implementation: FakeEventSource }).pipe(
         Stream.runCollect,
       ),
     );

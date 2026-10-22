@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
-import { makeRunHelpers } from "../src/internal/remote-run.js";
+import { type FormErrorMapper, makeRunHelpers } from "../src/internal/remote-run.js";
+
+/** The `issue` helper a remote form handler receives. */
+type FormIssue = Parameters<FormErrorMapper>[1]["issue"];
+
+/**
+ * Runs `effect` with no services. `ExitResolver` types its requirements as
+ * `any`; every effect these tests run requires nothing.
+ */
+const runExitBare = <A>(effect: Effect.Effect<A, unknown, any>) =>
+  // SAFETY: every effect passed in these tests (`Effect.succeed` / `Effect.fail`)
+  // has no requirements, so providing none is sound.
+  Effect.runPromiseExit(effect as Effect.Effect<A, unknown, never>);
 
 /** A resolver that runs effects with no services and no teardown. */
-const bareResolver = () => ({
-  runExit: <A>(effect: Effect.Effect<A, unknown, any>) =>
-    Effect.runPromiseExit(effect as Effect.Effect<A, unknown, never>),
-});
+const bareResolver = () => ({ runExit: runExitBare });
 
 class ValidationFailure {
   readonly _tag = "ValidationFailure";
@@ -33,9 +42,9 @@ describe("makeRunHelpers", () => {
 
   it("runForm routes a failure through formError with issue/data", async () => {
     const issues: Array<[string, string]> = [];
-    const issue = {
+    const issue: FormIssue = {
       field: (name: string, message: string) => issues.push([name, message]),
-    } as any;
+    };
 
     const { runForm } = makeRunHelpers(
       bareResolver,
@@ -44,7 +53,7 @@ describe("makeRunHelpers", () => {
       },
       (error, ctx) => {
         if (error instanceof ValidationFailure) {
-          (ctx.issue as any).field(error.field, error.message);
+          ctx.issue["field"](error.field, error.message);
         }
         throw new Error("invalid()");
       },
@@ -63,7 +72,7 @@ describe("makeRunHelpers", () => {
     const { runForm } = makeRunHelpers(bareResolver, () => {
       throw new Error("translated");
     });
-    await expect(runForm(Effect.fail("boom"), { issue: {} as any, data: {} })).rejects.toThrow(
+    await expect(runForm(Effect.fail("boom"), { issue: {}, data: {} })).rejects.toThrow(
       "translated",
     );
   });
@@ -71,8 +80,7 @@ describe("makeRunHelpers", () => {
   it("runs teardown after settling", async () => {
     const order: string[] = [];
     const resolver = () => ({
-      runExit: <A>(effect: Effect.Effect<A, unknown, any>) =>
-        Effect.runPromiseExit(effect as Effect.Effect<A, unknown, never>),
+      runExit: runExitBare,
       dispose: () => order.push("dispose"),
     });
     const { run } = makeRunHelpers(resolver, () => {

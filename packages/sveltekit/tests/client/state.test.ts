@@ -15,7 +15,7 @@ import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { flushSync } from "svelte";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, assert, describe, expect, it } from "vite-plus/test";
 import * as State from "../../src/State.js";
 import {
   navigatingReads,
@@ -39,16 +39,21 @@ const subscribe = <A>(stream: Stream.Stream<A>) =>
     return { next: Queue.take(out), fiber };
   });
 
-const navigation = (type: "link" | "goto", pathname: string): Navigation =>
-  ({
-    type,
+const navigation = (type: "link" | "goto", pathname: string): Navigation => {
+  const base = {
     shallow: false,
     from: null,
-    to: { params: {}, route: { id: pathname }, url: new URL(`https://example.com${pathname}`) },
+    to: {
+      params: {},
+      route: { id: pathname },
+      url: new URL(`https://example.com${pathname}`),
+      scroll: null,
+    },
     willUnload: false,
     complete: Promise.resolve(),
-    event: undefined,
-  }) as unknown as Navigation;
+  };
+  return type === "link" ? { ...base, type, event: new PointerEvent("click") } : { ...base, type };
+};
 
 afterEach(() => {
   setNavigation(null);
@@ -75,7 +80,8 @@ describe("State.navigating", () => {
       ),
     );
     expect(Option.isNone(seen.idle)).toBe(true);
-    const active = Option.getOrThrow(seen.active);
+    assert(Option.isSome(seen.active), "expected a navigation in flight");
+    const active = seen.active.value;
     expect(active.type).toBe("link");
     expect(active.to?.url.pathname).toBe("/about");
     expect(active.delta).toBeNull();

@@ -8,7 +8,7 @@
 import type { Navigation } from "$app/navigation";
 
 class FakePage {
-  data = $state.raw<Record<string, unknown>>({});
+  data = $state.raw<App.PageData>({});
   form = $state.raw<unknown>(null);
   error = $state.raw<unknown>(null);
   params = $state.raw<Record<string, string>>({});

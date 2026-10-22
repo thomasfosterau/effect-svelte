@@ -1,5 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Predicate from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
@@ -74,6 +75,9 @@ export function useReactiveQuery<A, E, R>(
   effectFn: () => Effect.Effect<A, E, R>,
   options: UseReactiveOptions<R> = {},
 ): UseReactiveQueryReturn<A, E> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names plus `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
@@ -97,11 +101,12 @@ export function useReactiveQuery<A, E, R>(
         );
       }),
     ).pipe(
-      Effect.catchCause((cause) =>
-        Effect.sync(() => {
+      Effect.matchCause({
+        onFailure: (cause) => {
           state.failCause(cause);
-        }),
-      ),
+        },
+        onSuccess: () => {},
+      }),
     );
 
     // Start the query untracked. `runFork` (and `Reactivity.query`'s own fork)
@@ -199,6 +204,9 @@ export function useReactiveStream<A, E, R>(
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
   options: UseReactiveOptions<R> = {},
 ): UseReactiveStreamReturn<A, E> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names plus `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   // `streamState`'s subscriber starts the stream untracked (Svelte runs a
@@ -207,8 +215,8 @@ export function useReactiveStream<A, E, R>(
   // change builds a fresh subscriber, which the readers re-subscribe to, and
   // the old one's fiber is interrupted once its last reader has moved on.
   const source = $derived.by(() => {
-    const currentKeys = typeof keys === "function" ? keys() : keys;
-    const currentEffect = typeof effect === "function" ? effect() : effect;
+    const currentKeys = Predicate.isFunction(keys) ? keys() : keys;
+    const currentEffect = Predicate.isFunction(effect) ? effect() : effect;
     return streamState(runtime, () => Reactivity.stream(currentEffect, currentKeys));
   });
 
@@ -269,6 +277,9 @@ export function useReactiveMutation<A, E, R>(
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
   options: UseReactiveOptions<R> = {},
 ): UseReactiveMutationReturn<A, E> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names plus `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
@@ -284,8 +295,8 @@ export function useReactiveMutation<A, E, R>(
         interruptFiber(currentFiber);
       }
 
-      const currentKeys = typeof keys === "function" ? keys() : keys;
-      const currentEffect = typeof effect === "function" ? effect() : effect;
+      const currentKeys = Predicate.isFunction(keys) ? keys() : keys;
+      const currentEffect = Predicate.isFunction(effect) ? effect() : effect;
 
       state.startWaiting();
 
@@ -408,6 +419,9 @@ export type ReactiveMutationReturn<A, E> = UseReactiveMutationReturn<A, E>;
 export function useInvalidateKeys(
   options: UseReactiveOptions<never> = {},
 ): (keys: ReadonlyArray<unknown>) => void {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<Reactivity.Reactivity>);
   return (keys) => {
     // `Reactivity.invalidate` forks every matching query on the spot, so a

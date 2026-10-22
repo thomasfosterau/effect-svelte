@@ -31,15 +31,12 @@ import type * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
+import * as Rec from "effect/Record";
 
 /** Drop `undefined` values so the record satisfies `ConfigProvider.fromEnv`. */
-const definedEntries = (env: Record<string, string | undefined>): Record<string, string> => {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (value !== undefined) out[key] = value;
-  }
-  return out;
-};
+const definedEntries = (env: Record<string, string | undefined>): Record<string, string> =>
+  Rec.filter(env, Predicate.isNotUndefined);
 
 /**
  * Creates a {@link ConfigProvider} backed by a SvelteKit env record (e.g. the

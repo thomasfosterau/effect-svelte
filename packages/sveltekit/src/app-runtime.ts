@@ -20,6 +20,9 @@ import type * as Fiber from "effect/Fiber";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Predicate from "effect/Predicate";
+import * as Rec from "effect/Record";
+import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
@@ -90,11 +93,20 @@ interface RequestRuntimeEntry {
   readonly runtime: RequestRuntime<any>;
 }
 
+/** `event.locals` as this module sees it: possibly carrying a {@link RequestRuntimeEntry}. */
+interface LocalsWithRequestRuntime {
+  [RequestRuntimeKey]?: RequestRuntimeEntry | undefined;
+}
+
 /** Read the per-request runtime entry an event carries, if any. */
 const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefined =>
-  (event.locals as Record<PropertyKey, unknown> | undefined)?.[RequestRuntimeKey] as
-    | RequestRuntimeEntry
-    | undefined;
+  // SAFETY: `RequestRuntimeKey` is this package's namespaced symbol, and the
+  // only value ever stored under it on `locals` is a `RequestRuntimeEntry`.
+  (event.locals as LocalsWithRequestRuntime | undefined)?.[RequestRuntimeKey];
+
+/** Whether a universal load event is a server-side `RequestEvent` (it carries a `request`). */
+const isRequestEvent = <Event>(event: Event): event is Event & RequestEvent =>
+  Predicate.hasProperty(event, "request") && Boolean(event.request);
 
 /** Layer with the per-request services for a server-side request. */
 const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> => {
@@ -331,6 +343,8 @@ export const makeServerRuntime = <R = never, E = never>(
   layer?: Layer.Layer<R, E>,
   options?: ServerRuntimeOptions,
 ): ServerRuntime<R, E> => {
+  // SAFETY: a runtime made without a layer has the defaults `R = never` and
+  // `E = never`, which `Layer.empty` provides.
   const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
 
   // The boundary translator for this runtime's wrappers (defaults to the
@@ -346,18 +360,21 @@ export const makeServerRuntime = <R = never, E = never>(
     requestServices: Context.Context<SvelteKitServices>,
   ): RequestRuntime<R> => {
     const provide = <A>(effect: Effect.Effect<A, unknown, R | SvelteKitServices>) =>
+      // SAFETY: providing the `SvelteKitServices` leaves at most `R`; the
+      // `Exclude` only stays unresolved while `R` is generic.
       Effect.provideContext(effect, requestServices) as Effect.Effect<A, unknown, R>;
     return {
-      runPromiseExit: (effect) =>
-        runtime.runPromiseExit(provide(effect)) as Promise<Exit.Exit<any, unknown>>,
+      runPromiseExit: (effect) => runtime.runPromiseExit(provide(effect)),
       runPromise: (effect) => runtime.runPromiseExit(provide(effect)).then(settleRequest),
-      runFork: (effect) => runtime.runFork(provide(effect)) as Fiber.Fiber<any, unknown>,
+      runFork: (effect) => runtime.runFork(provide(effect)),
     };
   };
 
   /** The per-request runtime for this runtime carried by the event, if any. */
   const requestRuntimeOf = (event: RequestEvent): RequestRuntime<R> | undefined => {
     const entry = requestRuntimeEntry(event);
+    // SAFETY: an entry tagged with this runtime's `owner` was created by its
+    // `handle`, from `makeRequestRuntime`, so it is a `RequestRuntime<R>`.
     return entry?.owner === owner ? (entry.runtime as RequestRuntime<R>) : undefined;
   };
 
@@ -369,8 +386,10 @@ export const makeServerRuntime = <R = never, E = never>(
     // the per-request services for this single call.
     const requestRuntime = requestRuntimeOf(event);
     if (requestRuntime !== undefined) return requestRuntime.runPromiseExit(effect);
+    // SAFETY: the request layer provides the `SvelteKitServices`, leaving at
+    // most `R`; the `Exclude` only stays unresolved while `R` is generic.
     const provided = Effect.provide(effect, requestLayer(event)) as Effect.Effect<A, unknown, R>;
-    return runtime.runPromiseExit(provided) as Promise<Exit.Exit<A, unknown>>;
+    return runtime.runPromiseExit(provided);
   };
 
   const run = <A>(
@@ -394,22 +413,33 @@ export const makeServerRuntime = <R = never, E = never>(
   const handle: ServerRuntime<R, E>["handle"] = (fn) => async (input) => {
     const { event } = input;
     const scope = Scope.makeUnsafe();
-    const requestServices = (await runtime.runPromise(
+    const requestServices: Context.Context<SvelteKitServices> = await runtime.runPromise(
       Layer.buildWithScope(requestLayer(event), scope),
-    )) as Context.Context<SvelteKitServices>;
+    );
 
-    const entry: RequestRuntimeEntry = { owner, runtime: makeRequestRuntime(requestServices) };
-    (event.locals as Record<PropertyKey, unknown>)[RequestRuntimeKey] = entry;
+    const requestRuntime = makeRequestRuntime(requestServices);
+    const entry: RequestRuntimeEntry = { owner, runtime: requestRuntime };
+    // SAFETY: `locals` is the request's plain, writable object; the namespaced
+    // symbol key cannot clash with the app's own `App.Locals` fields.
+    (event.locals as LocalsWithRequestRuntime)[RequestRuntimeKey] = entry;
 
-    try {
-      return await (entry.runtime as RequestRuntime<R>).runPromise(
+    // Close the request scope once the user's effect settles, also when
+    // building it throws, then surface its outcome (or the close's failure).
+    const closeScope = () => runtime.runPromise(Scope.close(scope, Exit.void));
+    const running = Result.try(() =>
+      requestRuntime.runPromise(
         fn(input).pipe(
           Effect.withSpan(`handle ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
         ),
-      );
-    } finally {
-      await runtime.runPromise(Scope.close(scope, Exit.void));
-    }
+      ),
+    );
+    return Result.match(running, {
+      onSuccess: (response) => response.finally(closeScope),
+      onFailure: (thrown) =>
+        closeScope().then(() => {
+          throw thrown;
+        }),
+    });
   };
 
   return {
@@ -422,13 +452,7 @@ export const makeServerRuntime = <R = never, E = never>(
         ),
       ),
     action,
-    actions: (actionsMap) => {
-      const wrapped: Record<string, Action<any, any, any>> = {};
-      for (const [key, fn] of Object.entries(actionsMap)) {
-        wrapped[key] = action(fn);
-      }
-      return wrapped as never;
-    },
+    actions: (actionsMap) => Rec.map(actionsMap, (fn) => action(fn)),
     handle,
     handleFetch: (fn) => (args) =>
       run(
@@ -532,6 +556,8 @@ export interface UniversalRuntime<R = never, E = never> {
 export const makeUniversalRuntime = <R = never, E = never>(
   layer?: Layer.Layer<R, E>,
 ): UniversalRuntime<R, E> => {
+  // SAFETY: a runtime made without a layer has the defaults `R = never` and
+  // `E = never`, which `Layer.empty` provides.
   const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
 
   const run = <A>(
@@ -542,6 +568,8 @@ export const makeUniversalRuntime = <R = never, E = never>(
     // On the server the full request layer (HttpClient + SvelteKitRequestEvent)
     // is available; on the client only HttpClient backed by the event's fetch.
     const services = event ? requestLayer(event) : fetchLayer(fetchFn);
+    // SAFETY: both layers provide `HttpClient`, leaving at most `R`; the
+    // `Exclude` only stays unresolved while `R` is generic.
     const provided = Effect.provide(effect, services) as Effect.Effect<A, unknown, R>;
     return runtime.runPromiseExit(provided).then(settle);
   };
@@ -549,10 +577,7 @@ export const makeUniversalRuntime = <R = never, E = never>(
   return {
     runtime,
     load: (fn) => (event) => {
-      const serverEvent = (event as { request?: unknown }).request
-        ? (event as unknown as RequestEvent)
-        : undefined;
-      return run(event.fetch, fn(event), serverEvent);
+      return run(event.fetch, fn(event), isRequestEvent(event) ? event : undefined);
     },
     runPromise: (fetchFn, effect) => run(fetchFn, effect),
     dispose: () => runtime.dispose(),

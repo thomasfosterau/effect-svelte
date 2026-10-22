@@ -1,8 +1,9 @@
+import * as Arr from "effect/Array";
 import { mount, tick, unmount } from "svelte";
 
 /** Mounts `component` into a fresh element; `cleanup` unmounts everything mounted so far. */
 export const makeMounter = () => {
-  const mounted: Array<{ component: Record<string, unknown>; target: HTMLElement }> = [];
+  const mounted: Array<{ component: Parameters<typeof unmount>[0]; target: HTMLElement }> = [];
   return {
     mount: <Props extends Record<string, any>>(
       component: Parameters<typeof mount<Props, any>>[0],
@@ -15,10 +16,10 @@ export const makeMounter = () => {
       return target;
     },
     cleanup: () => {
-      for (const { component, target } of mounted.splice(0)) {
+      Arr.forEach(mounted.splice(0), ({ component, target }) => {
         void unmount(component);
         target.remove();
-      }
+      });
     },
   };
 };

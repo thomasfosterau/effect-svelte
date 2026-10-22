@@ -1,11 +1,26 @@
-import { describe, expect, it } from "vite-plus/test";
+import { assert, describe, expect, it } from "vite-plus/test";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
 import { effectKit, type EffectKitPluginOptions } from "../src/vite.js";
 
+/** The part of a `transform` hook result these tests read: the rewritten module. */
+const TransformedModule = Schema.NullOr(Schema.Struct({ code: Schema.String }));
+
+/** Runs the plugin's `transform` hook on `code` (as module `id`), or `null` if it is left alone. */
 function runTransform(code: string, id: string, options?: EffectKitPluginOptions) {
   const plugin = effectKit(options);
-  const transform = plugin.transform as any;
-  if (typeof transform !== "function") throw new Error("expected transform function");
-  const result = transform.call({}, code, id);
+  const transform = plugin.transform;
+  if (!Predicate.isFunction(transform)) throw new Error("expected transform function");
+  // SAFETY: `effectKit`'s transform hook never reads its plugin context
+  // (`this`), so an empty object stands in for it.
+  const context = {} as ThisParameterType<typeof transform>;
+  return Schema.decodeUnknownSync(TransformedModule)(transform.call(context, code, id));
+}
+
+/** Like {@link runTransform}, asserting the hook rewrote the module. */
+function transformed(code: string, id: string, options?: EffectKitPluginOptions) {
+  const result = runTransform(code, id, options);
+  assert(result !== null, "expected the plugin to transform the module");
   return result;
 }
 
@@ -24,7 +39,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps a `load` export in +page.server.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `import { Effect } from "effect";\nexport const load = (event) => Effect.succeed({ ok: true });\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -39,7 +54,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps `actions` in +page.server.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const actions = { default: (event) => null };\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -47,7 +62,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps universal `load` in +page.ts with wrapLoad", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const load = (event) => ({ ok: true });\n`,
       "/app/src/routes/foo/+page.ts",
     );
@@ -56,7 +71,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps multiple HTTP method exports in +server.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const GET = (event) => new Response();\n` +
         `export async function POST(event) { return new Response(); }\n`,
       "/app/src/routes/api/+server.ts",
@@ -67,7 +82,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps `handle` in hooks.server.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const handle = ({ event, resolve }) => resolve(event);\n`,
       "/app/src/hooks.server.ts",
     );
@@ -75,18 +90,21 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("only imports needed wrappers (deduped)", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const GET = () => new Response();\nexport const POST = () => new Response();\n`,
       "/app/src/routes/api/+server.ts",
     );
     const importLine = result.code.match(/import \{ ([^}]+) \} from/);
     expect(importLine).not.toBeNull();
-    const importedNames = importLine![1].split(",").map((s: string) => s.trim());
+    assert(importLine !== null, "expected a wrapper import line");
+    const imported = importLine[1];
+    assert(imported !== undefined, "expected the import line to name wrappers");
+    const importedNames = imported.split(",").map((s: string) => s.trim());
     expect(importedNames).toEqual(["wrapEndpoint"]);
   });
 
   it("does NOT match `export const load` inside string literals", () => {
-    const result = runTransform(
+    const result = transformed(
       `const docs = "export const load = something";\nexport const load = () => 1;\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -97,7 +115,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("does NOT match `export const load` inside comments", () => {
-    const result = runTransform(
+    const result = transformed(
       `// export const load = nope\n/* export const load = also-nope */\nexport const load = () => 1;\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -109,13 +127,13 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("preserves declaration kind", () => {
-    const fnResult = runTransform(
+    const fnResult = transformed(
       `export function GET() { return new Response(); }\n`,
       "/app/src/routes/api/+server.ts",
     );
     expect(fnResult.code).toContain("function __effect_kit_orig_GET");
 
-    const letResult = runTransform(
+    const letResult = transformed(
       `export let load = () => 1;\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -123,7 +141,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("does not touch non-target exports", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const prerender = true;\nexport const ssr = false;\nexport const load = () => 1;\n`,
       "/app/src/routes/foo/+page.server.ts",
     );
@@ -132,7 +150,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("wraps `reroute` in the universal hooks.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const reroute = (event) => (event.url.pathname === "/old" ? "/new" : undefined);\n`,
       "/app/src/hooks.ts",
     );
@@ -159,7 +177,7 @@ describe("effectKit() vite plugin", () => {
   });
 
   it("hooks.client.ts wraps handleError and init but not handle", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const handleError = (e) => null;\n` +
         `export const init = () => {};\n` +
         `export const handle = () => null;\n`,
@@ -177,7 +195,7 @@ describe("effectKit() runtime module options", () => {
   const serverCode = `export const load = (event) => null;\n`;
 
   it("injects the serverRuntime module into server route files", () => {
-    const result = runTransform(serverCode, "/app/src/routes/foo/+page.server.ts", {
+    const result = transformed(serverCode, "/app/src/routes/foo/+page.server.ts", {
       serverRuntime: "#lib/server/runtime.ts",
     });
     expect(result.code).toContain(
@@ -189,7 +207,7 @@ describe("effectKit() runtime module options", () => {
   });
 
   it("injects the serverRuntime module into hooks.server.ts", () => {
-    const result = runTransform(
+    const result = transformed(
       `export const handle = ({ event, resolve }) => resolve(event);\n`,
       "/app/src/hooks.server.ts",
       { serverRuntime: "#lib/server/runtime.ts" },
@@ -201,7 +219,7 @@ describe("effectKit() runtime module options", () => {
   });
 
   it("injects the clientRuntime module into universal route files", () => {
-    const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
+    const result = transformed(serverCode, "/app/src/routes/foo/+page.ts", {
       serverRuntime: "#lib/server/runtime.ts",
       clientRuntime: "#lib/runtime.ts",
     });
@@ -214,7 +232,7 @@ describe("effectKit() runtime module options", () => {
   });
 
   it("does not inject the serverRuntime into universal files when no clientRuntime is set", () => {
-    const result = runTransform(serverCode, "/app/src/routes/foo/+page.ts", {
+    const result = transformed(serverCode, "/app/src/routes/foo/+page.ts", {
       serverRuntime: "#lib/server/runtime.ts",
     });
     expect(result.code).not.toContain("__effect_kit_runtime");
@@ -222,7 +240,7 @@ describe("effectKit() runtime module options", () => {
   });
 
   it("does not inject anything when no runtime options are set", () => {
-    const result = runTransform(serverCode, "/app/src/routes/foo/+page.server.ts");
+    const result = transformed(serverCode, "/app/src/routes/foo/+page.server.ts");
     expect(result.code).not.toContain("__effect_kit_runtime");
     expect(result.code).toContain("export const load = wrapServerLoad(__effect_kit_orig_load);");
   });

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { assert, describe, expect, it } from "vite-plus/test";
+import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -89,24 +90,24 @@ describe("pageSnapshotStream", () => {
  * watcher's `read`, the way a Svelte flush re-runs a dirty `$effect`.
  */
 const makeFakeWatch = () => {
-  const live = new Set<() => void>();
+  let live: ReadonlyArray<() => void> = [];
   let disposed = 0;
   const watch: Watch = (read, onValue) => {
     const run = () => onValue(read());
-    live.add(run);
+    live = Arr.append(live, run);
     run();
     return () => {
-      live.delete(run);
+      live = Arr.filter(live, (other) => other !== run);
       disposed += 1;
     };
   };
   return {
     watch,
     emit: () => {
-      for (const run of live) run();
+      Arr.forEach(live, (run) => run());
     },
     get live() {
-      return live.size;
+      return live.length;
     },
     get disposed() {
       return disposed;
@@ -208,7 +209,8 @@ describe("snapshotNavigating", () => {
         complete,
       }),
     );
-    if (Option.isSome(snap)) expect(snap.value).not.toBe(navigating);
+    assert(Option.isSome(snap), "expected a snapshot");
+    expect(snap.value).not.toBe(navigating);
   });
 
   it("normalises a missing delta to null", () => {
@@ -219,7 +221,8 @@ describe("snapshotNavigating", () => {
       willUnload: false,
       complete: Promise.resolve(),
     });
-    expect(Option.getOrThrow(snap).delta).toBeNull();
+    assert(Option.isSome(snap), "expected a snapshot");
+    expect(snap.value.delta).toBeNull();
   });
 });
 
@@ -264,7 +267,12 @@ describe("makeCurrentPage", () => {
     const pages = ["/a", "/b", "/c"];
     let i = 0;
     // Clamp: the tap after the last taken value still triggers one re-read.
-    const service = makeCurrentPage(() => makePage(pages[Math.min(i, 2)]!), fake.watch);
+    const pageAt = (n: number): string => {
+      const page = pages[Math.min(n, 2)];
+      assert(page !== undefined, "expected a page path");
+      return page;
+    };
+    const service = makeCurrentPage(() => makePage(pageAt(i)), fake.watch);
     const seen = await Effect.runPromise(
       service.changes.pipe(
         Stream.take(3),

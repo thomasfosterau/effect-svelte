@@ -24,6 +24,8 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import { AsyncResult, Atom, AtomRegistry as Registry, Reactivity } from "effect/reactivity";
@@ -74,7 +76,7 @@ export class AtomRegistryUnavailable extends Schema.TaggedError<AtomRegistryUnav
 export const makeAtomRegistry = (options: MakeAtomRegistryOptions = {}): AtomRegistry =>
   Registry.make(options);
 
-const isBrowser = (): boolean => typeof window !== "undefined";
+const isBrowser = (): boolean => !Predicate.isUndefined(globalThis.window);
 
 /** The implicit browser registry, once built. `None` is "not created yet". */
 let browserRegistry: Option.Option<AtomRegistry> = Option.none();
@@ -135,16 +137,12 @@ export const provideAtomRegistry = (registry: AtomRegistry = makeAtomRegistry())
  * called during component initialisation; throws on the server when no registry
  * was provided.
  */
-export const getAtomRegistry = (): AtomRegistry => {
-  try {
-    return getContextRegistry() ?? defaultAtomRegistry();
-  } catch (error) {
-    // Outside component initialisation Svelte's `getContext` throws; fall back
-    // to the implicit registry so non-component callers behave consistently.
-    if (error instanceof AtomRegistryUnavailable) throw error;
-    return defaultAtomRegistry();
-  }
-};
+export const getAtomRegistry = (): AtomRegistry =>
+  // Outside component initialisation Svelte's `getContext` throws; fall back
+  // to the implicit registry so non-component callers behave consistently.
+  // `defaultAtomRegistry` throwing `AtomRegistryUnavailable` (on the server)
+  // propagates.
+  Result.getOrUndefined(Result.try(getContextRegistry)) ?? defaultAtomRegistry();
 
 /** Options shared by the atom hooks. */
 export interface UseAtomOptions {
@@ -219,11 +217,10 @@ export function useAtom<R, W>(
     return {
       get current() {
         const scratch = makeAtomRegistry();
-        try {
-          return scratch.get(atom());
-        } finally {
-          scratch.dispose();
-        }
+        const value = Result.try(() => scratch.get(atom()));
+        scratch.dispose();
+        if (Result.isFailure(value)) throw value.failure;
+        return value.success;
       },
       set: () => {
         throw new AtomRegistryUnavailable({
@@ -242,10 +239,10 @@ export function useAtom<R, W>(
     },
     set: (value) => {
       const target = view.atom;
-      if (!Atom.isWritable(target)) {
+      if (!Atom.isWritable<R, W>(target)) {
         throw new TypeError("effect-svelte: useAtom(...).set called on a read-only atom");
       }
-      registry.set(target as Atom.Writable<R, W>, value);
+      registry.set(target, value);
     },
   };
 }
@@ -321,12 +318,10 @@ export function useAtomResult<A, E>(
 /** The explicit registry, else the ambient one, else `None` (server, nothing provided). */
 const resolveRegistry = (options: UseAtomOptions): Option.Option<AtomRegistry> => {
   if (options.registry !== undefined) return Option.some(options.registry);
-  try {
-    return Option.some(getAtomRegistry());
-  } catch (error) {
-    if (error instanceof AtomRegistryUnavailable) return Option.none();
-    throw error;
-  }
+  const attempt = Result.try(getAtomRegistry);
+  if (Result.isSuccess(attempt)) return Option.some(attempt.success);
+  if (attempt.failure instanceof AtomRegistryUnavailable) return Option.none();
+  throw attempt.failure;
 };
 
 const getOrThrow = (registry: Option.Option<AtomRegistry>): AtomRegistry =>

@@ -1,30 +1,26 @@
-import { describe, expect, it } from "vite-plus/test";
-import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
+import { assert, describe, expect, it } from "vite-plus/test";
+import { error, isHttpError, isRedirect, redirect, type RequestEvent } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Predicate from "effect/Predicate";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
-
-const mockEvent = (url = "http://localhost/") =>
-  ({
-    request: new Request(url),
-    fetch,
-    cookies: {} as any,
-    locals: {},
-    params: {},
-    platform: undefined,
-    route: { id: null },
-    setHeaders: () => undefined,
-    url: new URL(url),
-    isDataRequest: false,
-    isSubRequest: false,
-  }) as any;
+import { mockEvent } from "./fixtures/request-event.js";
 
 class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
   "test/Greeter",
 ) {}
+
+/** `locals` carrying a consumer-built runtime, as `hooks.server.ts` would set it. */
+interface RuntimeLocals {
+  runtime: ManagedRuntime.ManagedRuntime<Greeter, never>;
+}
+
+/** Whether `locals` carries a runtime (see {@link RuntimeLocals}). */
+const hasRuntime = (locals: App.Locals): locals is RuntimeLocals =>
+  Predicate.hasProperty(locals, "runtime") && ManagedRuntime.isManagedRuntime(locals.runtime);
 
 const greeterLayer = Layer.succeed(Greeter, { greet: (name) => `hello ${name}` });
 
@@ -66,16 +62,19 @@ describe("RequestRuntime constructors", () => {
     const rtA = ManagedRuntime.make(Layer.succeed(Greeter, { greet: () => "A" }));
     const rtB = ManagedRuntime.make(Layer.succeed(Greeter, { greet: () => "B" }));
     const { serverLoad } = makeRuntimeAdapter(
-      RequestRuntime.fromLocals((event) => (event.locals as any).runtime),
+      RequestRuntime.fromLocals((event) => {
+        assert(hasRuntime(event.locals), "expected a runtime on locals");
+        return event.locals.runtime;
+      }),
     );
     const load = serverLoad(() => Effect.map(Greeter, (g) => ({ who: g.greet("") })));
 
-    const event = mockEvent();
-    (event.locals as any).runtime = rtA;
+    const locals: RuntimeLocals = { runtime: rtA };
+    const event = mockEvent({ locals });
     expect(await load(event)).toEqual({ who: "A" });
 
     // The runtime is rebuilt mid-request; the next call picks it up.
-    (event.locals as any).runtime = rtB;
+    locals.runtime = rtB;
     expect(await load(event)).toEqual({ who: "B" });
 
     await rtA.dispose();
@@ -91,7 +90,7 @@ describe("RequestRuntime constructors", () => {
 
   it("fromLayerPerRequest builds and disposes a runtime per handler invocation", async () => {
     const events: string[] = [];
-    const layer = (_event: any) =>
+    const layer = (_event: RequestEvent) =>
       Layer.effect(
         Greeter,
         Effect.acquireRelease(
@@ -129,7 +128,7 @@ describe("RequestRuntime constructors", () => {
     // Disposal has not run yet; it was deferred.
     expect(events).toEqual([]);
     expect(deferred).toHaveLength(1);
-    await deferred[0]!();
+    await deferred[0]?.();
     expect(events).toEqual(["dispose"]);
   });
 });
@@ -145,7 +144,7 @@ describe("makeRuntimeAdapter wrappers", () => {
     const map = actions({
       create: () => Effect.map(Greeter, (g) => ({ created: g.greet("c") })),
     });
-    expect(await map.create!(mockEvent())).toEqual({ created: "hello c" });
+    expect(await map.create(mockEvent())).toEqual({ created: "hello c" });
 
     const get = endpoint(() => Effect.map(Greeter, (g) => new Response(g.greet("e"))));
     expect(await (await get(mockEvent())).text()).toBe("hello e");
@@ -172,14 +171,14 @@ describe("boundary error translation", () => {
         redirect(302, "/elsewhere");
       }),
     );
-    await expect(redirecting(mockEvent())).rejects.toSatisfy((e: unknown) => isRedirect(e));
+    await expect(redirecting(mockEvent())).rejects.toSatisfy(isRedirect);
 
     const erroring = serverLoad(() =>
       Effect.sync((): void => {
         error(404, "nope");
       }),
     );
-    await expect(erroring(mockEvent())).rejects.toSatisfy((e: unknown) => isHttpError(e));
+    await expect(erroring(mockEvent())).rejects.toSatisfy(isHttpError);
   });
 
   it("maps a domain error to SvelteKit control flow via translateError", async () => {
@@ -195,12 +194,12 @@ describe("boundary error translation", () => {
 
     const notFound = serverLoad(() => Effect.fail(new NotFound()));
     await expect(notFound(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 404,
+      (e) => isHttpError(e) && e.status === 404,
     );
 
     const invalid = serverLoad(() => Effect.fail(new ValidationFailure("email")));
     await expect(invalid(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).body.message === "invalid:email",
+      (e) => isHttpError(e) && e.body.message === "invalid:email",
     );
   });
 
@@ -223,8 +222,6 @@ describe("boundary error translation", () => {
       translateError: () => error(403, "forbidden"),
     });
     const handler = endpoint(() => Effect.fail(new NotFound()));
-    await expect(handler(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 403,
-    );
+    await expect(handler(mockEvent())).rejects.toSatisfy((e) => isHttpError(e) && e.status === 403);
   });
 });

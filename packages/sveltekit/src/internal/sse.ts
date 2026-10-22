@@ -5,12 +5,14 @@
  * See the [SSE specification](https://html.spec.whatwg.org/multipage/server-sent-events.html).
  */
 
+import * as Arr from "effect/Array";
+
 /** The response headers required for a `text/event-stream` body. */
-export const SSE_HEADERS: Readonly<Record<string, string>> = {
+export const SSE_HEADERS = {
   "Content-Type": "text/event-stream",
   "Cache-Control": "no-cache, no-transform",
   Connection: "keep-alive",
-};
+} as const satisfies Readonly<Record<string, string>>;
 
 /** The fields of a single SSE event. */
 export interface SseFrame {
@@ -35,7 +37,7 @@ export const encodeSseFrame = (frame: SseFrame): string => {
   if (frame.id !== undefined) out += `id: ${frame.id}\n`;
   if (frame.event !== undefined) out += `event: ${frame.event}\n`;
   // Split into per-line `data:` fields so embedded newlines survive.
-  for (const line of frame.data.split("\n")) out += `data: ${line}\n`;
+  out += Arr.map(frame.data.split("\n"), (line) => `data: ${line}\n`).join("");
   out += "\n";
   return out;
 };

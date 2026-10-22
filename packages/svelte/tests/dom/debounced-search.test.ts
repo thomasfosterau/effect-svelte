@@ -9,7 +9,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import DebouncedSearch from "./DebouncedSearch.svelte";
 import { flush, makeMounter, text } from "./helpers.js";
 
@@ -29,7 +29,9 @@ const mounter = makeMounter();
 afterEach(mounter.cleanup);
 
 const results = (target: HTMLElement): Array<string> =>
-  [...target.querySelectorAll('[data-testid="results"] li')].map((li) => li.textContent!.trim());
+  [...target.querySelectorAll('[data-testid="results"] li')].map((li) =>
+    (li.textContent ?? "").trim(),
+  );
 
 const setup = (
   onSearch: (q: string) => Effect.Effect<ReadonlyArray<{ id: string; label: string }>, unknown>,
@@ -77,7 +79,7 @@ describe("useDebouncedSearch", () => {
     });
     const { target, emit, runtime } = setup(
       (q) =>
-        (q === "beta" ? Effect.promise(() => gate) : Effect.sleep(Duration.millis(5))).pipe(
+        (q === "beta" ? Effect.tryPromise(() => gate) : Effect.sleep(Duration.millis(5))).pipe(
           Effect.map(() => filter(q)),
         ),
       10,
@@ -118,38 +120,40 @@ describe("useDebouncedSearch", () => {
     // Driven on fake timers: Effect's Clock schedules `Effect.sleep` and
     // `Stream.debounce` via the global `setTimeout`, which `vi.useFakeTimers()`
     // intercepts — every step happens at an exact virtual instant.
+    // Restored at the end of the test (before `afterEach` unmounts), and by
+    // `onTestFinished` should an assertion fail first.
     vi.useFakeTimers();
-    try {
-      const events: Array<string> = [];
-      const trackedSearch = (query: string) =>
-        Effect.sleep(Duration.millis(500)).pipe(
-          Effect.map(() => filter(query)),
-          Effect.tap(() => Effect.sync(() => events.push(`done:${query}`))),
-          Effect.onInterrupt(() => Effect.sync(() => events.push(`interrupted:${query}`))),
-        );
-      const { target, emit, runtime } = setup(trackedSearch, 20);
-
-      await vi.advanceTimersByTimeAsync(0);
-      await vi.advanceTimersByTimeAsync(0);
-
-      // First query passes the 20 ms debounce and starts its 500 ms search.
-      emit("alpha");
-      await vi.advanceTimersByTimeAsync(21);
-      expect(events).toEqual([]);
-
-      // Second query supersedes it while alpha's search is still sleeping.
-      emit("beta");
-      await vi.advanceTimersByTimeAsync(21);
-      expect(events).toEqual(["interrupted:alpha"]);
-
-      // Drain the remaining timers (beta's 500 ms sleep) so its result lands.
-      await vi.runAllTimersAsync();
-
-      expect(events).toEqual(["interrupted:alpha", "done:beta"]);
-      expect(results(target)).toEqual(["Parent Issue beta"]);
-      await runtime.dispose();
-    } finally {
+    onTestFinished(() => {
       vi.useRealTimers();
-    }
+    });
+    const events: Array<string> = [];
+    const trackedSearch = (query: string) =>
+      Effect.sleep(Duration.millis(500)).pipe(
+        Effect.map(() => filter(query)),
+        Effect.tap(() => Effect.sync(() => events.push(`done:${query}`))),
+        Effect.onInterrupt(() => Effect.sync(() => events.push(`interrupted:${query}`))),
+      );
+    const { target, emit, runtime } = setup(trackedSearch, 20);
+
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // First query passes the 20 ms debounce and starts its 500 ms search.
+    emit("alpha");
+    await vi.advanceTimersByTimeAsync(21);
+    expect(events).toEqual([]);
+
+    // Second query supersedes it while alpha's search is still sleeping.
+    emit("beta");
+    await vi.advanceTimersByTimeAsync(21);
+    expect(events).toEqual(["interrupted:alpha"]);
+
+    // Drain the remaining timers (beta's 500 ms sleep) so its result lands.
+    await vi.runAllTimersAsync();
+
+    expect(events).toEqual(["interrupted:alpha", "done:beta"]);
+    expect(results(target)).toEqual(["Parent Issue beta"]);
+    await runtime.dispose();
+    vi.useRealTimers();
   });
 });
