@@ -24,7 +24,12 @@ import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Path from "effect/Path";
-import { Config, Context, Effect, Layer, Option, Stream } from "effect";
+import * as Config from "effect/Config";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import { AssetSource, type FileSystemAssetServices } from "./assets.js";
 
 export { AssetSource, type FileSystemAssetServices } from "./assets.js";

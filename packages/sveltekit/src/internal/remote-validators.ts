@@ -5,7 +5,7 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 /**
  * Detects a Standard Schema validator via its `~standard` marker property.

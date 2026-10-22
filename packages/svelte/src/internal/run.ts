@@ -1,4 +1,7 @@
-import { Context, Effect, Fiber, ManagedRuntime } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 /**
  * A runtime that the Svelte hooks can run effects against.

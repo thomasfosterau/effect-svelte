@@ -7,11 +7,13 @@ Two packages, `@thomasfosterau/effect-svelte` and `@thomasfosterau/effect-svelte
 ## Install
 
 To just use the plain Svelte package:
+
 ```bash
 pnpm add @thomasfosterau/effect-svelte
 ```
 
 To use both the Svelte and SvelteKit packages:
+
 ```bash
 pnpm add @thomasfosterau/effect-svelte @thomasfosterau/effect-sveltekit
 ```
@@ -25,4 +27,3 @@ MIT
 Setup, commands and the pre-PR checklist are in
 [CONTRIBUTING.md](./CONTRIBUTING.md). Releases are automated with Changesets
 and npm trusted publishing (OIDC); see [docs/RELEASING.md](./docs/RELEASING.md).
-

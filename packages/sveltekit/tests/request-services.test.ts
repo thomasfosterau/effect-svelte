@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import type { RequestEvent } from "@sveltejs/kit";
 import {
   SvelteKitCookies,

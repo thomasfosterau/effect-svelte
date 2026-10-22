@@ -1,4 +1,6 @@
-import { Scope, Exit, Effect } from "effect";
+import * as Scope from "effect/Scope";
+import * as Exit from "effect/Exit";
+import * as Effect from "effect/Effect";
 import { untrack } from "svelte";
 
 /**

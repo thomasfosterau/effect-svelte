@@ -7,7 +7,13 @@
  */
 
 import type { Navigation } from "$app/navigation";
-import { Effect, Exit, Fiber, Layer, Option, Queue, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 import { flushSync } from "svelte";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import * as State from "../../src/State.js";

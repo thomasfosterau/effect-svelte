@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Layer, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import type { RequestEvent } from "@sveltejs/kit";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
 import {

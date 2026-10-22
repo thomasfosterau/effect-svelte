@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from "vite-plus/test";
 import type { Action, Actions, Load, RequestHandler, ServerLoad } from "@sveltejs/kit";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import type { RuntimeAdapter } from "../src/request-runtime.js";
 import type { ServerRuntime, UniversalRuntime } from "../src/app-runtime.js";
 

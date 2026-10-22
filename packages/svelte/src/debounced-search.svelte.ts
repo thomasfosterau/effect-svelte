@@ -1,4 +1,10 @@
-import { Duration, Effect, Match, Predicate, Queue, Stream, String } from "effect";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Match from "effect/Match";
+import * as Predicate from "effect/Predicate";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
+import * as String from "effect/String";
 import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { useStream } from "./stream.svelte.js";

@@ -5,7 +5,10 @@
  * `SignalEmitter` dropped them, until #126 fixed its stream cleanup), and a
  * superseded in-flight search must be interrupted, not merely ignored.
  */
-import { Duration, Effect, Layer, ManagedRuntime } from "effect";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import DebouncedSearch from "./DebouncedSearch.svelte";
 import { flush, makeMounter, text } from "./helpers.js";

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
-import { Cause, Context, Effect, Layer } from "effect";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";

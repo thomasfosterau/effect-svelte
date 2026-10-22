@@ -4,7 +4,10 @@
  * through untouched.
  */
 import { error, isHttpError, isRedirect } from "@sveltejs/kit";
-import { Cause, Effect, Layer, Schema } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import * as Errors from "../src/errors.js";
 import { EffectCauseError } from "../src/internal/error.js";
@@ -14,21 +17,21 @@ import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
   resource: Schema.String,
   id: Schema.String,
-}) { }
+}) {}
 class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {
   message: Schema.optional(Schema.String),
-}) { }
+}) {}
 class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {
   message: Schema.optional(Schema.String),
-}) { }
+}) {}
 class Redirect extends Schema.TaggedError<Redirect>()("Redirect", {
   to: Schema.String,
   status: Schema.Number,
-}) { }
+}) {}
 class HttpError extends Schema.TaggedError<HttpError>()("HttpError", {
   status: Schema.Number,
   message: Schema.String,
-}) { }
+}) {}
 /** Stands in for effect-jsonapi's `JsonapiError`: a status plus a document. */
 class JsonapiError extends Schema.TaggedError<JsonapiError>()("JsonapiError", {
   status: Schema.Number,

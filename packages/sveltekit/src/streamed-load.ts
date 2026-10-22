@@ -50,7 +50,7 @@
  * before passing the effect to `defer`.
  */
 
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 
 /**
  * Capture the current service context and run `effect` in the background,

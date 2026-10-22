@@ -1,4 +1,4 @@
-import type { Effect } from "effect";
+import type * as Effect from "effect/Effect";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useEffect } from "./effect.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";

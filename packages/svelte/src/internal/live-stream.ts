@@ -1,4 +1,7 @@
-import { Cause, Effect, Exit, Stream } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 

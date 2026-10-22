@@ -1,4 +1,6 @@
-import { Effect, Stream, SubscriptionRef } from "effect";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { refWriter } from "./internal/writable.js";

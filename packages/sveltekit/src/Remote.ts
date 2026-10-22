@@ -6,7 +6,8 @@ import type {
   RemoteQueryFunction,
   RemoteQueryOverride,
 } from "$app/server";
-import { Effect, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 
 /**
  * Wraps a remote call so a rejection, or a synchronous throw from `thunk`,

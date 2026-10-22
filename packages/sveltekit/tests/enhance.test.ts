@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { SubmitFunction } from "$app/forms";
-import { Context, Data, Effect, Layer, ManagedRuntime } from "effect";
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { makeSubmitFunction } from "../src/internal/enhance.js";
 
 /** A minimal SubmitFunction input; only what a handler touches is populated. */

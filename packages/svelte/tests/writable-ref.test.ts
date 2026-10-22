@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Layer, ManagedRuntime, Stream, SubscriptionRef } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { refWriter } from "../src/internal/writable.js";
 
 /** Yields to the event loop so the forked write fibers can settle. */

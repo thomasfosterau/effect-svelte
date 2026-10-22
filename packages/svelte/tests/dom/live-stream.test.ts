@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { Layer, ManagedRuntime, Queue, Schedule, Stream, SubscriptionRef } from "effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Queue from "effect/Queue";
+import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { mount, tick, unmount } from "svelte";
 import Boundary from "./Boundary.svelte";
 import Counting from "./Counting.svelte";

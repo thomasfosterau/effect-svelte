@@ -25,7 +25,11 @@
  * `mount` is enough to see the settled result; asynchronous ones are released
  * and observed through `Deferred`s and the probe's `onSuccess`, never a timer.
  */
-import { Cause, Context, Deferred, Effect, ManagedRuntime } from "effect";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
+import * as Effect from "effect/Effect";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Reactivity } from "effect/reactivity";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { flushSync, mount, unmount } from "svelte";

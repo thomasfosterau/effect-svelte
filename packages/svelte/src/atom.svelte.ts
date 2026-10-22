@@ -20,7 +20,12 @@
  * @module
  */
 
-import { Context, Effect, Layer, Option, Schema, Scope } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
+import * as Scope from "effect/Scope";
 import { AsyncResult, Atom, AtomRegistry as Registry, Reactivity } from "effect/reactivity";
 import { createContext } from "svelte";
 import { createSubscriber } from "svelte/reactivity";

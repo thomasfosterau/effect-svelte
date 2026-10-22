@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Cause, Effect, Exit, Stream } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Stream from "effect/Stream";
 import {
   callCommand,
   callCommandWithUpdates,

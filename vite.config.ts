@@ -33,7 +33,10 @@ export default defineConfig({
       // devDependencies.
       check: {
         command: "echo 'check: every type gate green'",
-        dependsOn: ["@thomasfosterau/effect-svelte#check", "@thomasfosterau/effect-sveltekit#check"],
+        dependsOn: [
+          "@thomasfosterau/effect-svelte#check",
+          "@thomasfosterau/effect-sveltekit#check",
+        ],
         cache: false,
       },
       // Every package's suite under one Istanbul coverage map

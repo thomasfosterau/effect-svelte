@@ -1,5 +1,7 @@
 import type { Action, Actions, RequestEvent, ServerLoad } from "@sveltejs/kit";
-import { Effect, Exit, Cause } from "effect";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Cause from "effect/Cause";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import type { SvelteKitServices } from "./app-runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";

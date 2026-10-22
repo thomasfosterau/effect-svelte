@@ -45,8 +45,9 @@ import {
   refreshAll as kitRefreshAll,
 } from "$app/navigation";
 import type { AfterNavigate, BeforeNavigate, OnNavigate } from "$app/navigation";
-import { Data, Effect } from "effect";
-import type { Stream } from "effect";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import type * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "./internal/navigation-events.js";
 
 /**

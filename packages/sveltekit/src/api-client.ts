@@ -23,7 +23,8 @@
  * ```
  */
 
-import { Effect, Layer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import type * as HttpApi from "effect/http-api/HttpApi";

@@ -27,7 +27,10 @@
  * `DATABASE_HOST` env var just like it does from `process.env`.
  */
 
-import { type Config, ConfigProvider, Effect, type Layer } from "effect";
+import type * as Config from "effect/Config";
+import * as ConfigProvider from "effect/ConfigProvider";
+import * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
 
 /** Drop `undefined` values so the record satisfies `ConfigProvider.fromEnv`. */
 const definedEntries = (env: Record<string, string | undefined>): Record<string, string> => {

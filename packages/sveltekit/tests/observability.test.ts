@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Layer, Tracer } from "effect";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Tracer from "effect/Tracer";
 import { makeServerRuntime } from "../src/app-runtime.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 

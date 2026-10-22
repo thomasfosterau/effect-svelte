@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Cause, Effect, Exit, Fiber, Stream } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
 import * as Realtime from "../src/realtime.js";
 
 /**

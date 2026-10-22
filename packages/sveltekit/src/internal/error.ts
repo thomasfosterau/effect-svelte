@@ -1,5 +1,5 @@
 import { error as kitError, isHttpError, isRedirect } from "@sveltejs/kit";
-import { Cause } from "effect";
+import * as Cause from "effect/Cause";
 
 /**
  * Custom error type that preserves the original Effect Cause.

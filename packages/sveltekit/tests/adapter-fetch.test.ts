@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Server } from "@sveltejs/kit";
-import { Layer } from "effect";
+import * as Layer from "effect/Layer";
 import { AssetSource, makeHandlerWith, toWebHandler } from "../src/adapter/handler.js";
 
 /** Fake SvelteKit Server: echoes SSR request details, marks them with x-ssr. */

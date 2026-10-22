@@ -16,7 +16,8 @@
  *   (`env.ASSETS`). Requires nothing.
  */
 
-import { Effect, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as HttpPlatform from "effect/http/HttpPlatform";

@@ -31,8 +31,13 @@
  */
 
 import type { RequestHandler } from "@sveltejs/kit";
-import { Context, type Duration, Effect, Layer, Schedule, Stream } from "effect";
-import type { Scope } from "effect";
+import * as Context from "effect/Context";
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
+import type * as Scope from "effect/Scope";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Etag from "effect/http/Etag";

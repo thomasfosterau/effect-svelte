@@ -1,4 +1,5 @@
-import { Option, type Stream } from "effect";
+import * as Option from "effect/Option";
+import type * as Stream from "effect/Stream";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";

@@ -4,7 +4,9 @@
  */
 
 import type { SubmitFunction } from "$app/forms";
-import { Context, Effect, ManagedRuntime } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */
 export type SubmitInput = Parameters<SubmitFunction>[0];

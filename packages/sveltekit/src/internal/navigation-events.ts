@@ -12,7 +12,9 @@
  * @internal
  */
 
-import { Effect, Queue, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 
 /**
  * Registers `register`'s callback against a fresh unbounded queue and exposes

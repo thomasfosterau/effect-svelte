@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
-import { Cause, Effect, Exit, Layer } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
 import { KitActionFailure, KitError, KitRedirect, SvelteKit } from "../src/kit.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 

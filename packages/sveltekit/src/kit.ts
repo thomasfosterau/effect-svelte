@@ -43,7 +43,8 @@
  */
 
 import { fail as kitFail, redirect as kitRedirect } from "@sveltejs/kit";
-import { Cause, Effect } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 import { causeToThrowable, throwKitError } from "./internal/error.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────

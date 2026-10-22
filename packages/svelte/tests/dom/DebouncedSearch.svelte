@@ -4,7 +4,7 @@
   mount), and renders the reactive state.
 -->
 <script lang="ts">
-  import type { Effect } from "effect";
+  import type * as Effect from "effect/Effect";
   import { untrack } from "svelte";
   import type { RuntimeLike } from "../../src/internal/run.js";
   import { useDebouncedSearch } from "../../src/debounced-search.svelte.js";

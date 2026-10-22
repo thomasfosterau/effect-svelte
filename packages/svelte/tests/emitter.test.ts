@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Fiber, PubSub, Queue, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 import { SignalEmitter } from "../src/emitter.js";
 
 /**

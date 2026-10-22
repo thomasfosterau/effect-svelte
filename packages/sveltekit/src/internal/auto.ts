@@ -23,7 +23,8 @@ import type {
   HandleServerError,
   Reroute,
 } from "@sveltejs/kit/hooks";
-import { Effect, Exit } from "effect";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import {
   makeServerRuntime,
   makeUniversalRuntime,

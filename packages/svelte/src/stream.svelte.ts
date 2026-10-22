@@ -1,4 +1,4 @@
-import type { Stream } from "effect";
+import type * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";

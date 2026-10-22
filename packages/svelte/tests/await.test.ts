@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Cause, Option } from "effect";
+import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { resultToPromise } from "../src/internal/await.js";
 

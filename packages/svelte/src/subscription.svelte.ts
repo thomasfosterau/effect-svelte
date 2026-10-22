@@ -1,4 +1,6 @@
-import { PubSub, Stream, SubscriptionRef } from "effect";
+import * as PubSub from "effect/PubSub";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { streamState, valueState } from "./internal/subscribe.js";

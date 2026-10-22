@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Config, Effect, Layer } from "effect";
+import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import { readConfig, sveltekitConfig, sveltekitConfigProvider } from "../src/config.js";
 
 describe("sveltekitConfigProvider", () => {

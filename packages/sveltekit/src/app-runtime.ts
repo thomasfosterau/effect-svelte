@@ -14,7 +14,13 @@
 
 import type { Action, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import type { Handle, HandleFetch, HandleServerError, ServerInit } from "@sveltejs/kit/hooks";
-import { Context, Effect, type Fiber, Exit, Layer, ManagedRuntime, Scope } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import type * as Fiber from "effect/Fiber";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Scope from "effect/Scope";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";

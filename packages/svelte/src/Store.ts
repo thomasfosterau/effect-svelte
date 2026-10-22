@@ -1,4 +1,9 @@
-import { Effect, type PubSub, Queue, Ref, Stream, SubscriptionRef } from "effect";
+import * as Effect from "effect/Effect";
+import type * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { type Readable, readable } from "svelte/store";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 

@@ -1,4 +1,6 @@
-import { Effect, PubSub, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as PubSub from "effect/PubSub";
+import * as Stream from "effect/Stream";
 
 /** Options for {@link SignalEmitter}. */
 export interface SignalEmitterOptions {

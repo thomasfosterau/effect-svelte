@@ -7,7 +7,8 @@ import * as HttpBody from "effect/http/HttpBody";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpServer from "effect/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
-import { ConfigProvider, Effect } from "effect";
+import * as ConfigProvider from "effect/ConfigProvider";
+import * as Effect from "effect/Effect";
 import { makeHandler, type SvelteKitHandlerOptions } from "../src/adapter/handler.js";
 
 /**

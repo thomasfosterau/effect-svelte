@@ -11,7 +11,7 @@
  * 3. **The hook follows its thunk.** A query atom is identified by its request,
  *    so a paged view names a different atom per window.
  */
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import { Atom } from "effect/reactivity";
 import { tick } from "svelte";
 import { afterEach, describe, expect, it } from "vite-plus/test";

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Option, Schema } from "effect";
+import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import { markerTransporter, transport, transporter } from "../src/transport.js";
 
 /** Narrow away the `false` branch of an `encode` result (asserting it matched). */

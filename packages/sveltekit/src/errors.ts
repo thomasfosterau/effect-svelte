@@ -52,7 +52,8 @@
  */
 
 import { redirect as kitRedirect } from "@sveltejs/kit";
-import { Cause, Predicate } from "effect";
+import * as Cause from "effect/Cause";
+import * as Predicate from "effect/Predicate";
 import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 

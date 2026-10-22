@@ -7,7 +7,13 @@
  */
 
 import type { ActionResult, SubmitFunction } from "$app/forms";
-import { Cause, Context, Data, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { afterEach, describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
 import type {

@@ -18,7 +18,8 @@ import type {
 } from "$app/server";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/http/HttpClient";
-import { Effect, type Schema } from "effect";
+import * as Effect from "effect/Effect";
+import type * as Schema from "effect/Schema";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import {
   isBareHandler as isBareHandlerValue,

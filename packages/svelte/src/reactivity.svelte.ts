@@ -1,4 +1,6 @@
-import { Effect, Fiber, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
 import { untrack } from "svelte";

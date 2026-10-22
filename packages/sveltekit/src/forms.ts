@@ -31,7 +31,8 @@
 
 import { applyAction as kitApplyAction, deserialize as kitDeserialize } from "$app/forms";
 import type { ActionResult } from "$app/forms";
-import { Data, Effect } from "effect";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
 import { makeSubmitFunction } from "./internal/enhance.js";
 
 export type {

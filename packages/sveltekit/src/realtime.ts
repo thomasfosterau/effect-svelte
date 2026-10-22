@@ -9,7 +9,11 @@
  * closes, so a `Stream.take` / component teardown tears down the connection.
  */
 
-import { Cause, Data, Effect, Queue, Stream } from "effect";
+import * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 
 // ---------------------------------------------------------------------------
 // EventSource

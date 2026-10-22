@@ -3,13 +3,14 @@
  * paths), so the published example is type-checked by `vp check` and executed
  * here. Keep the two in sync.
  */
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vite-plus/test";
 
 // ---- example start ----
 import * as Errors from "../src/errors.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
-import { Layer, Schema } from "effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 // The application's tagged-error catalogue (usually imported from a shared models package).
 class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {

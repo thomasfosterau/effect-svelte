@@ -118,7 +118,7 @@ serve(handler, { envPrefix: ${JSON.stringify(envPrefix)} });
  * server-side rendered by the SvelteKit `HttpApp`.
  */
 const fetchEntryTemplate = (envPrefix: string): string => `\
-import { Layer } from "effect";
+import * as Layer from "effect/Layer";
 import { makeHandlerWith, AssetSource, toWebHandler } from "${PACKAGE}/adapter/handler";
 import { server } from "./server.js";
 

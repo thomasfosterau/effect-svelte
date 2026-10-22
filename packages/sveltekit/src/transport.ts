@@ -26,7 +26,7 @@
  */
 
 import type { Transport, Transporter } from "@sveltejs/kit/hooks";
-import { Schema } from "effect";
+import * as Schema from "effect/Schema";
 
 /**
  * Builds a SvelteKit {@link Transporter} from an Effect {@link Schema.Codec}.

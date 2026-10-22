@@ -1,4 +1,4 @@
-import type { Effect } from "effect";
+import type * as Effect from "effect/Effect";
 import { untrack } from "svelte";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";

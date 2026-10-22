@@ -1,5 +1,5 @@
 <script lang="ts" generics="A">
-  import type { Stream } from "effect";
+  import type * as Stream from "effect/Stream";
   import type { RuntimeLike } from "../../src/internal/run.js";
   import { useLiveStream } from "../../src/live-stream.svelte.js";
 

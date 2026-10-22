@@ -1,4 +1,6 @@
-import { Effect, Fiber, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";

@@ -1,4 +1,5 @@
-import { Layer, ManagedRuntime } from "effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 /**
  * Custom runtime for Svelte helpers.

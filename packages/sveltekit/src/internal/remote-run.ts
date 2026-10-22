@@ -6,7 +6,9 @@
  */
 
 import type { RemoteFormInvalidField as InvalidField } from "$app/server";
-import { Cause, type Effect, Exit } from "effect";
+import * as Cause from "effect/Cause";
+import type * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import type { ErrorTranslator } from "../request-runtime.js";
 import { SvelteKit } from "../kit.js";
 

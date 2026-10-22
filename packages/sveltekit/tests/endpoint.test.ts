@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Context, Effect, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import * as Endpoint from "../src/server/Endpoint.js";

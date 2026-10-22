@@ -1,4 +1,5 @@
-import { Cause, Option } from "effect";
+import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
