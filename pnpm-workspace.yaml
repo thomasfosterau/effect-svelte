@@ -23,8 +23,8 @@ catalogMode: strict
 
 catalog:
   "@changesets/cli": ^3.0.3
-  "@effect/language-service": ^0.87.4
-  "@effect/platform-node": 4.0.4
+  "@effect/language-service": ^0.87.5
+  "@effect/platform-node": 4.0.5
   "@mpsuesser/oxlint-plugin-effect": ^0.6.0
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^3.1.0
@@ -33,7 +33,7 @@ catalog:
   # Must equal the vitest that vite-plus bundles (see `vitest` below); vite-plus
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
-  effect: 4.0.4
+  effect: 4.0.5
   fallow: 3.34.1
   happy-dom: ^20.14.5
   magic-string: ^1.4.3
