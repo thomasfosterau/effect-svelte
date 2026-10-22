@@ -57,8 +57,11 @@
 import { afterNavigate as kitAfterNavigate } from "$app/navigation";
 import { navigating as kitNavigating, page as kitPage, updated as kitUpdated } from "$app/state";
 import type { Page } from "$app/state";
-import { Context, Layer } from "effect";
-import type { Effect, Option, Stream } from "effect";
+import * as Context from "effect/Context";
+import * as Layer from "effect/Layer";
+import type * as Effect from "effect/Effect";
+import type * as Option from "effect/Option";
+import type * as Stream from "effect/Stream";
 import {
   type CurrentPageShape,
   type NavigatingSnapshot,

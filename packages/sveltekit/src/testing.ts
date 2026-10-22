@@ -40,8 +40,11 @@
  * ```
  */
 
-import type { RequestEvent } from "@sveltejs/kit";
-import { Effect, Layer } from "effect";
+import type { Cookies, RequestEvent } from "@sveltejs/kit";
+import * as Effect from "effect/Effect";
+import * as Arr from "effect/Array";
+import * as Layer from "effect/Layer";
+import * as Rec from "effect/Record";
 import {
   makeRuntimeAdapter,
   RequestRuntime,
@@ -56,30 +59,33 @@ export type { RunHelpers, FormErrorMapper } from "./internal/remote-run.js";
 // ─── TestCookies ─────────────────────────────────────────────────────────────
 
 /** Map-backed Cookies implementation for use in {@link TestRequestEvent}. */
+type CookieParseOptions = Parameters<Cookies["get"]>[1];
+type CookieSerializeOptions = Parameters<Cookies["set"]>[2];
+
 class TestCookies {
   private readonly store: Map<string, string>;
 
   constructor(initial: Record<string, string> = {}) {
-    this.store = new Map(Object.entries(initial));
+    this.store = new Map(Rec.toEntries(initial));
   }
 
-  get(name: string, _opts?: unknown): string | undefined {
+  get(name: string, _opts?: CookieParseOptions): string | undefined {
     return this.store.get(name);
   }
 
-  getAll(_opts?: unknown): Array<{ name: string; value: string }> {
-    return [...this.store.entries()].map(([name, value]) => ({ name, value }));
+  getAll(_opts?: CookieParseOptions): Array<{ name: string; value: string }> {
+    return Arr.map(Arr.fromIterable(this.store.entries()), ([name, value]) => ({ name, value }));
   }
 
-  set(name: string, value: string, _opts?: unknown): void {
+  set(name: string, value: string, _opts?: CookieSerializeOptions): void {
     this.store.set(name, value);
   }
 
-  delete(name: string, _opts?: unknown): void {
+  delete(name: string, _opts?: CookieSerializeOptions): void {
     this.store.delete(name);
   }
 
-  serialize(name: string, value: string, _opts?: unknown): string {
+  serialize(name: string, value: string, _opts?: CookieSerializeOptions): string {
     return `${name}=${encodeURIComponent(value)}`;
   }
 }
@@ -129,6 +135,20 @@ export interface TestRequestEventOptions {
 }
 
 /**
+ * The fields {@link TestRequestEvent} actually provides: a {@link RequestEvent}
+ * without `tracing` / `isRemoteRequest`, with Map-backed cookies (no `parse`)
+ * and the test's own `locals` / `platform` values.
+ */
+type TestRequestEventFixture = Omit<
+  RequestEvent,
+  "cookies" | "locals" | "platform" | "tracing" | "isRemoteRequest"
+> & {
+  readonly cookies: Omit<Cookies, "parse">;
+  readonly locals: object;
+  readonly platform: unknown;
+};
+
+/**
  * Create a minimal {@link RequestEvent} for use in unit tests.
  *
  * All fields are optional — omit what the handler under test doesn't inspect.
@@ -157,20 +177,25 @@ export function TestRequestEvent(opts: TestRequestEventOptions = {}): RequestEve
   const cookies = new TestCookies(opts.cookies ?? {});
   const fetchFn = opts.fetch ?? globalThis.fetch;
 
-  return {
+  const fixture: TestRequestEventFixture = {
     request,
     url,
-    params: (opts.params ?? {}) as any,
+    params: opts.params ?? {},
     route: { id: null },
     fetch: fetchFn,
-    cookies: cookies as any,
-    locals: (opts.locals ?? {}) as any,
-    platform: opts.platform as any,
+    cookies,
+    locals: opts.locals ?? {},
+    platform: opts.platform,
     isDataRequest: false,
     isSubRequest: false,
     setHeaders: () => {},
     getClientAddress: () => "127.0.0.1",
-  } as unknown as RequestEvent;
+  };
+  // SAFETY: a deliberately partial fixture, as the TSDoc above says: it has
+  // the fields load/action/endpoint/remote handlers read, while `tracing`,
+  // `isRemoteRequest` and `cookies.parse` are absent, and `locals` / `platform`
+  // are whatever the test passed in place of `App.Locals` / `App.Platform`.
+  return fixture as RequestEvent;
 }
 
 // ─── Options ──────────────────────────────────────────────────────────────────
@@ -214,6 +239,9 @@ export interface RunRemoteOptions<R> {
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
+// SAFETY: `layer` may be omitted only when the handler needs no services
+// (`R` is `never`, as `TestRunOptions.layer` documents), and then `Layer.empty`
+// provides all of `R`.
 const makeAdapter = <R>(opts: TestRunOptions<R> | undefined) =>
   makeRuntimeAdapter(RequestRuntime.fromLayer((opts?.layer ?? Layer.empty) as Layer.Layer<R>), {
     translateError: opts?.translateError ?? SvelteKit.translate,
@@ -242,6 +270,9 @@ const makeAdapter = <R>(opts: TestRunOptions<R> | undefined) =>
  * expect(data.items).toHaveLength(0);
  * ```
  */
+// SAFETY: the adapter's `serverLoad` handler is an async function that reads
+// only `RequestEvent` fields (`route.id` plus whatever `fn` reads), so it
+// accepts a plain `RequestEvent` and always returns a `Promise`.
 export const runServerLoad = <R, A extends Record<string, any> | void = void>(
   fn: (event: RequestEvent) => Effect.Effect<A, unknown, R>,
   event: RequestEvent,
@@ -262,6 +293,8 @@ export const runServerLoad = <R, A extends Record<string, any> | void = void>(
  * expect((result as any).success).toBe(true);
  * ```
  */
+// SAFETY: the adapter's `action` handler is an async function over a
+// `RequestEvent`, so it always returns a `Promise` of the action's value.
 export const runAction = <R, A extends Record<string, any> | void = void>(
   fn: (event: RequestEvent) => Effect.Effect<A, unknown, R>,
   event: RequestEvent,
@@ -286,7 +319,7 @@ export const runEndpoint = <R>(
   fn: (event: RequestEvent) => Effect.Effect<Response, unknown, R>,
   event: RequestEvent,
   opts?: TestRunOptions<R>,
-): Promise<Response> => Promise.resolve(makeAdapter(opts).endpoint(fn)(event as any));
+): Promise<Response> => Promise.resolve(makeAdapter(opts).endpoint(fn)(event));
 
 // ─── runRemote ────────────────────────────────────────────────────────────────
 
@@ -318,6 +351,8 @@ export const runRemote = <R = never>(
   opts?: RunRemoteOptions<R>,
 ): RunHelpers => {
   const translate = opts?.translateError ?? SvelteKit.translate;
+  // SAFETY: `layer` may be omitted only when the handlers need no services
+  // (`R = never`, the default), and then `Layer.empty` provides all of `R`.
   const layer = (opts?.layer ?? Layer.empty) as Layer.Layer<R>;
   const provider: RequestRuntimeProvider<R> = RequestRuntime.fromLayer(layer);
   return makeRunHelpers(

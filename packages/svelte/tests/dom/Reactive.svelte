@@ -1,5 +1,6 @@
 <script lang="ts" generics="A">
-  import type { Stream, SubscriptionRef } from "effect";
+  import type * as Stream from "effect/Stream";
+  import type * as SubscriptionRef from "effect/SubscriptionRef";
   import type { RuntimeLike } from "../../src/internal/run.js";
   import { useLiveStream } from "../../src/live-stream.svelte.js";
   import { useSubscriptionRef } from "../../src/subscription.svelte.js";

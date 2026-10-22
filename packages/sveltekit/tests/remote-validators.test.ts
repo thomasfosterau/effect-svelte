@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vite-plus/test";
-import { Effect, Schema } from "effect";
+import { assert, describe, expect, it } from "vite-plus/test";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import {
   isBareHandler,
   isStandardSchema,
@@ -10,9 +11,11 @@ describe("toStandardValidator", () => {
   it("wraps a bare Effect Schema into a Standard Schema", () => {
     const schema = Schema.Struct({ name: Schema.String });
     const wrapped = toStandardValidator(schema);
-    expect(isStandardSchema(wrapped)).toBe(true);
+    assert(isStandardSchema(wrapped), "expected a Standard Schema");
     // The wrapped validator round-trips a valid value.
-    const result = (wrapped as any)["~standard"].validate({ name: "ada" });
+    const result = wrapped["~standard"].validate({ name: "ada" });
+    assert(!(result instanceof Promise), "expected synchronous validation");
+    assert("value" in result, "expected a successful validation");
     expect(result.value).toEqual({ name: "ada" });
   });
 

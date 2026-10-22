@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Context, Effect, Layer } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import { defer } from "../src/streamed-load.js";
 
 // ---------------------------------------------------------------------------
@@ -31,7 +34,7 @@ describe("defer", () => {
   });
 
   it("provides the current context to the deferred effect", async () => {
-    const slow = Effect.gen(function* () {
+    const slow = Effect.fn("slow")(function* () {
       const svc = yield* AppService;
       return yield* svc.getValue();
     });
@@ -43,7 +46,7 @@ describe("defer", () => {
     const { promise } = await Effect.runPromise(
       Effect.provide(
         Effect.gen(function* () {
-          return { promise: yield* defer(slow) };
+          return { promise: yield* defer(slow()) };
         }),
         layer,
       ),
@@ -55,13 +58,13 @@ describe("defer", () => {
   it("the parent effect resolves immediately while the deferred work is in-flight", async () => {
     let resolved = false;
 
-    const slow = Effect.gen(function* () {
+    const slow = Effect.fn("slow")(function* () {
       yield* Effect.sleep("50 millis");
       resolved = true;
       return "done";
     });
 
-    const { promise } = await runDefer(slow);
+    const { promise } = await runDefer(slow());
 
     // The parent Effect returned immediately; the slow task is still pending.
     expect(resolved).toBe(false);
@@ -82,8 +85,11 @@ describe("defer", () => {
     await expect(promise).rejects.toBeDefined();
   });
 
-  it("Effect.catch provides a fallback when the deferred Effect fails", async () => {
-    const slow = Effect.fail("err").pipe(Effect.catch(() => Effect.succeed("fallback")));
+  it("Effect.catchTag provides a fallback when the deferred Effect fails", async () => {
+    class Failed extends Schema.TaggedError<Failed>()("Failed", {}) {}
+    const slow = Effect.fail(new Failed()).pipe(
+      Effect.catchTag("Failed", () => Effect.succeed("fallback")),
+    );
     const { promise } = await runDefer(slow);
     await expect(promise).resolves.toBe("fallback");
   });
@@ -91,12 +97,12 @@ describe("defer", () => {
   it("multiple defer calls launch effects concurrently", async () => {
     const order: number[] = [];
 
-    const task1 = Effect.gen(function* () {
+    const task1 = Effect.fn("task1")(function* () {
       yield* Effect.sleep("30 millis");
       order.push(1);
       return 1;
     });
-    const task2 = Effect.gen(function* () {
+    const task2 = Effect.fn("task2")(function* () {
       yield* Effect.sleep("10 millis");
       order.push(2);
       return 2;
@@ -105,8 +111,8 @@ describe("defer", () => {
     const { p1, p2 } = await Effect.runPromise(
       Effect.gen(function* () {
         return {
-          p1: yield* defer(task1),
-          p2: yield* defer(task2),
+          p1: yield* defer(task1()),
+          p2: yield* defer(task2()),
         };
       }),
     );

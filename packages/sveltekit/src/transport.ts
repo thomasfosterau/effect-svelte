@@ -26,7 +26,8 @@
  */
 
 import type { Transport, Transporter } from "@sveltejs/kit/hooks";
-import { Schema } from "effect";
+import * as Rec from "effect/Record";
+import * as Schema from "effect/Schema";
 
 /**
  * Builds a SvelteKit {@link Transporter} from an Effect {@link Schema.Codec}.
@@ -101,12 +102,7 @@ export type TransportEntry = Schema.Codec<any, any> | Transporter<any, any>;
  * round-tripping and marker-style values can be mixed. The keys are arbitrary
  * labels (they only need to be stable between server and client).
  */
-export const transport = (entries: Record<string, TransportEntry>): Transport => {
-  const result: Transport = {};
-  for (const [name, entry] of Object.entries(entries)) {
-    result[name] = Schema.isSchema(entry)
-      ? transporter(entry as Schema.Codec<any, any>)
-      : (entry as Transporter<any, any>);
-  }
-  return result;
-};
+export const transport = (entries: Record<string, TransportEntry>): Transport =>
+  Rec.map(entries, (entry): Transporter<any, any> =>
+    Schema.isSchema(entry) ? transporter(entry) : entry,
+  );

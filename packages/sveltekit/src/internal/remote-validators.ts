@@ -5,7 +5,8 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { Schema } from "effect";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
 
 /**
  * Detects a Standard Schema validator via its `~standard` marker property.
@@ -16,19 +17,21 @@ import { Schema } from "effect";
  * mistaken for handler functions.
  */
 export const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>
-  value !== null &&
-  (typeof value === "object" || typeof value === "function") &&
-  "~standard" in value;
+  Predicate.hasProperty(value, "~standard");
 
 /** True when the argument is the no-validation (bare handler) overload. */
 export const isBareHandler = (value: unknown): boolean =>
-  typeof value === "function" && !isStandardSchema(value) && !Schema.isSchema(value);
+  Predicate.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
  * Normalise a validator argument: a bare Effect `Schema` is wrapped with
  * `Schema.toStandardSchemaV1` so callers can pass it directly; a Standard Schema
  * or the `"unchecked"` marker passes through untouched.
  */
+// SAFETY: the cast only drops `toStandardSchemaV1`'s compile-time
+// `DecodingServices: never` constraint; the runtime conversion is the same for
+// every schema, and the remote helpers' callers pass schemas whose decoding
+// needs no services (a schema that does would fail inside `validate`).
 export const toStandardValidator = (value: unknown): unknown =>
   Schema.isSchema(value)
     ? (Schema.toStandardSchemaV1 as (schema: Schema.Top) => StandardSchemaV1)(value)

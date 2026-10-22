@@ -1,4 +1,7 @@
-import { Layer, ManagedRuntime, Context, Effect } from "effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type { RequestEvent } from "@sveltejs/kit";

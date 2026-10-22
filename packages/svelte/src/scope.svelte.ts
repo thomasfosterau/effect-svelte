@@ -1,4 +1,7 @@
-import { Scope, Exit, Effect } from "effect";
+import * as Scope from "effect/Scope";
+import * as Exit from "effect/Exit";
+import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
 import { untrack } from "svelte";
 
 /**
@@ -75,7 +78,7 @@ export function useScopeCallback(callback: (scope: Scope.Closeable) => void | ((
     // Clean up
     return () => {
       // Call user's cleanup if provided
-      if (typeof cleanup === "function") {
+      if (Predicate.isFunction(cleanup)) {
         cleanup();
       }
 

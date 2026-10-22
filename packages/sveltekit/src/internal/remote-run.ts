@@ -6,7 +6,9 @@
  */
 
 import type { RemoteFormInvalidField as InvalidField } from "$app/server";
-import { Cause, type Effect, Exit } from "effect";
+import * as Cause from "effect/Cause";
+import type * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import type { ErrorTranslator } from "../request-runtime.js";
 import { SvelteKit } from "../kit.js";
 
@@ -45,6 +47,14 @@ export type ExitResolver = () => {
   readonly dispose?: () => void;
 };
 
+/**
+ * Settle an exit (return its value, or throw via the translator) and then run
+ * the optional teardown, whether settling returned or threw; a throw becomes
+ * the returned promise's rejection.
+ */
+const settleThenDispose = <A>(settle: () => A, dispose: (() => void) | undefined): Promise<A> =>
+  new Promise<A>((resolve) => resolve(settle())).finally(() => dispose?.());
+
 /** Build the `run` / `runForm` helpers from an exit resolver and a translator. */
 export const makeRunHelpers = (
   resolve: ExitResolver,
@@ -53,24 +63,18 @@ export const makeRunHelpers = (
 ): RunHelpers => {
   const run: Runner = (effect) => {
     const { runExit, dispose } = resolve();
-    return runExit(effect).then((exit) => {
-      try {
-        return Exit.isSuccess(exit) ? exit.value : translate(exit.cause);
-      } finally {
-        dispose?.();
-      }
-    });
+    return runExit(effect).then((exit) =>
+      settleThenDispose(() => (Exit.isSuccess(exit) ? exit.value : translate(exit.cause)), dispose),
+    );
   };
   const runForm: FormRunner = (effect, ctx) => {
     const { runExit, dispose } = resolve();
-    return runExit(effect).then((exit) => {
-      try {
+    return runExit(effect).then((exit) =>
+      settleThenDispose(() => {
         if (Exit.isSuccess(exit)) return exit.value;
         return formError ? formError(Cause.squash(exit.cause), ctx) : translate(exit.cause);
-      } finally {
-        dispose?.();
-      }
-    });
+      }, dispose),
+    );
   };
   return { run, runForm };
 };

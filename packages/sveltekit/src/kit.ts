@@ -43,7 +43,9 @@
  */
 
 import { fail as kitFail, redirect as kitRedirect } from "@sveltejs/kit";
-import { Cause, Effect } from "effect";
+import * as Arr from "effect/Array";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 import { causeToThrowable, throwKitError } from "./internal/error.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
@@ -125,7 +127,7 @@ const baseTranslate: KitErrorTranslator = (cause) => {
 
   if (squashed instanceof KitRedirect) {
     // redirect() is typed as () => never — throws internally.
-    kitRedirect(squashed.status, squashed.location as string);
+    kitRedirect(squashed.status, squashed.location);
   }
 
   if (squashed instanceof KitError) {
@@ -138,6 +140,9 @@ const baseTranslate: KitErrorTranslator = (cause) => {
     // the action's return value. Typed as never to satisfy ErrorTranslator while
     // allowing makeRuntimeAdapter's `return translateError(cause)` to propagate
     // the ActionFailure to SvelteKit correctly at runtime.
+    // SAFETY: the `never` only satisfies the `KitErrorTranslator` contract;
+    // every caller returns the translator's result straight to SvelteKit, which
+    // treats a returned `ActionFailure` as the action's failure response.
     return kitFail(squashed.status, squashed.data) as never;
   }
 
@@ -239,9 +244,9 @@ export const SvelteKit = {
     (extraCases: ReadonlyArray<KitTranslatorCase>): KitErrorTranslator =>
     (cause) => {
       const squashed = Cause.squash(cause);
-      for (const matcher of extraCases) {
+      Arr.forEach(extraCases, (matcher) => {
         matcher(squashed);
-      }
+      });
       return baseTranslate(cause);
     },
 } as const;

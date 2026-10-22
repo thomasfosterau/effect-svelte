@@ -31,8 +31,14 @@
  */
 
 import type { RequestHandler } from "@sveltejs/kit";
-import { Context, type Duration, Effect, Layer, Schedule, Stream } from "effect";
-import type { Scope } from "effect";
+import * as Context from "effect/Context";
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Predicate from "effect/Predicate";
+import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
+import type * as Scope from "effect/Scope";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Etag from "effect/http/Etag";
@@ -119,21 +125,21 @@ const stripPrefix = (request: Request, prefix: string): Request => {
   return new Request(url, request);
 };
 
-/** Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler. */
+/**
+ * Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler. A
+ * {@link WebHandler} is a {@link WebHandlerWithContext} that ignores the context.
+ */
 const make = <RequestServices = never>(
-  webHandler: WebHandler | WebHandlerWithContext,
+  webHandler: WebHandlerWithContext,
   dispose: () => Promise<void>,
   prefix: string | undefined,
   context?: RequestContext<RequestServices>,
 ): EndpointHandler => {
   const handler: RequestHandler = async (event) => {
     const request = prefix === undefined ? event.request : stripPrefix(event.request, prefix);
-    if (context === undefined) return (webHandler as WebHandler)(request);
+    if (context === undefined) return webHandler(request);
     const ctx = await resolveRequestContext(request, context);
-    return (webHandler as WebHandlerWithContext)(
-      request,
-      ctx as Context.Context<never> | undefined,
-    );
+    return webHandler(request, ctx);
   };
   return Object.assign(handler, { dispose });
 };
@@ -203,15 +209,13 @@ export const fromApi = <
   // The request-scoped services are supplied per dispatch via the web handler's
   // context argument, so they are hidden from the build-once layer here.
   const { handler, dispose } = HttpRouter.toWebHandler(
-    appLayer as unknown as Layer.Layer<never, E, HttpRouter.HttpRouter>,
+    // SAFETY: the layer's remaining requirements beyond `HttpRouter` are the
+    // groups' request services, which `make` supplies on each dispatch from the
+    // context `options.context` resolves.
+    appLayer as Layer.Layer<never, E, HttpRouter.HttpRouter>,
     { disableLogger: options?.logger !== true },
   );
-  return make<RequestServices>(
-    handler as WebHandlerWithContext,
-    dispose,
-    options?.prefix,
-    options?.context,
-  );
+  return make<RequestServices>(handler, dispose, options?.prefix, options?.context);
 };
 
 /**
@@ -260,6 +264,9 @@ export const fromRouter = <
     disableLogger: options?.logger !== true,
   });
   return make<RequestServices>(
+    // SAFETY: the routes' per-request services are the `RequestServices` that
+    // `make` resolves from `options.context` and passes on each dispatch; the
+    // handler's conditional type only stays unresolved while `R` is generic.
     handler as WebHandlerWithContext,
     dispose,
     options?.prefix,
@@ -298,9 +305,14 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
 ): EndpointHandler => {
   if (options?.layer) {
     const { handler, dispose } = HttpEffect.toWebHandlerLayer(effect, options.layer);
+    // SAFETY: `options.layer` provides `R` and the web handler provides the
+    // request and scope, so no per-request context is needed; the conditional
+    // type only stays unresolved while `R` is generic.
     return make(handler as WebHandler, dispose, options.prefix);
   }
   const handler = HttpEffect.toWebHandler(
+    // SAFETY: without `options.layer` nothing can provide `R`, so the route
+    // must be self-contained (`R` is `never`, its default).
     effect as Effect.Effect<
       HttpServerResponse.HttpServerResponse,
       E,
@@ -375,8 +387,10 @@ export const fromStream = <A, E, R = never>(
   options?: FromStreamOptions<A, R>,
 ): RequestHandler => {
   const encodeData = options?.data ?? ((value: A): string => JSON.stringify(value));
-  const eventOf = (value: A): string | undefined =>
-    typeof options?.event === "function" ? options.event(value) : options?.event;
+  const eventOf = (value: A): string | undefined => {
+    const name = options?.event;
+    return Predicate.isFunction(name) ? name(value) : name;
+  };
 
   return (event) => {
     // Frame each element, then encode the resulting strings to bytes.
@@ -410,6 +424,8 @@ export const fromStream = <A, E, R = never>(
     const provided =
       options?.provide === undefined ? bytes : Stream.provide(bytes, options.provide);
 
+    // SAFETY: `options.provide` supplies `R`, and is omitted only for a
+    // self-contained stream (`R` is `never`, its default).
     const body = Stream.toReadableStream(provided as Stream.Stream<Uint8Array, E>);
 
     // SvelteKit forwards a streaming body Response as-is.

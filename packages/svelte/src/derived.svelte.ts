@@ -1,4 +1,6 @@
-import { Duration, Effect, Fiber } from "effect";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
@@ -78,6 +80,9 @@ export function useDerived<A, E, R>(
   options: UseDerivedOptions<R> = {},
 ): UseDerivedReturn<A, E> {
   const { debounce } = options;
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = makeResult<A, E>();

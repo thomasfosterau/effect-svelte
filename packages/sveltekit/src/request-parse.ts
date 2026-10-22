@@ -29,7 +29,11 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { Data, Effect, Schema } from "effect";
+import * as Arr from "effect/Array";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Rec from "effect/Record";
+import * as Schema from "effect/Schema";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import { toStandardValidator } from "./internal/remote-validators.js";
 
@@ -75,14 +79,17 @@ const validate = <O>(
   Effect.callback<O, ParseError>((resume) => {
     const resultOrPromise = schema["~standard"].validate(value);
     const settle = (result: StandardSchemaV1.Result<O>) => {
-      if ("issues" in result && result.issues !== undefined) {
-        resume(Effect.fail(new ParseError({ issues: result.issues as ReadonlyArray<ParseIssue> })));
+      if (result.issues !== undefined) {
+        // SAFETY: a Standard Schema `Issue` differs from `ParseIssue` only in
+        // admitting an explicit `path: undefined`, which reads as an absent path.
+        const issues = result.issues as ReadonlyArray<ParseIssue>;
+        resume(Effect.fail(new ParseError({ issues })));
       } else {
-        resume(Effect.succeed((result as StandardSchemaV1.SuccessResult<O>).value));
+        resume(Effect.succeed(result.value));
       }
     };
     if (resultOrPromise instanceof Promise) {
-      resultOrPromise.then(settle, (err: unknown) => {
+      resultOrPromise.then(settle, (err) => {
         resume(Effect.fail(new ParseError({ issues: [{ message: String(err) }] })));
       });
     } else {
@@ -91,8 +98,28 @@ const validate = <O>(
   });
 
 /** Normalise an Effect Schema or Standard Schema V1 to Standard Schema V1. */
-const normalise = <O>(schema: unknown): StandardSchemaV1<unknown, O> =>
+const normalise = <O>(
+  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+): StandardSchemaV1<unknown, O> =>
+  // SAFETY: `toStandardValidator` wraps an Effect `Schema<O>` as a Standard
+  // Schema with output `O` and passes a Standard Schema through unchanged.
   toStandardValidator(schema) as StandardSchemaV1<unknown, O>;
+
+/** A field's values: the sole value of a single-valued field, else all of them. */
+const fieldValue = (values: Array<string>): string | Array<string> => {
+  const [first, ...others] = values;
+  return first !== undefined && Arr.isReadonlyArrayEmpty(others) ? first : values;
+};
+
+/**
+ * Collect multi-valued fields (search params, form data) into a plain object,
+ * keyed in first-occurrence order.
+ */
+const collectFields = (
+  keys: Iterable<string>,
+  getAll: (key: string) => Array<string>,
+): Record<string, string | Array<string>> =>
+  Rec.fromIterableWith(keys, (key) => [key, fieldValue(getAll(key))]);
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -135,11 +162,8 @@ export const decodeSearchParams = <O>(
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;
-    const raw: Record<string, string | string[]> = {};
-    for (const key of event.url.searchParams.keys()) {
-      const values = event.url.searchParams.getAll(key);
-      raw[key] = values.length === 1 ? values[0]! : values;
-    }
+    const { searchParams } = event.url;
+    const raw = collectFields(searchParams.keys(), (key) => searchParams.getAll(key));
     return yield* validate(normalise<O>(schema), raw);
   });
 
@@ -160,8 +184,8 @@ export const decodeJson = <O>(
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;
-    const json = yield* Effect.tryPromise({
-      try: () => event.request.json() as Promise<unknown>,
+    const json = yield* Effect.tryPromise<unknown, ParseError>({
+      try: () => event.request.json(),
       catch: (err) => new ParseError({ issues: [{ message: `Invalid JSON: ${String(err)}` }] }),
     });
     return yield* validate(normalise<O>(schema), json);
@@ -189,10 +213,6 @@ export const decodeFormData = <O>(
       catch: (err) =>
         new ParseError({ issues: [{ message: `Failed to read form data: ${String(err)}` }] }),
     });
-    const raw: Record<string, string | string[]> = {};
-    for (const key of formData.keys()) {
-      const values = formData.getAll(key).map(String);
-      raw[key] = values.length === 1 ? values[0]! : values;
-    }
+    const raw = collectFields(formData.keys(), (key) => Arr.map(formData.getAll(key), String));
     return yield* validate(normalise<O>(schema), raw);
   });

@@ -6,7 +6,8 @@ import type {
   RemoteQueryFunction,
   RemoteQueryOverride,
 } from "$app/server";
-import { Effect, Stream } from "effect";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 
 /**
  * Wraps a remote call so a rejection, or a synchronous throw from `thunk`,
@@ -47,12 +48,8 @@ export function callQuery<Input, Output>(
   query: RemoteQueryFunction<Input, Output>,
   input?: Input,
 ): Effect.Effect<Output, unknown, never> {
-  if (arguments.length === 1) {
-    return fromRemotePromise(() =>
-      (query as unknown as RemoteQueryFunction<void, Output>)(undefined),
-    );
-  }
-
+  // SAFETY: `input` is only absent in the no-input overload, which fixes
+  // `Input` to `void`, so `query(undefined)` is the call that overload means.
   return fromRemotePromise(() => query(input as Input));
 }
 
@@ -85,10 +82,8 @@ export function callCommand<Input, Output>(
   command: RemoteCommand<Input, Output>,
   input?: Input,
 ): Effect.Effect<Output, unknown, never> {
-  if (arguments.length === 1) {
-    return fromRemotePromise(() => (command as unknown as RemoteCommand<void, Output>)(undefined));
-  }
-
+  // SAFETY: `input` is only absent in the no-input overload, which fixes
+  // `Input` to `void`, so `command(undefined)` is the call that overload means.
   return fromRemotePromise(() => command(input as Input));
 }
 
@@ -142,12 +137,8 @@ export function callPrerender<Input, Output>(
   prerender: RemotePrerenderFunction<Input, Output>,
   input?: Input,
 ): Effect.Effect<Output, unknown, never> {
-  if (arguments.length === 1) {
-    return fromRemotePromise(() =>
-      (prerender as unknown as RemotePrerenderFunction<void, Output>)(undefined),
-    );
-  }
-
+  // SAFETY: `input` is only absent in the no-input overload, which fixes
+  // `Input` to `void`, so `prerender(undefined)` is the call that overload means.
   return fromRemotePromise(() => prerender(input as Input));
 }
 

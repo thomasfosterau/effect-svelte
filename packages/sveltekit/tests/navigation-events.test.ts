@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vite-plus/test";
-import { Effect, Stream } from "effect";
+import { assert, describe, expect, it } from "vite-plus/test";
+import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
+import * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "../src/internal/navigation-events.js";
 
 describe("registeredStream", () => {
@@ -64,8 +66,8 @@ describe("onNavigateWith", () => {
     );
 
     const cleanup = await captured("/a");
-    expect(typeof cleanup).toBe("function");
-    (cleanup as () => void)();
+    assert(Predicate.isFunction(cleanup), "expected a cleanup function");
+    cleanup();
     expect(cleanedUp).toBe(true);
   });
 });

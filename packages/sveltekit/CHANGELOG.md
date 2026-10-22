@@ -255,7 +255,7 @@
   The server/universal wrappers (`serverLoad`, `action`, `actions`, `endpoint`,
   the universal `load`, and the `RuntimeAdapter` / `ServerRuntime` /
   `UniversalRuntime` equivalents) hardcoded `Params extends Record<string, string>
-= any`. That was both more restrictive than SvelteKit's own handler types — whose
+  = any`. That was both more restrictive than SvelteKit's own handler types — whose
   base param constraint is the generated `LayoutParams<'/'>`, a partial record for a
   root `+layout` (e.g. `{ type?: string; id?: string }`) — and defaulted `Params`
   to `any`, dropping param typing. As a result a partial-param root

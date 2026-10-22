@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 import { encodeRetry, encodeSseFrame } from "../src/internal/sse.js";
 
@@ -21,7 +22,7 @@ describe("encodeSseFrame", () => {
   });
 
   it("encodes JSON payloads as a single data line", () => {
-    const payload = JSON.stringify({ a: 1, b: "x" });
+    const payload = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))({ a: 1, b: "x" });
     expect(encodeSseFrame({ data: payload })).toBe(`data: ${payload}\n\n`);
   });
 });

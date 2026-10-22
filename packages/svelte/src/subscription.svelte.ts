@@ -1,4 +1,6 @@
-import { PubSub, Stream, SubscriptionRef } from "effect";
+import * as PubSub from "effect/PubSub";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { streamState, valueState } from "./internal/subscribe.js";
@@ -48,6 +50,9 @@ export function useSubscriptionRef<A, R = never>(
   ref: SubscriptionRef.SubscriptionRef<A>,
   options: UseSubscriptionRefOptions<R> = {},
 ): UseSubscriptionRefReturn<A> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   // Get the initial value synchronously so it is available before (and during
@@ -98,6 +103,9 @@ export function usePubSub<A, R = never>(
   pubsub: PubSub.PubSub<A>,
   options: UsePubSubOptions<R> = {},
 ): UsePubSubReturn<A> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   const state = streamState(runtime, () => Stream.fromPubSub(pubsub));
   return {

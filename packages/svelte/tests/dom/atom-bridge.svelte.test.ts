@@ -11,10 +11,13 @@
  * 3. **The hook follows its thunk.** A query atom is identified by its request,
  *    so a paged view names a different atom per window.
  */
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Rec from "effect/Record";
 import { Atom } from "effect/reactivity";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { tick } from "svelte";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, assert, describe, expect, it } from "vite-plus/test";
 import { getAtomRegistry, invalidateAtomKeys, makeAtomRegistry } from "../../src/atom.svelte.js";
 import AtomProbe from "./AtomProbe.svelte";
 import WritableAtomProbe from "./WritableAtomProbe.svelte";
@@ -33,19 +36,22 @@ const countingAtom = (keys: ReadonlyArray<unknown>) => {
   return Atom.withReactivity(keys)(Atom.make(Effect.sync(() => `run-${++runs}`)));
 };
 
+/** The atoms an `AtomProbe` reads. */
+type ProbeAtom = Atom.Atom<AsyncResult.AsyncResult<string>>;
+
 /** `select` for a probe that always reads one fixed atom. */
-const fixed = (atom: Atom.Atom<never>) => () => atom;
+const fixed = (atom: ProbeAtom) => () => atom;
 
 describe("useAtomResult", () => {
   it("renders the atom's settled value", async () => {
-    const target = mounter.mount(AtomProbe, { select: fixed(countingAtom(["render"]) as never) });
+    const target = mounter.mount(AtomProbe, { select: fixed(countingAtom(["render"])) });
 
     await expect.poll(() => text(target, "atom-state")).toBe("run-1");
   });
 
   it("renders loading until an async atom settles", async () => {
     const atom = Atom.make(Effect.sleep("20 millis").pipe(Effect.as("late")));
-    const target = mounter.mount(AtomProbe, { select: fixed(atom as never) });
+    const target = mounter.mount(AtomProbe, { select: fixed(atom) });
     await flush();
 
     expect(text(target, "atom-state")).toBe("loading");
@@ -54,7 +60,7 @@ describe("useAtomResult", () => {
 
   it("re-reads when invalidateAtomKeys invalidates the atom's keys", async () => {
     const target = mounter.mount(AtomProbe, {
-      select: fixed(countingAtom(["invalidate"]) as never),
+      select: fixed(countingAtom(["invalidate"])),
     });
     await expect.poll(() => text(target, "atom-state")).toBe("run-1");
 
@@ -64,9 +70,9 @@ describe("useAtomResult", () => {
   });
 
   it("leaves an atom registered against other keys alone", async () => {
-    const scoped = mounter.mount(AtomProbe, { select: fixed(countingAtom(["scoped"]) as never) });
+    const scoped = mounter.mount(AtomProbe, { select: fixed(countingAtom(["scoped"])) });
     const sentinel = mounter.mount(AtomProbe, {
-      select: fixed(countingAtom(["some-other-family"]) as never),
+      select: fixed(countingAtom(["some-other-family"])),
     });
     await expect.poll(() => text(scoped, "atom-state")).toBe("run-1");
     await expect.poll(() => text(sentinel, "atom-state")).toBe("run-1");
@@ -83,7 +89,7 @@ describe("useAtomResult", () => {
   it("invalidates through an explicitly provided registry", async () => {
     const registry = makeAtomRegistry();
     const target = mounter.mount(AtomProbe, {
-      select: fixed(countingAtom(["explicit"]) as never),
+      select: fixed(countingAtom(["explicit"])),
       registry,
     });
     await expect.poll(() => text(target, "atom-state")).toBe("run-1");
@@ -99,7 +105,7 @@ describe("useAtomResult", () => {
     const target = mounter.mount(WritableAtomProbe, {
       atom: Atom.make(0),
       derived: countingAtom(["provided"]).pipe(
-        Atom.map((result) => (result._tag === "Success" ? result.value : "loading")),
+        Atom.map((result) => (AsyncResult.isSuccess(result) ? result.value : "loading")),
       ),
       registry,
     });
@@ -112,13 +118,17 @@ describe("useAtomResult", () => {
   });
 
   it("follows the thunk to a new atom when the key changes", async () => {
-    const atoms: Record<string, Atom.Atom<never>> = {
-      first: Atom.make(Effect.succeed("first")) as never,
-      second: Atom.make(Effect.succeed("second")) as never,
-    };
+    const atoms = {
+      first: Atom.make(Effect.succeed("first")),
+      second: Atom.make(Effect.succeed("second")),
+    } satisfies Record<string, ProbeAtom>;
     let key = $state("first");
     const target = mounter.mount(AtomProbe, {
-      select: (k: string) => atoms[k]!,
+      select: (k: string) => {
+        const atom = Option.getOrUndefined(Rec.get<string, ProbeAtom>(atoms, k));
+        assert.isDefined(atom);
+        return atom;
+      },
       get key() {
         return key;
       },
@@ -142,7 +152,9 @@ describe("useAtom", () => {
     expect(text(target, "increment")).toBe("1");
     expect(text(target, "label")).toBe("count is 1");
 
-    target.querySelector<HTMLButtonElement>('[data-testid="increment"]')!.click();
+    const increment = target.querySelector<HTMLButtonElement>('[data-testid="increment"]');
+    assert(increment !== null);
+    increment.click();
 
     await expect.poll(() => text(target, "increment")).toBe("2");
     expect(text(target, "label")).toBe("count is 2");

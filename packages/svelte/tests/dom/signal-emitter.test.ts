@@ -4,7 +4,8 @@
  * made before the consumer's run has connected (connecting is asynchronous, and
  * `useStream` only starts its run once the template reads it).
  */
-import { Layer, ManagedRuntime } from "effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 import { flushSync } from "svelte";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import SignalEmitterProbe from "./SignalEmitterProbe.svelte";

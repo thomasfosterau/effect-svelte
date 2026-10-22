@@ -1,9 +1,21 @@
-import { Effect, Fiber, Option } from "effect";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
 import { makeResult } from "./internal/result.svelte.js";
+
+/**
+ * Whether a `setData` argument is an updater function rather than a value. As
+ * with React's `setState`, a function is always treated as an updater, so a
+ * function-typed `A` must be passed wrapped (`() => fn`).
+ */
+const isUpdater = <A>(
+  updater: A | ((previous: A | undefined) => A),
+): updater is (previous: A | undefined) => A => Predicate.isFunction(updater);
 
 /** Options for {@link useEffect}. */
 export interface UseEffectOptions<R = never> {
@@ -82,6 +94,9 @@ export function useEffect<A, E, R>(
   options: UseEffectOptions<R> = {},
 ): UseEffectReturn<A, E> {
   const { immediate = false } = options;
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = makeResult<A, E>();
@@ -140,10 +155,7 @@ export function useEffect<A, E, R>(
     // Untracked, so calling `setData` from an `$effect` does not make that
     // effect depend on the result it is about to write.
     const previous = Option.getOrUndefined(AsyncResult.value(untrack(() => state.current)));
-    const next =
-      typeof updater === "function"
-        ? (updater as (previous: A | undefined) => A)(previous)
-        : updater;
+    const next = isUpdater(updater) ? updater(previous) : updater;
     state.succeed(next);
   };
 

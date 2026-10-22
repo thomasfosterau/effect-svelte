@@ -6,7 +6,7 @@
   first time the template reads it, so until then no run is connected.
 -->
 <script lang="ts">
-  import { Stream } from "effect";
+  import * as Stream from "effect/Stream";
   import { untrack } from "svelte";
   import type { RuntimeLike } from "../../src/internal/run.js";
   import { SignalEmitter } from "../../src/emitter.js";

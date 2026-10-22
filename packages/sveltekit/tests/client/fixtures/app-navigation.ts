@@ -6,6 +6,9 @@
  * {@link navigationStubs}, which a test replaces to make one resolve or reject.
  */
 
+import type { preloadData as kitPreloadData } from "$app/navigation";
+import * as Arr from "effect/Array";
+
 const callbacks: Array<() => void> = [];
 
 export function afterNavigate(callback: () => void): void {
@@ -18,10 +21,13 @@ export function onNavigate(_callback: () => void): void {}
 
 /** Fires every recorded `afterNavigate` callback. */
 export function fireAfterNavigate(): void {
-  for (const callback of callbacks) callback();
+  Arr.forEach(callbacks, (callback) => callback());
 }
 
-type Stub = (...args: Array<unknown>) => Promise<unknown>;
+/** What a stand-in resolves with: nothing, or (for `preloadData`) Kit's preload result. */
+type StubResult = void | Awaited<ReturnType<typeof kitPreloadData>>;
+
+type Stub = (...args: Array<unknown>) => Promise<StubResult>;
 
 const defaultStubs = (): Record<
   "goto" | "invalidate" | "invalidateAll" | "refreshAll" | "preloadData" | "preloadCode",

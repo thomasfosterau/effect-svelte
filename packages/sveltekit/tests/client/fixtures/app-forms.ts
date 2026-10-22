@@ -5,9 +5,16 @@
  * it resolve or reject; `deserialize` parses JSON, like Kit's.
  */
 
-type Stub = (...args: Array<unknown>) => Promise<unknown>;
+import type { ActionResult } from "$app/forms";
+import * as Schema from "effect/Schema";
 
-const defaultStubs = (): Record<"applyAction", Stub> => ({
+type ApplyAction = (result: ActionResult) => Promise<void>;
+
+interface FormsStubs {
+  applyAction: ApplyAction;
+}
+
+const defaultStubs = (): FormsStubs => ({
   applyAction: () => Promise.resolve(),
 });
 
@@ -19,10 +26,14 @@ export function resetFormsStubs(): void {
   Object.assign(formsStubs, defaultStubs());
 }
 
-export const applyAction: Stub = (...args) => formsStubs.applyAction(...args);
+export const applyAction: ApplyAction = (result) => formsStubs.applyAction(result);
 
-export function deserialize(result: string): unknown {
-  return JSON.parse(result);
+const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
+
+export function deserialize(result: string): ActionResult {
+  // SAFETY: like Kit's own `deserialize`, this stand-in trusts the body to be a
+  // serialised `ActionResult` and does not validate its shape.
+  return decodeJson(result) as ActionResult;
 }
 
 export function enhance(): void {}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Effect, Fiber, PubSub, Queue, Stream } from "effect";
+import * as Arr from "effect/Array";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 import { SignalEmitter } from "../src/emitter.js";
 
 /**
@@ -23,7 +28,13 @@ const connect = (emitter: SignalEmitter<number>) =>
       Stream.runForEach(emitter.stream, (value) => Queue.offer(received, value)),
     );
 
-    for (let i = 0; i < 1_000 && connectedRuns() === before; i++) yield* Effect.yieldNow;
+    const awaitConnection = (remaining: number): Effect.Effect<void> =>
+      Effect.suspend(() =>
+        remaining === 0 || connectedRuns() !== before
+          ? Effect.void
+          : Effect.andThen(Effect.yieldNow, awaitConnection(remaining - 1)),
+      );
+    yield* awaitConnection(1_000);
     if (connectedRuns() === before) {
       return yield* Effect.die(new Error("the stream never connected"));
     }
@@ -95,7 +106,7 @@ describe("SignalEmitter", () => {
 
   it("keeps only the most recent `bufferSize` values while no run is connected", async () => {
     const emitter = new SignalEmitter<number>({ bufferSize: 2 });
-    for (const value of [1, 2, 3, 4]) emitter.emit(value);
+    Arr.forEach([1, 2, 3, 4], (value) => emitter.emit(value));
 
     const values = await Effect.runPromise(collect(emitter, 2));
 
@@ -121,7 +132,7 @@ describe("SignalEmitter", () => {
 
   it("rounds a fractional `bufferSize` down and treats a negative one as 0", async () => {
     const fractional = new SignalEmitter<number>({ bufferSize: 2.7 });
-    for (const value of [1, 2, 3]) fractional.emit(value);
+    Arr.forEach([1, 2, 3], (value) => fractional.emit(value));
     const negative = new SignalEmitter<number>({ bufferSize: -1 });
     negative.emit(1);
 
@@ -151,7 +162,7 @@ describe("SignalEmitter", () => {
       Effect.gen(function* () {
         const first = yield* connect(emitter);
         const second = yield* connect(emitter);
-        for (const value of [1, 2, 3]) emitter.emit(value);
+        Arr.forEach([1, 2, 3], (value) => emitter.emit(value));
         const firstValues = [yield* first.next, yield* first.next, yield* first.next];
         const secondValues = [yield* second.next, yield* second.next, yield* second.next];
         yield* Fiber.interrupt(first.fiber);

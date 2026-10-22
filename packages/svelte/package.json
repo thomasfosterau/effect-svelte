@@ -9,7 +9,7 @@
     "svelte",
     "typescript"
   ],
-  "homepage": "https://github.com/thomasfosterau/effect-svelte/tree/main/packages/svelte#readme",
+  "homepage": "https://github.com/thomasfosterau/effect-svelte/tree/trunk/packages/svelte#readme",
   "bugs": {
     "url": "https://github.com/thomasfosterau/effect-svelte/issues"
   },
@@ -41,11 +41,13 @@
   },
   "scripts": {
     "build": "vp pack",
-    "test": "vp test",
+    "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
+    "test:unit": "vp test run",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
     "svelte": "catalog:",
+    "svelte-check": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {

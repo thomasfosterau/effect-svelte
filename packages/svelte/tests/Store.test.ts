@@ -1,17 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  Cause,
-  Effect,
-  Exit,
-  Fiber,
-  Layer,
-  ManagedRuntime,
-  PubSub,
-  Queue,
-  Ref,
-  Stream,
-  SubscriptionRef,
-} from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as PubSub from "effect/PubSub";
+import * as Queue from "effect/Queue";
+import * as Ref from "effect/Ref";
+import * as Stream from "effect/Stream";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { get, writable } from "svelte/store";
 import * as Store from "../src/Store.js";
 

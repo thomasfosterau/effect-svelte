@@ -1,4 +1,5 @@
-import { Cause, Option } from "effect";
+import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 
 /**
@@ -22,13 +23,10 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
  */
 export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Promise<A> {
   if (AsyncResult.isFailure(result)) {
-    const cause = AsyncResult.cause(result);
-    const reason = Option.isSome(cause)
-      ? Option.match(Cause.findErrorOption(cause.value), {
-          onNone: () => Cause.squash(cause.value),
-          onSome: (error) => error,
-        })
-      : new Error("AsyncResult failure with no cause");
+    const reason = Option.match(Cause.findErrorOption(result.cause), {
+      onNone: () => Cause.squash(result.cause),
+      onSome: (error) => error,
+    });
     return rejected(reason);
   }
 
@@ -48,7 +46,7 @@ export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Pr
  * Node's `unhandledRejection` warning, while the returned promise still rejects
  * for every real consumer (the `catch` runs on a separate branch).
  */
-function rejected<A>(reason: unknown): Promise<A> {
+function rejected<A, Reason>(reason: Reason): Promise<A> {
   const promise = Promise.reject<A>(reason);
   promise.catch(() => {});
   return promise;

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { Effect, type ManagedRuntime, Stream } from "effect";
+  import * as Effect from "effect/Effect";
+  import type * as ManagedRuntime from "effect/ManagedRuntime";
+  import * as Stream from "effect/Stream";
   import { useLiveStream } from "../../src/live-stream.svelte.js";
   import { Multiplier } from "./service.js";
 

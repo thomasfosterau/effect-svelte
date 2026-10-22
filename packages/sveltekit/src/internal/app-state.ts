@@ -13,7 +13,11 @@
  */
 
 import type { NavigationTarget, NavigationType } from "$app/navigation";
-import { Data, Effect, Option, Queue, Stream } from "effect";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
 
 /**
  * The fields of SvelteKit's `page` we snapshot. Mirrors the shape of

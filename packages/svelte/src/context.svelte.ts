@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import { createContext } from "svelte";
 import { defaultSvelteRuntime } from "./runtime.js";
 import type { RuntimeLike } from "./internal/run.js";
@@ -52,10 +53,8 @@ function getRuntimeContext(): RuntimeLike<never> {
  * </script>
  * ```
  */
-function provideRuntime<R = never>(
-  runtime: RuntimeLike<R> = defaultSvelteRuntime as RuntimeLike<R>,
-): void {
-  provideRuntimeInternal(runtime as RuntimeLike<never>);
+function provideRuntime<R = never>(runtime?: RuntimeLike<R>): void {
+  provideRuntimeInternal(runtime ?? defaultSvelteRuntime);
 }
 
 /**
@@ -118,14 +117,14 @@ function createRuntimeContext<R>(name?: string): RuntimeContext<R> {
       set(runtime);
     },
     get() {
-      try {
-        return get();
-      } catch {
-        throw new Error(
-          `effect-svelte: No Effect runtime found for ${label}. ` +
-            "Call its `provide(runtime)` in a parent component during initialisation.",
-        );
-      }
+      return Result.getOrThrowWith(
+        Result.try(get),
+        () =>
+          new Error(
+            `effect-svelte: No Effect runtime found for ${label}. ` +
+              "Call its `provide(runtime)` in a parent component during initialisation.",
+          ),
+      );
     },
   };
 }

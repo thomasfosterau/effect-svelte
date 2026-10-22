@@ -1,4 +1,4 @@
-import type { Stream } from "effect";
+import type * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
@@ -61,6 +61,9 @@ export function useStream<A, E, R>(
   stream: Stream.Stream<A, E, R>,
   options: UseStreamOptions<R> = {},
 ): UseStreamReturn<A, E> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   return streamState(runtime, () => stream);
 }

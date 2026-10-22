@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vite-plus/test";
-import { Option, Schema } from "effect";
+import { assert, describe, expect, it } from "vite-plus/test";
+import type { Transport, Transporter } from "@sveltejs/kit/hooks";
+import * as Arr from "effect/Array";
+import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
+import * as Order from "effect/Order";
+import * as Rec from "effect/Record";
+import * as Schema from "effect/Schema";
 import { markerTransporter, transport, transporter } from "../src/transport.js";
 
 /** Narrow away the `false` branch of an `encode` result (asserting it matched). */
@@ -8,10 +14,23 @@ const encoded = <U>(value: false | U): U => {
   return value;
 };
 
+/** A fixed instant, as a JS `Date` (what `Schema.Date` encodes). */
+const dateAt = (iso: string): Date => DateTime.toDateUtc(DateTime.makeUnsafe(iso));
+
+/** The transporter `t` holds under `label`, asserting it has one. */
+const entry = (t: Transport, label: string): Transporter => {
+  const found = t[label];
+  assert(found !== undefined, `expected a transporter labelled ${label}`);
+  return found;
+};
+
+/** The labels of `t`, sorted. */
+const labels = (t: Transport): ReadonlyArray<string> => Arr.sort(Rec.keys(t), Order.String);
+
 describe("transporter", () => {
   it("encodes a matching value to a truthy tuple and decodes it back", () => {
     const t = transporter(Schema.Date);
-    const date = new Date("2026-06-19T00:00:00.000Z");
+    const date = dateAt("2026-06-19T00:00:00.000Z");
 
     const out = encoded(t.encode(date));
     // Wrapped in a single-element tuple so the encoding is always truthy.
@@ -23,9 +42,10 @@ describe("transporter", () => {
   });
 
   it("returns false for values it does not handle", () => {
-    const t = transporter(Schema.Date);
-    expect(t.encode("not a date" as never)).toBe(false);
-    expect(t.encode(42 as never)).toBe(false);
+    // Widened to Kit's untyped `Transporter`: the hook hands `encode` any value.
+    const t: Transporter = transporter(Schema.Date);
+    expect(t.encode("not a date")).toBe(false);
+    expect(t.encode(42)).toBe(false);
   });
 
   it("round-trips an Option (whose encoding can be falsy)", () => {
@@ -61,11 +81,12 @@ describe("markerTransporter", () => {
   });
 
   it("returns false for values it does not handle", () => {
-    const t = markerTransporter({
+    // Widened to Kit's untyped `Transporter`: the hook hands `encode` any value.
+    const t: Transporter = markerTransporter({
       guard: (v): v is LiveHandle => v instanceof LiveHandle,
       make: () => new LiveHandle(),
     });
-    expect(t.encode("x" as never)).toBe(false);
+    expect(t.encode("x")).toBe(false);
   });
 
   it("honours a custom marker", () => {
@@ -85,13 +106,13 @@ describe("transport", () => {
       Option: Schema.Option(Schema.String),
     });
 
-    expect(Object.keys(t).sort()).toStrictEqual(["Date", "Option"]);
+    expect(labels(t)).toStrictEqual(["Date", "Option"]);
 
-    const date = new Date("2026-01-01T00:00:00.000Z");
-    expect(t.Date!.encode(date)).not.toBe(false);
+    const date = dateAt("2026-01-01T00:00:00.000Z");
+    expect(entry(t, "Date").encode(date)).not.toBe(false);
     // The Option transporter rejects a Date and vice versa.
-    expect(t.Option!.encode(date as never)).toBe(false);
-    expect(t.Date!.encode(Option.some("x") as never)).toBe(false);
+    expect(entry(t, "Option").encode(date)).toBe(false);
+    expect(entry(t, "Date").encode(Option.some("x"))).toBe(false);
   });
 
   it("mixes schema codecs and ready transporters (e.g. markerTransporter)", () => {
@@ -103,9 +124,9 @@ describe("transport", () => {
       }),
     });
 
-    expect(Object.keys(t).sort()).toStrictEqual(["Date", "Live"]);
-    expect(t.Live!.encode(new LiveHandle())).toBe(1);
-    expect(t.Live!.encode(new Date() as never)).toBe(false);
-    expect(t.Date!.encode(new LiveHandle() as never)).toBe(false);
+    expect(labels(t)).toStrictEqual(["Date", "Live"]);
+    expect(entry(t, "Live").encode(new LiveHandle())).toBe(1);
+    expect(entry(t, "Live").encode(dateAt("2026-01-01T00:00:00.000Z"))).toBe(false);
+    expect(entry(t, "Date").encode(new LiveHandle())).toBe(false);
   });
 });

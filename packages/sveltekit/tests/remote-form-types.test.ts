@@ -7,7 +7,8 @@ import type {
   RemotePrerenderFunction,
   RemoteQueryFunction,
 } from "$app/server";
-import { Effect, Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import type { CommandFn, FormFn, PrerenderFn, QueryFn } from "../src/remote-functions.js";
 
 // The helpers are `declare`d (never constructed) so importing `remote-functions.ts`

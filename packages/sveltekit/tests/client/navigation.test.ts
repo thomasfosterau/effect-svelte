@@ -5,8 +5,10 @@
  * cause, never as a defect.
  */
 
-import { Cause, Effect, Exit } from "effect";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import { afterEach, assert, describe, expect, it } from "vite-plus/test";
 import * as Navigation from "../../src/Navigation.js";
 import { navigationStubs, resetNavigationStubs } from "./fixtures/app-navigation.js";
 
@@ -16,15 +18,14 @@ afterEach(resetNavigationStubs);
  * Runs `effect` and returns the single error it failed with on the error
  * channel (a `Fail` reason), asserting it did not die.
  */
-const failureOf = async (effect: Effect.Effect<unknown, unknown, never>): Promise<unknown> => {
+const failureOf = async <E>(effect: Effect.Effect<unknown, E, never>): Promise<E> => {
   const exit = await Effect.runPromise(Effect.exit(effect));
-  expect(Exit.isFailure(exit)).toBe(true);
-  if (!Exit.isFailure(exit)) return undefined;
+  assert(Exit.isFailure(exit), "expected the effect to fail");
   expect(Cause.hasDies(exit.cause)).toBe(false);
   expect(exit.cause.reasons).toHaveLength(1);
   const [reason] = exit.cause.reasons;
-  expect(reason !== undefined && Cause.isFailReason(reason)).toBe(true);
-  return reason !== undefined && Cause.isFailReason(reason) ? reason.error : undefined;
+  assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
+  return reason.error;
 };
 
 type Operation = keyof typeof navigationStubs;
@@ -68,7 +69,7 @@ describe("Navigation promise wrappers: success", () => {
   );
 
   it("preloadData succeeds with SvelteKit's result", async () => {
-    const result = { type: "redirect", status: 307, location: "/login" };
+    const result = { type: "redirect" as const, status: 307, location: "/login" };
     navigationStubs.preloadData = () => Promise.resolve(result);
 
     expect(await Effect.runPromise(Navigation.preloadData("/admin"))).toBe(result);

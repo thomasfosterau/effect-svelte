@@ -1,4 +1,4 @@
-import { SubscriptionRef } from "effect";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { runFork, type RuntimeLike } from "./run.js";
 
 /**

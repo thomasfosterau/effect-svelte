@@ -18,7 +18,9 @@ import type {
 } from "$app/server";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/http/HttpClient";
-import { Effect, type Schema } from "effect";
+import * as Effect from "effect/Effect";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import {
   isBareHandler as isBareHandlerValue,
@@ -67,16 +69,33 @@ function unavailable(name: string): never {
   );
 }
 
-type EffectHandler<Env> = (arg: unknown) => Effect.Effect<unknown, unknown, Env>;
-type EffectFormHandler<Env> = (
-  data: unknown,
-  issue: unknown,
-) => Effect.Effect<unknown, unknown, Env>;
-type EffectVoidHandler<Env> = () => Effect.Effect<unknown, unknown, Env>;
+/** Any validator argument the remote helpers accept in the handler-with-validation position. */
+type Validator = "unchecked" | StandardSchemaV1 | Schema.Top;
+
+type EffectHandler<In, Out, Env> = (arg: In) => Effect.Effect<Out, unknown, Env>;
+type EffectVoidHandler<Out, Env> = () => Effect.Effect<Out, unknown, Env>;
+
+/** `inputs` / `dynamic` options of a remote `prerender`, for input type `In`. */
+interface PrerenderOptions<In> {
+  inputs?: () => Promise<In[]> | In[];
+  dynamic?: boolean;
+}
 
 /** True when the argument is the no-validation handler overload (typed narrowing). */
-const isBareHandler = <Env>(value: unknown): value is EffectVoidHandler<Env> =>
-  isBareHandlerValue(value);
+const isBareHandler = <Out, Env>(
+  value: Validator | EffectVoidHandler<Out, Env>,
+): value is EffectVoidHandler<Out, Env> => isBareHandlerValue(value);
+
+/**
+ * Normalise a validator for kit's `$app/server` helpers, typed as the
+ * `"unchecked"` overload so one call site serves every validator kind.
+ */
+// SAFETY: `toStandardValidator` returns either the `"unchecked"` marker or a
+// Standard Schema (a bare Effect `Schema` is wrapped); kit accepts both at
+// runtime, and the `"unchecked"` typing only selects the overload whose handler
+// input is the generic `In` the public overloads already fixed.
+const toKitValidator = (validator: Validator): "unchecked" =>
+  toStandardValidator(validator) as "unchecked";
 
 /** The public shape of the `query` helper, parameterised by its handler env. */
 export interface QueryFn<Env> {
@@ -95,9 +114,12 @@ export interface QueryFn<Env> {
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
-  ((arg1: unknown, arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, Env>): any => {
-    if (isBareHandler<Env>(arg1)) {
+const makeQuery = <Env>(run: Runner): QueryFn<Env> => {
+  const impl = <In, Out>(
+    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg2?: EffectHandler<In, Out, Env>,
+  ) => {
+    if (isBareHandler<Out, Env>(arg1)) {
       const handler = arg1;
       return AppServer.query(() => run(handler()));
     }
@@ -106,10 +128,13 @@ const makeQuery = <Env>(run: Runner): QueryFn<Env> =>
       throw new Error("query requires a handler function when a schema is provided");
     }
 
-    return AppServer.query(toStandardValidator(arg1) as "unchecked", (arg: unknown) =>
-      run(arg2(arg)),
-    );
-  }) as QueryFn<Env>;
+    return AppServer.query(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
+  };
+  // SAFETY: `impl` dispatches on the argument kind exactly as the `QueryFn`
+  // overloads distinguish them (bare handler, or validator then handler), and
+  // returns kit's `RemoteQueryFunction` for that overload.
+  return impl as QueryFn<Env>;
+};
 
 /** The public shape of `query.batch`, parameterised by its handler env. */
 export interface QueryBatchFn<Env> {
@@ -133,45 +158,40 @@ export interface QueryBatchFn<Env> {
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> =>
-  ((
-    validate: unknown,
-    fn: (args: unknown[]) => Effect.Effect<(arg: unknown, idx: number) => unknown, unknown, Env>,
-  ): any =>
-    AppServer.query.batch(toStandardValidator(validate) as "unchecked", (args: unknown[]) =>
-      run(fn(args)),
-    )) as QueryBatchFn<Env>;
-
-type QueryLiveFactory = (
-  validate: unknown,
-  fn: (arg: unknown) => Promise<AsyncIterable<unknown>> | AsyncIterable<unknown>,
-) => unknown;
-
-type QueryWithCompat = typeof AppServer.query & {
-  live?: QueryLiveFactory;
+const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> => {
+  const impl = <In, Out>(
+    validate: Validator,
+    fn: (args: In[]) => Effect.Effect<(arg: In, idx: number) => Out, unknown, Env>,
+  ) => AppServer.query.batch(toKitValidator(validate), (args: In[]) => run(fn(args)));
+  // SAFETY: every `QueryBatchFn` overload is (validator, batch handler), which
+  // `impl` forwards to kit's `query.batch` unchanged.
+  return impl as QueryBatchFn<Env>;
 };
 
-type AppServerWithCompat = typeof AppServer & {
-  requested?: (...args: unknown[]) => unknown;
+/** `$app/server`, with `requested` typed as a generic passthrough. */
+type AppServerWithRequested = Omit<typeof AppServer, "requested"> & {
+  readonly requested?: <Result>(...args: unknown[]) => Result;
 };
 
-const appServerCompat = AppServer as AppServerWithCompat;
-const queryCompat = AppServer.query as QueryWithCompat;
+// SAFETY: widens `requested` to optional (older kits may lack it, so the call
+// site checks before calling) and erases its overloads, which `requested` below
+// re-exposes with the caller-chosen `Result`.
+const appServerCompat = AppServer as AppServerWithRequested;
 
-function getQueryLive(): QueryLiveFactory {
-  const live = queryCompat.live;
+function getQueryLive(): typeof AppServer.query.live {
+  const live: typeof AppServer.query.live | undefined = AppServer.query.live;
 
-  if (typeof live !== "function") {
+  if (!Predicate.isFunction(live)) {
     unavailable("query.live");
   }
 
   return live;
 }
 
-function getRequested(): (...args: unknown[]) => unknown {
+function getRequested(): <Result>(...args: unknown[]) => Result {
   const requestedFn = appServerCompat.requested;
 
-  if (typeof requestedFn !== "function") {
+  if (!Predicate.isFunction(requestedFn)) {
     unavailable("requested");
   }
 
@@ -196,14 +216,21 @@ export interface QueryLiveFn<Env> {
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> =>
-  ((
-    validate: unknown,
-    fn: (arg: unknown) => Effect.Effect<AsyncIterable<unknown>, unknown, Env>,
-  ): any => {
+const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
+  const impl = <In, Out>(
+    validate: Validator,
+    fn: (arg: In) => Effect.Effect<AsyncIterable<Out>, unknown, Env>,
+  ) => {
     const live = getQueryLive();
-    return live(toStandardValidator(validate), (arg) => run(fn(arg)));
-  }) as QueryLiveFn<Env>;
+    return live(toKitValidator(validate), (arg: In) => run(fn(arg)));
+  };
+  // SAFETY: every `QueryLiveFn` overload is (validator, handler), which `impl`
+  // forwards to kit's `query.live`. Kit 3 returns a `RemoteLiveQueryFunction`,
+  // which the published `QueryLiveFn` declares as `RemoteQueryFunction`; the two
+  // share the callable/`current`/`loading` surface but are not comparable, so
+  // the conversion goes through `unknown` until that published type is fixed.
+  return impl as unknown as QueryLiveFn<Env>;
+};
 
 /** The public shape of the `form` helper, parameterised by its handler env. */
 export interface FormFn<Env> {
@@ -231,9 +258,12 @@ export interface FormFn<Env> {
   ): RemoteForm<S["Encoded"] & RemoteFormInput, Output>;
 }
 
-const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> =>
-  ((arg1: unknown, arg2?: unknown): any => {
-    if (isBareHandler<Env>(arg1)) {
+const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> => {
+  const impl = <In extends RemoteFormInput, Out>(
+    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg2?: (data: In, issue: InvalidField<In>) => Effect.Effect<Out, unknown, Env>,
+  ) => {
+    if (isBareHandler<Out, Env>(arg1)) {
       const handler = arg1;
       return AppServer.form(() => helpers.run(handler()));
     }
@@ -242,15 +272,15 @@ const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> =>
       throw new Error("form requires a handler function when a schema is provided");
     }
 
-    return AppServer.form(
-      toStandardValidator(arg1) as "unchecked",
-      (data: unknown, issue: unknown) =>
-        helpers.runForm((arg2 as EffectFormHandler<Env>)(data, issue), {
-          issue: issue as InvalidField<any>,
-          data,
-        }),
+    return AppServer.form(toKitValidator(arg1), (data: In, issue: InvalidField<In>) =>
+      helpers.runForm(arg2(data, issue), { issue, data }),
     );
-  }) as FormFn<Env>;
+  };
+  // SAFETY: `impl` dispatches on the argument kind exactly as the `FormFn`
+  // overloads distinguish them (bare handler, or validator then handler), and
+  // returns kit's `RemoteForm` for that overload.
+  return impl as FormFn<Env>;
+};
 
 /** The public shape of the `command` helper, parameterised by its handler env. */
 export interface CommandFn<Env> {
@@ -269,9 +299,12 @@ export interface CommandFn<Env> {
   ): RemoteCommand<S["Encoded"], Output>;
 }
 
-const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
-  ((arg1: unknown, arg2?: (arg: unknown) => Effect.Effect<unknown, unknown, Env>): any => {
-    if (isBareHandler<Env>(arg1)) {
+const makeCommand = <Env>(run: Runner): CommandFn<Env> => {
+  const impl = <In, Out>(
+    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg2?: EffectHandler<In, Out, Env>,
+  ) => {
+    if (isBareHandler<Out, Env>(arg1)) {
       const handler = arg1;
       return AppServer.command(() => run(handler()));
     }
@@ -280,10 +313,13 @@ const makeCommand = <Env>(run: Runner): CommandFn<Env> =>
       throw new Error("command requires a handler function when a schema is provided");
     }
 
-    return AppServer.command(toStandardValidator(arg1) as "unchecked", (arg: unknown) =>
-      run(arg2(arg)),
-    );
-  }) as CommandFn<Env>;
+    return AppServer.command(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
+  };
+  // SAFETY: `impl` dispatches on the argument kind exactly as the `CommandFn`
+  // overloads distinguish them (bare handler, or validator then handler), and
+  // returns kit's `RemoteCommand` for that overload.
+  return impl as CommandFn<Env>;
+};
 
 /** The public shape of the `prerender` helper, parameterised by its handler env. */
 export interface PrerenderFn<Env> {
@@ -322,38 +358,34 @@ export interface PrerenderFn<Env> {
   ): RemotePrerenderFunction<S["Encoded"], Output>;
 }
 
-const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
-  ((
-    arg1: unknown,
-    arg2?:
-      | ((arg: unknown) => Effect.Effect<unknown, unknown, Env>)
-      | {
-          inputs?: () => Promise<unknown[]> | unknown[];
-          dynamic?: boolean;
-        },
-    arg3?: {
-      inputs?: () => Promise<unknown[]> | unknown[];
-      dynamic?: boolean;
-    },
-  ): any => {
-    if (isBareHandler<Env>(arg1)) {
+const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
+  const impl = <In, Out>(
+    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg2?: EffectHandler<In, Out, Env> | PrerenderOptions<void>,
+    arg3?: PrerenderOptions<In>,
+  ) => {
+    if (isBareHandler<Out, Env>(arg1)) {
       const handler = arg1;
       return AppServer.prerender(
         () => run(handler()),
-        arg2 as { inputs?: () => Promise<void[]> | void[]; dynamic?: boolean } | undefined,
+        // SAFETY: in the bare-handler overload the second argument is the
+        // (optional) options object, never a handler.
+        arg2 as PrerenderOptions<void> | undefined,
       );
     }
 
-    if (typeof arg2 !== "function") {
+    if (!Predicate.isFunction(arg2)) {
       throw new Error("prerender requires a handler function when a schema is provided");
     }
 
-    return AppServer.prerender(
-      toStandardValidator(arg1) as "unchecked",
-      (arg: unknown) => run((arg2 as EffectHandler<Env>)(arg)),
-      arg3,
-    );
-  }) as PrerenderFn<Env>;
+    return AppServer.prerender(toKitValidator(arg1), (arg: In) => run(arg2(arg)), arg3);
+  };
+  // SAFETY: `impl` dispatches on the argument kind exactly as the
+  // `PrerenderFn` overloads distinguish them (bare handler plus options, or
+  // validator, handler and options), and returns kit's
+  // `RemotePrerenderFunction` for that overload.
+  return impl as PrerenderFn<Env>;
+};
 
 /**
  * SvelteKit's `requested` from `$app/server`, passed through. Throws when the
@@ -361,7 +393,7 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> =>
  */
 export function requested<Result = unknown>(...args: unknown[]): Result {
   const requestedFn = getRequested();
-  return requestedFn(...args) as Result;
+  return requestedFn<Result>(...args);
 }
 
 /** A `query` with its `batch` / `live` helpers attached. */
@@ -374,7 +406,7 @@ const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
   Object.assign(makeQuery<Env>(run), {
     batch: makeQueryBatch<Env>(run),
     live: makeQueryLive<Env>(run),
-  }) as QueryNamespace<Env>;
+  });
 
 // ── Standalone exports (default SvelteKit per-request runtime) ──────────────
 

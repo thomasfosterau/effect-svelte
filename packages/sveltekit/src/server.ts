@@ -1,5 +1,7 @@
 import type { Action, Actions, RequestEvent, ServerLoad } from "@sveltejs/kit";
-import { Effect, Exit, Cause } from "effect";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Cause from "effect/Cause";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import type { SvelteKitServices } from "./app-runtime.js";
 import type { SvelteRouteParams } from "./internal/route-params.js";
@@ -144,7 +146,7 @@ export function endpoint<
   const { exposeErrors = false } = options ?? {};
 
   return async (event) => {
-    const exit = await runtime().runPromiseExit(event as RequestEvent, fn(event));
+    const exit = await runtime().runPromiseExit(event, fn(event));
 
     return Exit.match(exit, {
       onFailure: (cause) => {
@@ -160,10 +162,8 @@ export function endpoint<
         // Return generic error message to client unless explicitly enabled
         const clientMessage = exposeErrors ? Cause.pretty(cause) : "Internal server error";
 
-        return new Response(JSON.stringify({ error: clientMessage }), {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        });
+        // `Response.json` serialises the body and sets `Content-Type: application/json`.
+        return Response.json({ error: clientMessage }, { status: 500 });
       },
       onSuccess: (value) => value,
     });

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Context, Effect, Schema } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from "effect/http-api";
 import * as Endpoint from "../src/server/Endpoint.js";
+import { TestRequestEvent, type TestRequestEventOptions } from "../src/testing.js";
 
-/** A SvelteKit RequestEvent is only read for its `request` by these helpers. */
-const event = (url: string, init?: RequestInit) => ({ request: new Request(url, init) }) as any;
+/** A SvelteKit RequestEvent for `url`; these helpers only read its `request`. */
+const event = (url: string, init?: Pick<TestRequestEventOptions, "method" | "body">) =>
+  TestRequestEvent({ url, ...init });
 
 // A tiny HttpApi: GET /hello -> { message }.
 const Api = HttpApi.make("api").add(

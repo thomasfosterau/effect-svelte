@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Config, Effect, Layer } from "effect";
+import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Redacted from "effect/Redacted";
 import { readConfig, sveltekitConfig, sveltekitConfigProvider } from "../src/config.js";
 
 describe("sveltekitConfigProvider", () => {
@@ -9,9 +14,8 @@ describe("sveltekitConfigProvider", () => {
       PORT: "3000",
     });
 
-    expect(Effect.runSync(Config.String("DATABASE_URL").parse(provider))).toBe(
-      "postgres://localhost",
-    );
+    const databaseUrl = Effect.runSync(Config.Redacted("DATABASE_URL").parse(provider));
+    expect(Redacted.value(databaseUrl)).toBe("postgres://localhost");
     expect(Effect.runSync(Config.Number("PORT").parse(provider))).toBe(3000);
   });
 
@@ -26,8 +30,7 @@ describe("sveltekitConfigProvider", () => {
 
 describe("empty-string env values (rc.118: treated as missing)", () => {
   const provider = sveltekitConfigProvider({ EMPTY: "" });
-  const run = <A, E>(config: Config.Config<A>) =>
-    Effect.runSync(Effect.exit(config.parse(provider) as Effect.Effect<A, E>));
+  const run = <A>(config: Config.Config<A>) => Effect.runSync(Effect.exit(config.parse(provider)));
 
   it("fails a required String", () => {
     expect(run(Config.String("EMPTY"))._tag).toBe("Failure");
@@ -35,17 +38,17 @@ describe("empty-string env values (rc.118: treated as missing)", () => {
 
   it("falls back to the default", () => {
     const exit = run(Config.String("EMPTY").pipe(Config.withDefault("fallback")));
-    expect(exit._tag === "Success" && exit.value).toBe("fallback");
+    expect(Exit.isSuccess(exit) && exit.value).toBe("fallback");
   });
 
   it("makes option None", () => {
     const exit = run(Config.String("EMPTY").pipe(Config.option));
-    expect(exit._tag === "Success" && exit.value._tag).toBe("None");
+    expect(Exit.isSuccess(exit) && Option.isNone(exit.value)).toBe(true);
   });
 
   it("falls back to the default for Int", () => {
     const exit = run(Config.Int("EMPTY").pipe(Config.withDefault(7)));
-    expect(exit._tag === "Success" && exit.value).toBe(7);
+    expect(Exit.isSuccess(exit) && exit.value).toBe(7);
   });
 });
 

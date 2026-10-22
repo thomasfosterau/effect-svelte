@@ -1,4 +1,10 @@
-import { Duration, Effect, Match, Predicate, Queue, Stream, String } from "effect";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Match from "effect/Match";
+import * as Predicate from "effect/Predicate";
+import * as Queue from "effect/Queue";
+import * as Stream from "effect/Stream";
+import * as String from "effect/String";
 import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { useStream } from "./stream.svelte.js";
@@ -50,7 +56,7 @@ type Phase<T> =
   | { readonly kind: "done"; readonly results: ReadonlyArray<T> }
   | { readonly kind: "error"; readonly error: string };
 
-const defaultErrorMessage = (error: unknown): string =>
+const defaultErrorMessage = <E>(error: E): string =>
   Predicate.isError(error) ? error.message : "Search failed.";
 
 /**
@@ -93,6 +99,9 @@ const defaultErrorMessage = (error: unknown): string =>
 export function useDebouncedSearch<T, E = never, R = never>(
   options: UseDebouncedSearchOptions<T, E, R>,
 ): UseDebouncedSearchReturn<T> {
+  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
+  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
+  // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
   const debounce = options.debounce ?? Duration.millis(150);
   const errorMessage: (error: E) => string = options.errorMessage ?? defaultErrorMessage;

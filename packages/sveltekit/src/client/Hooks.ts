@@ -23,7 +23,8 @@
  */
 
 import type { ClientInit, HandleClientError } from "@sveltejs/kit/hooks";
-import { Effect, Exit } from "effect";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import { causeToThrowable } from "../internal/error.js";
 
 /** Run a bare Effect (no request context) and settle it the way a hook expects. */

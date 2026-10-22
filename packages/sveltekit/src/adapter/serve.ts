@@ -16,7 +16,9 @@ import * as HttpMiddleware from "effect/http/HttpMiddleware";
 import * as HttpServer from "effect/http/HttpServer";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import { Config, Effect, Layer } from "effect";
+import * as Config from "effect/Config";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import type { SvelteKitHttpApp } from "./handler.js";
 
 /** Options for {@link serve} and {@link layer}. */

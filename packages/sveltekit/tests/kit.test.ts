@@ -1,8 +1,20 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { error, isHttpError, isRedirect, redirect } from "@sveltejs/kit";
-import { Cause, Effect, Exit, Layer } from "effect";
+import { afterEach, assert, describe, expect, it, vi } from "vite-plus/test";
+import {
+  error,
+  isActionFailure,
+  isHttpError,
+  isRedirect,
+  redirect,
+  type HttpError,
+} from "@sveltejs/kit";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as Result from "effect/Result";
 import { KitActionFailure, KitError, KitRedirect, SvelteKit } from "../src/kit.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
+import { mockEvent } from "./fixtures/request-event.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
 
@@ -46,35 +58,29 @@ describe("KitActionFailure", () => {
 describe("SvelteKit helper effects", () => {
   it("redirect produces a KitRedirect failure", async () => {
     const exit = await Effect.runPromise(Effect.exit(SvelteKit.redirect(302, "/home")));
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (Exit.isFailure(exit)) {
-      const squashed = Cause.squash(exit.cause);
-      expect(squashed).toBeInstanceOf(KitRedirect);
-      expect((squashed as KitRedirect).status).toBe(302);
-      expect((squashed as KitRedirect).location).toBe("/home");
-    }
+    assert(Exit.isFailure(exit), "expected a failure");
+    const squashed = Cause.squash(exit.cause);
+    assert.instanceOf(squashed, KitRedirect);
+    expect(squashed.status).toBe(302);
+    expect(squashed.location).toBe("/home");
   });
 
   it("error produces a KitError failure", async () => {
     const exit = await Effect.runPromise(Effect.exit(SvelteKit.error(404, "Not found")));
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (Exit.isFailure(exit)) {
-      const squashed = Cause.squash(exit.cause);
-      expect(squashed).toBeInstanceOf(KitError);
-      expect((squashed as KitError).status).toBe(404);
-      expect((squashed as KitError).body).toBe("Not found");
-    }
+    assert(Exit.isFailure(exit), "expected a failure");
+    const squashed = Cause.squash(exit.cause);
+    assert.instanceOf(squashed, KitError);
+    expect(squashed.status).toBe(404);
+    expect(squashed.body).toBe("Not found");
   });
 
   it("fail produces a KitActionFailure", async () => {
     const exit = await Effect.runPromise(Effect.exit(SvelteKit.fail(422, { email: "taken" })));
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (Exit.isFailure(exit)) {
-      const squashed = Cause.squash(exit.cause);
-      expect(squashed).toBeInstanceOf(KitActionFailure);
-      expect((squashed as KitActionFailure).status).toBe(422);
-      expect((squashed as KitActionFailure<{ email: string }>).data).toEqual({ email: "taken" });
-    }
+    assert(Exit.isFailure(exit), "expected a failure");
+    const squashed = Cause.squash(exit.cause);
+    assert.instanceOf(squashed, KitActionFailure);
+    expect(squashed.status).toBe(422);
+    expect(squashed.data).toEqual({ email: "taken" });
   });
 
   it("redirect is usable with Effect.catchTag", async () => {
@@ -89,21 +95,6 @@ describe("SvelteKit helper effects", () => {
 
 // ─── SvelteKit.translate ─────────────────────────────────────────────────────
 
-const mockEvent = (url = "http://localhost/") =>
-  ({
-    request: new Request(url),
-    fetch,
-    cookies: {} as any,
-    locals: {},
-    params: {},
-    platform: undefined,
-    route: { id: null },
-    setHeaders: () => undefined,
-    url: new URL(url),
-    isDataRequest: false,
-    isSubRequest: false,
-  }) as any;
-
 describe("SvelteKit.translate", () => {
   it("translates KitRedirect → redirect() throw", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {
@@ -111,7 +102,7 @@ describe("SvelteKit.translate", () => {
     });
     const load = serverLoad(() => SvelteKit.redirect(302, "/elsewhere"));
     await expect(load(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isRedirect(e) && (e as any).location === "/elsewhere",
+      (e) => isRedirect(e) && e.location === "/elsewhere",
     );
   });
 
@@ -120,9 +111,7 @@ describe("SvelteKit.translate", () => {
       translateError: SvelteKit.translate,
     });
     const load = serverLoad(() => SvelteKit.error(403, "Forbidden"));
-    await expect(load(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 403,
-    );
+    await expect(load(mockEvent())).rejects.toSatisfy((e) => isHttpError(e) && e.status === 403);
   });
 
   it("translates KitActionFailure → fail() return (action path)", async () => {
@@ -130,10 +119,11 @@ describe("SvelteKit.translate", () => {
       translateError: SvelteKit.translate,
     });
     const act = action(() => SvelteKit.fail(422, { email: "taken" }));
-    const result = await act(mockEvent());
+    const result: unknown = await act(mockEvent());
     // fail() returns an ActionFailure with status and data
-    expect((result as any).status).toBe(422);
-    expect((result as any).data).toEqual({ email: "taken" });
+    assert(isActionFailure(result), "expected an ActionFailure");
+    expect(result.status).toBe(422);
+    expect(result.data).toEqual({ email: "taken" });
   });
 
   it("translates plain SvelteKit redirect/error through unchanged", async () => {
@@ -172,16 +162,14 @@ describe("SvelteKit.translate is the default translateError", () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty));
     const load = serverLoad(() => SvelteKit.redirect(302, "/default"));
     await expect(load(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isRedirect(e) && (e as any).location === "/default",
+      (e) => isRedirect(e) && e.location === "/default",
     );
   });
 
   it("makeRuntimeAdapter default translates KitError", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty));
     const load = serverLoad(() => SvelteKit.error(401, "Unauthorized"));
-    await expect(load(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 401,
-    );
+    await expect(load(mockEvent())).rejects.toSatisfy((e) => isHttpError(e) && e.status === 401);
   });
 });
 
@@ -201,7 +189,7 @@ describe("SvelteKit.makeTranslator", () => {
       if (e instanceof NotFound) error(404, "not found");
     },
     (e) => {
-      if (e instanceof Forbidden) error(403, (e as Forbidden).reason);
+      if (e instanceof Forbidden) error(403, e.reason);
     },
   ]);
 
@@ -212,12 +200,12 @@ describe("SvelteKit.makeTranslator", () => {
 
     const notFound = serverLoad(() => Effect.fail(new NotFound()));
     await expect(notFound(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).status === 404,
+      (e) => isHttpError(e) && e.status === 404,
     );
 
     const forbidden = serverLoad(() => Effect.fail(new Forbidden("access denied")));
     await expect(forbidden(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isHttpError(e) && (e as any).body.message === "access denied",
+      (e) => isHttpError(e) && e.body.message === "access denied",
     );
   });
 
@@ -227,7 +215,7 @@ describe("SvelteKit.makeTranslator", () => {
     });
     const load = serverLoad(() => SvelteKit.redirect(302, "/kit-redirect"));
     await expect(load(mockEvent())).rejects.toSatisfy(
-      (e: unknown) => isRedirect(e) && (e as any).location === "/kit-redirect",
+      (e) => isRedirect(e) && e.location === "/kit-redirect",
     );
   });
 
@@ -253,9 +241,7 @@ describe("SvelteKit.makeTranslator", () => {
     ]);
 
     const cause = Cause.fail(new NotFound());
-    try {
-      translator(cause);
-    } catch {}
+    expect(() => translator(cause)).toThrow();
     expect(order).toEqual(["first"]);
   });
 });
@@ -299,14 +285,12 @@ describe("SvelteKit.translate KitError bodies", () => {
     vi.restoreAllMocks();
   });
 
-  const translated = (failure: KitError): { status: number; body: Record<string, unknown> } => {
-    try {
-      SvelteKit.translate(Cause.fail(failure));
-    } catch (thrown) {
-      expect(isHttpError(thrown)).toBe(true);
-      return thrown as { status: number; body: Record<string, unknown> };
-    }
-    throw new Error("SvelteKit.translate did not throw");
+  const translated = (failure: KitError): HttpError => {
+    const result = Result.try(() => SvelteKit.translate(Cause.fail(failure)));
+    assert(Result.isFailure(result), "SvelteKit.translate did not throw");
+    const thrown = result.failure;
+    assert(isHttpError(thrown), "expected an HttpError");
+    return thrown;
   };
 
   it("passes a string body as the message", () => {

@@ -1,30 +1,51 @@
-import { describe, expect, it } from "vite-plus/test";
+import { assert, describe, expect, it, onTestFinished } from "vite-plus/test";
 import type { SubmitFunction } from "$app/forms";
-import { Context, Data, Effect, Layer, ManagedRuntime } from "effect";
-import { makeSubmitFunction } from "../src/internal/enhance.js";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Predicate from "effect/Predicate";
+import * as Schema from "effect/Schema";
+import {
+  makeSubmitFunction,
+  type ResultOptions,
+  type SubmitInput,
+} from "../src/internal/enhance.js";
+
+// SAFETY: no handler under test reads `formElement`, and the Node test project
+// has no DOM to build a real `<form>` from.
+const formElement = {} as HTMLFormElement;
 
 /** A minimal SubmitFunction input; only what a handler touches is populated. */
-const submitInput = (
-  over: Partial<Parameters<SubmitFunction>[0]> = {},
-): Parameters<SubmitFunction>[0] =>
-  ({
-    action: new URL("http://localhost/?/create"),
-    formData: new FormData(),
-    formElement: {} as HTMLFormElement,
-    controller: new AbortController(),
-    submitter: null,
-    cancel: () => {},
-    ...over,
-  }) as Parameters<SubmitFunction>[0];
+const submitInput = (over: Partial<SubmitInput> = {}): SubmitInput => ({
+  action: new URL("http://localhost/?/create"),
+  formData: new FormData(),
+  formElement,
+  controller: new AbortController(),
+  submitter: null,
+  cancel: () => {},
+  ...over,
+});
 
-const resultOptions = (): never =>
-  ({
-    result: { type: "success", status: 200 },
-    formData: new FormData(),
-    formElement: {} as HTMLFormElement,
-    action: new URL("http://localhost/?/create"),
-    update: () => Promise.resolve(),
-  }) as never;
+const resultOptions = (): ResultOptions => ({
+  result: { type: "success", status: 200, location: "/" },
+  formData: new FormData(),
+  formElement,
+  action: new URL("http://localhost/?/create"),
+  update: () => Promise.resolve(),
+});
+
+/** Asserts the submit function returned a result callback, then runs it. */
+const runResult = async (callback: Awaited<ReturnType<SubmitFunction>>): Promise<void> => {
+  assert(Predicate.isFunction(callback), "expected a result callback");
+  await callback(resultOptions());
+};
+
+/** A handlers object whose handlers a test adds, replaces and removes. */
+interface MutableHandlers<A> {
+  onSubmit?: () => Effect.Effect<A>;
+  onResult?: () => Effect.Effect<A>;
+}
 
 describe("makeSubmitFunction", () => {
   it("runs onSubmit before the request", async () => {
@@ -50,9 +71,7 @@ describe("makeSubmitFunction", () => {
       onResult: () => Effect.sync(() => calls.push("result")),
     });
 
-    const callback = await submit(submitInput());
-    expect(typeof callback).toBe("function");
-    await (callback as (o: unknown) => Promise<void>)(resultOptions());
+    await runResult(await submit(submitInput()));
     expect(calls).toEqual(["submit", "result"]);
   });
 
@@ -101,22 +120,15 @@ describe("makeSubmitFunction", () => {
       { runtime },
     );
 
-    try {
-      const callback = await submit(submitInput());
-      await (callback as (o: unknown) => Promise<void>)(resultOptions());
-      expect(seen).toEqual(["submit: hello", "result: hello"]);
-    } finally {
-      await runtime.dispose();
-    }
+    onTestFinished(() => runtime.dispose());
+    await runResult(await submit(submitInput()));
+    expect(seen).toEqual(["submit: hello", "result: hello"]);
   });
 
   it("reads onSubmit and onResult on each submission", async () => {
     const calls: Array<string> = [];
     const record = (call: string) => () => Effect.sync(() => calls.push(call));
-    const handlers: {
-      onSubmit?: () => Effect.Effect<number>;
-      onResult?: () => Effect.Effect<number>;
-    } = {};
+    const handlers: MutableHandlers<number> = {};
     const submit = makeSubmitFunction(handlers);
 
     // No handlers yet: SvelteKit's default result behaviour applies.
@@ -125,9 +137,7 @@ describe("makeSubmitFunction", () => {
     // Handlers added (or replaced) after `enhance()` run on the next submission.
     handlers.onSubmit = record("submit");
     handlers.onResult = record("result");
-    const callback = await submit(submitInput());
-    expect(typeof callback).toBe("function");
-    await (callback as (o: unknown) => Promise<void>)(resultOptions());
+    await runResult(await submit(submitInput()));
     expect(calls).toEqual(["submit", "result"]);
 
     handlers.onSubmit = record("submit again");
@@ -138,10 +148,7 @@ describe("makeSubmitFunction", () => {
 
   it("reads onResult after onSubmit has run", async () => {
     const calls: Array<string> = [];
-    const handlers: {
-      onSubmit?: () => Effect.Effect<void>;
-      onResult?: () => Effect.Effect<void>;
-    } = {
+    const handlers: MutableHandlers<void> = {
       onSubmit: () =>
         Effect.sync(() => {
           calls.push("submit");
@@ -152,33 +159,30 @@ describe("makeSubmitFunction", () => {
     };
     const submit = makeSubmitFunction(handlers);
 
-    const callback = await submit(submitInput());
-    expect(typeof callback).toBe("function");
-    await (callback as (o: unknown) => Promise<void>)(resultOptions());
+    await runResult(await submit(submitInput()));
     expect(calls).toEqual(["submit", "result set by onSubmit"]);
   });
 
   it("calls each handler as a method of the handlers object", async () => {
-    class Invalid extends Data.TaggedError("Invalid")<{}> {}
+    class Invalid extends Schema.TaggedError<Invalid>()("Invalid", {}) {}
     const receivers: Array<[string, unknown]> = [];
     const handlers = {
-      onSubmit(this: unknown) {
+      onSubmit() {
         receivers.push(["onSubmit", this]);
         return Effect.void;
       },
-      onResult(this: unknown) {
+      onResult() {
         receivers.push(["onResult", this]);
         return Effect.fail(new Invalid());
       },
-      onError(this: unknown) {
+      onError() {
         receivers.push(["onError", this]);
         return Effect.void;
       },
     };
     const submit = makeSubmitFunction(handlers);
 
-    const callback = await submit(submitInput());
-    await (callback as (o: unknown) => Promise<void>)(resultOptions());
+    await runResult(await submit(submitInput()));
     expect(receivers).toEqual([
       ["onSubmit", handlers],
       ["onResult", handlers],

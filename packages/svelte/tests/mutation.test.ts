@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
-import { Cause, Effect, Exit, Layer, ManagedRuntime, Option, Queue } from "effect";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
+import * as Queue from "effect/Queue";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
 import { makeMutation } from "../src/internal/mutation.js";

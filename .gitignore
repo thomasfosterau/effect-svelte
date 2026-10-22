@@ -140,3 +140,16 @@ vite.config.ts.timestamp-*
 
 # Claude Code agent worktrees (transient)
 .claude/worktrees/
+
+# The Vite+ task cache and vitest scratch dirs.
+.vite/
+# The generated git-hook runner; the editable hook (.vite-hooks/pre-commit) is committed.
+.vite-hooks/_/
+
+# fallow's local cache and report output.
+.fallow
+fallow.sarif
+
+# Per-machine Claude Code state.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

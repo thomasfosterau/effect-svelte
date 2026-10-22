@@ -4,13 +4,15 @@
  */
 
 import type { SubmitFunction } from "$app/forms";
-import { Context, Effect, ManagedRuntime } from "effect";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as ManagedRuntime from "effect/ManagedRuntime";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */
 export type SubmitInput = Parameters<SubmitFunction>[0];
 
 /** The result callback a `SubmitFunction` may return, run once the action responds. */
-type ResultCallback = Extract<Awaited<ReturnType<SubmitFunction>>, (...args: never) => unknown>;
+type ResultCallback = Extract<Awaited<ReturnType<SubmitFunction>>, (...args: never) => void>;
 
 /** The options passed to the result callback (`result`, `update`, ...). */
 export type ResultOptions = Parameters<ResultCallback>[0];
@@ -181,7 +183,11 @@ export interface OnErrorMustAccept<R, Errors> {
 const runPromiseWith =
   <R>(runtime: EnhanceRuntime<R> | undefined) =>
   <A, E>(effect: Effect.Effect<A, E, R>): Promise<A> => {
-    if (runtime === undefined) return Effect.runPromise(effect as Effect.Effect<A, E, never>);
+    if (runtime === undefined) {
+      // SAFETY: `EnhanceOptionsArgs` makes the runtime optional only when the
+      // handlers require no services, so without one `R` is `never`.
+      return Effect.runPromise(effect as Effect.Effect<A, E, never>);
+    }
     return Context.isContext(runtime)
       ? Effect.runPromiseWith(runtime)(effect)
       : runtime.runPromise(effect);
@@ -242,14 +248,14 @@ export const makeSubmitFunction = <
   >
 ): SubmitFunction => {
   type R = RequiredServices<RSubmit> | RequiredServices<RResult> | RequiredServices<RError>;
-  // Either branch of `EnhanceOptionsArgs<R>`: the `never` one only when `R`
-  // is `never`, where the two coincide.
+  // SAFETY: `rest` is either branch of `EnhanceOptionsArgs<R>`: the `never`
+  // one only when `R` is `never`, where the two coincide.
   const options = rest[0] as EnhanceOptions<R> | undefined;
   const run = runPromiseWith(options?.runtime);
-  // Each handler requires a part of `R`, which the runtime provides in full.
+  // SAFETY: each handler requires a part of `R`, which the runtime provides in full.
   const phases = handlers as EnhanceHandlers<R, ESubmit, EResult, E>;
-  // `E` is the union of the errors of the handlers present, so `onError`
-  // accepts whatever either handler fails with.
+  // SAFETY: `E` is the union of the errors of the handlers present, so
+  // `onError` accepts whatever either handler fails with.
   const onError = handlers.onError as
     | ((error: ESubmit | EResult) => Effect.Effect<void, never, R>)
     | undefined;

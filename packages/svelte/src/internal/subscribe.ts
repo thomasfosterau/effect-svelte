@@ -1,4 +1,9 @@
-import { Cause, Effect, Exit, Option, Stream } from "effect";
+import * as Arr from "effect/Array";
+import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { createSubscriber } from "svelte/reactivity";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
@@ -15,6 +20,22 @@ import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
  * `$state` bookkeeping is required.
  */
 
+/** The reactive view {@link streamState} returns. */
+export interface StreamState<A, E> {
+  /** The stream's lifecycle, carrying every value emitted so far. */
+  readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
+  /** Every value emitted so far, oldest first. */
+  readonly values: ReadonlyArray<A>;
+  /** The most recent value, or `undefined` before the first emission. */
+  readonly latest: A | undefined;
+}
+
+/** The reactive view {@link valueState} returns. */
+export interface ValueState<A> {
+  /** The latest value (the initial one until the stream first emits). */
+  readonly current: A;
+}
+
 /**
  * Subscribes to a `Stream`, accumulating every emitted value. Tracks the
  * stream's lifecycle as an {@link AsyncResult.AsyncResult} (waiting while the
@@ -23,11 +44,7 @@ import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 export function streamState<A, E, R>(
   runtime: RuntimeLike<R>,
   makeStream: () => Stream.Stream<A, E, R>,
-): {
-  readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
-  readonly values: ReadonlyArray<A>;
-  readonly latest: A | undefined;
-} {
+): StreamState<A, E> {
   let values: Array<A> = [];
   let current: AsyncResult.AsyncResult<ReadonlyArray<A>, E> = AsyncResult.initial();
 
@@ -47,7 +64,7 @@ export function streamState<A, E, R>(
           // Interruption is normal teardown; keep the last good state.
           if (Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)) return;
           current = AsyncResult.fromExitWithPrevious(
-            Exit.map(exit, () => values as ReadonlyArray<A>),
+            Exit.map(exit, (): ReadonlyArray<A> => values),
             Option.some(current),
           );
           update();
@@ -70,7 +87,7 @@ export function streamState<A, E, R>(
     },
     get latest() {
       subscribe();
-      return values.length > 0 ? values[values.length - 1] : undefined;
+      return Option.getOrUndefined(Arr.last(values));
     },
   };
 }
@@ -86,7 +103,7 @@ export function valueState<A, E, R>(
   runtime: RuntimeLike<R>,
   initial: A,
   makeStream: () => Stream.Stream<A, E, R>,
-): { readonly current: A } {
+): ValueState<A> {
   let value = initial;
 
   const subscribe = createSubscriber((update) => {

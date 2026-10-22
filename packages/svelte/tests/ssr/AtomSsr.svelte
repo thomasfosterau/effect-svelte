@@ -1,6 +1,6 @@
 <script lang="ts">
   import { AsyncResult, Atom } from "effect/reactivity";
-  import { Effect } from "effect";
+  import * as Effect from "effect/Effect";
   import { useAtom, useAtomResult } from "../../src/atom.svelte.js";
 
   let { onEvaluate }: { onEvaluate: () => void } = $props();

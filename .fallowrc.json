@@ -1,0 +1,121 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "packages/svelte/src/index.ts",
+    "packages/sveltekit/src/index.ts",
+    "packages/sveltekit/src/server.ts",
+    "packages/sveltekit/src/client.ts",
+    "packages/sveltekit/src/vite.ts",
+    "packages/sveltekit/src/testing.ts",
+    "packages/sveltekit/src/adapter/index.ts",
+    "packages/sveltekit/src/adapter/handler.ts",
+    "packages/sveltekit/src/adapter/serve.ts",
+    "packages/sveltekit/src/internal/auto.ts",
+    "packages/*/tests/**/*.test.ts",
+    "**/vite.config.ts",
+    "**/svelte.config.js"
+  ],
+  "ignorePatterns": ["**/dist/**", "**/coverage/**"],
+  // Both packages are published libraries: their entry points' exports and the
+  // public members of exported classes (`SvelteRuntime.make`, ...) are API
+  // consumed outside this graph.
+  "publicPackages": ["@thomasfosterau/*"],
+  // Tooling invoked by name (a bin, a tsconfig plugin, a vitest provider) rather
+  // than imported.
+  "ignoreDependencies": [
+    "@types/node",
+    "@effect/language-service",
+    "typescript",
+    "svelte-check",
+    "vite",
+    "vitest",
+    "vite-plus",
+    "@vitest/coverage-istanbul",
+    "@changesets/cli",
+    "fallow",
+    // effect-sveltekit never imports it: the published `dependencies` entry
+    // installs a matching effect-svelte alongside it, as its README promises.
+    // Whether it stays a dependency is #186.
+    "@thomasfosterau/effect-svelte"
+  ],
+  "rules": {
+    "unused-files": "error",
+    "unused-exports": "error",
+    "unused-types": "error",
+    "unused-dependencies": "error",
+    "unused-dev-dependencies": "warn",
+    "unused-enum-members": "error",
+    "unused-class-members": "warn",
+    "unresolved-imports": "error",
+    "unlisted-dependencies": "error",
+    "duplicate-exports": "error",
+    "circular-dependencies": "error",
+    "boundary-violation": "error",
+    "stale-suppressions": "warn"
+  },
+  // Import boundaries between the sveltekit entries (AGENTS.md § Common
+  // pitfalls). Zones match first-wins, so `kit-universal` (the root entry and
+  // everything it reaches) is the catch-all last. Bans on EXTERNAL specifiers
+  // (`$app/*` values, `$env/*`, `node:`, `@sveltejs/kit` in effect-svelte) are
+  // `no-restricted-imports` overrides in vite.config.ts.
+  "boundaries": {
+    "zones": [
+      { "name": "svelte", "patterns": ["packages/svelte/src/**"] },
+      {
+        "name": "kit-server",
+        "patterns": [
+          "packages/sveltekit/src/server.ts",
+          "packages/sveltekit/src/server/**",
+          "packages/sveltekit/src/errors.ts",
+          "packages/sveltekit/src/remote-functions.ts",
+          "packages/sveltekit/src/request-parse.ts",
+          "packages/sveltekit/src/request-runtime.ts",
+          "packages/sveltekit/src/streamed-load.ts",
+          "packages/sveltekit/src/internal/remote-run.ts",
+          "packages/sveltekit/src/internal/remote-validators.ts",
+          "packages/sveltekit/src/internal/sse.ts"
+        ]
+      },
+      {
+        "name": "kit-client",
+        "patterns": [
+          "packages/sveltekit/src/client.ts",
+          "packages/sveltekit/src/client/**",
+          "packages/sveltekit/src/Navigation.ts",
+          "packages/sveltekit/src/State.ts",
+          "packages/sveltekit/src/forms.ts",
+          "packages/sveltekit/src/realtime.ts",
+          "packages/sveltekit/src/remote-reactive.ts",
+          "packages/sveltekit/src/internal/app-state.ts",
+          "packages/sveltekit/src/internal/enhance.ts",
+          "packages/sveltekit/src/internal/navigation-events.ts",
+          "packages/sveltekit/src/internal/watch.svelte.ts"
+        ]
+      },
+      { "name": "kit-adapter", "patterns": ["packages/sveltekit/src/adapter/**"] },
+      {
+        "name": "kit-build",
+        "patterns": ["packages/sveltekit/src/vite.ts", "packages/sveltekit/src/internal/auto.ts"]
+      },
+      { "name": "kit-testing", "patterns": ["packages/sveltekit/src/testing.ts"] },
+      { "name": "kit-universal", "patterns": ["packages/sveltekit/src/**"] }
+    ],
+    "rules": [
+      { "from": "svelte", "allow": [] },
+      // The root entry is universal (AGENTS.md): it may name a server or
+      // client type, never import server or client code.
+      { "from": "kit-universal", "allow": [], "allowTypeOnly": ["kit-server", "kit-client"] },
+      { "from": "kit-server", "allow": ["kit-universal"] },
+      { "from": "kit-client", "allow": ["kit-universal"] },
+      { "from": "kit-adapter", "allow": [] },
+      { "from": "kit-build", "allow": ["kit-universal"] },
+      { "from": "kit-testing", "allow": ["kit-universal", "kit-server"] }
+    ]
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15,
+    "maxCrap": 30,
+    "coverage": "coverage/coverage-final.json"
+  }
+}

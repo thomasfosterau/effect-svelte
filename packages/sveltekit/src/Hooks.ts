@@ -25,7 +25,7 @@
  */
 
 import type { Reroute } from "@sveltejs/kit/hooks";
-import { Effect } from "effect";
+import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import { defaultUniversalRuntime } from "./internal/default-runtime.js";
 

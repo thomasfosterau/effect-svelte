@@ -1,5 +1,11 @@
 name: Release
 
+# Changesets release flow (shaped like the effect-web library's): on every
+# push to `trunk`, changesets/action either opens/updates the "chore: version
+# packages" PR (when unreleased changesets exist) or, when that PR has merged
+# and no changesets remain, publishes every bumped package to npm and tags the
+# release. See PUBLISHING.md for the one-time owner setup.
+
 on:
   push:
     branches: [trunk]
@@ -17,54 +23,91 @@ jobs:
     # publisher binding, so a fork cannot publish on your behalf).
     if: github.repository == 'thomasfosterau/effect-svelte'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     # Requires manual approval via a protected GitHub Environment named
-    # "release". See docs/RELEASING.md for the one-time setup.
+    # "release". See PUBLISHING.md for the one-time setup.
     environment: release
     permissions:
       contents: write # push the version commit/tag and the "Version Packages" PR branch
       pull-requests: write # open/update the "Version Packages" PR
       id-token: write # OIDC: prove this workflow's identity to npm (no token needed)
+    env:
+      # pnpm 11 defaults `verify-deps-before-run` to `install`: before any
+      # `pnpm run` / `pnpm exec` it compares node_modules with the manifests
+      # and, if a manifest looks newer than the last install, re-installs
+      # WITH lifecycle scripts, ignoring the `--ignore-scripts` of the install
+      # step below. That would run the root `prepare` and every `allowBuilds`
+      # dependency's build script inside this job, which holds
+      # `id-token: write`. It triggers whenever a manifest's mtime moves after
+      # the install step, e.g. when the Changesets action checks out an
+      # existing `changeset-release/trunk` and `git reset --hard`s it back
+      # before `pnpm run version`. Scoped to this job: CI and local runs keep
+      # the default. pnpm 11 reads only the `pnpm_config_*` spelling.
+      pnpm_config_verify_deps_before_run: "false"
     steps:
-      - name: Checkout code
+      - name: Checkout
         # The Changesets action pushes the version branch, so it needs the
         # checkout's git credentials (the ephemeral, job-scoped GITHUB_TOKEN).
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      # pnpm (on PATH, from `packageManager`) + Node + a frozen-lockfile install.
-      - name: Setup toolchain
-        uses: ./.github/actions/setup
+      # Installs the pnpm version pinned by the package.json "packageManager"
+      # field. Must run before setup-node so its pnpm cache can find the store.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      # npm Trusted Publishing (OIDC) requires npm >= 11.5. `changeset publish`
-      # shells out to `pnpm publish`, which on pnpm 10 hands the upload to the
-      # npm CLI, so upgrade it for the `id-token` below to be used instead of a
-      # long-lived NPM_TOKEN. Pinned to a major rather than `@latest`, so a new
-      # npm major cannot reach this job, which holds `id-token: write`, without
-      # a reviewed change here (#100).
-      - name: Ensure npm supports OIDC trusted publishing
-        run: npm install -g npm@11
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: latest
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
 
-      # When changesets are pending, this opens/updates a "Version Packages" PR
-      # (via `pnpm run version`). Once that PR is merged (no changesets remain),
-      # it runs `pnpm run release`, which builds and runs `changeset publish` —
-      # `pnpm publish` per changed package, which also rewrites the `catalog:`
-      # and `workspace:` specifiers into real ranges — authenticating via OIDC.
+      # No npm upgrade: pnpm 11 publishes natively (libnpmpublish; it no
+      # longer shells out to `npm publish`) and performs the OIDC trusted
+      # publishing exchange itself, so the npm bundled with Node is never on
+      # the publish path. See PUBLISHING.md.
+
+      # --ignore-scripts stops a compromised dependency from running install
+      # scripts in the privileged publish job (the Shai-Hulud vector). It also
+      # skips this workspace's own `prepare` (the Vite+ git hooks), which the
+      # `vp pack` build does not need. It only holds because
+      # `pnpm_config_verify_deps_before_run` is off for this job (see the job
+      # `env` above); otherwise a later `pnpm run` could re-install with
+      # scripts.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # When changesets are pending, this opens/updates the version PR (via
+      # `pnpm run version`). Once that PR is merged (no changesets remain), it
+      # runs `pnpm run release`, which builds every package, publishes each
+      # bumped one with `pnpm publish --ignore-scripts` (pnpm's own OIDC
+      # trusted publishing — there is no NPM_TOKEN to steal; it also rewrites
+      # the `catalog:` and `workspace:` specifiers into real ranges) and then
+      # `changeset tag`. The action parses the "New tag:" output, pushes the
+      # tags and creates the GitHub releases.
       #
       # `pnpm run`, NOT `vp run`: `vp run` does not propagate the
-      # `ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN` variables npm needs for OIDC,
-      # and npm then falls back to token auth and fails with ENEEDAUTH.
+      # `ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN` variables the OIDC exchange
+      # needs.
       #
-      # v2 of the action pairs with Changesets CLI v3 (`@changesets/cli` in the
-      # catalog) and renamed its inputs from v1's `version` / `publish`.
+      # Provenance: pnpm 11 takes settings like `provenance` only from
+      # `pnpm_config_*` (an `NPM_CONFIG_PROVENANCE` would be ignored), and none
+      # is set here. Left unset, pnpm attaches provenance by itself only when
+      # the OIDC token reports a public repository AND the registry reports
+      # the package as public, and skips it with a warning otherwise. Forcing
+      # it on would make a publish from a private repository fail.
+      #
+      # v2 of the action pairs with Changesets CLI v3 (`@changesets/cli` in
+      # the catalog) and renamed its inputs from v1's `version` / `publish` /
+      # `commit` / `title`.
       - name: Create release PR or publish to npm
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: pnpm run version
           publish-script: pnpm run release
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Do NOT set NPM_CONFIG_PROVENANCE (or pass `--provenance`): the npm
-          # CLI, which `pnpm publish` hands the upload to, reads it as an
-          # explicit request and the publish FAILS from a private repository.
-          # With no explicit setting npm attaches provenance by itself when
-          # allowed (public source repo), and publishes without it otherwise.

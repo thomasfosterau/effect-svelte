@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { RequestEvent } from "@sveltejs/kit";
-import { Stream } from "effect";
+import * as Stream from "effect/Stream";
 import * as Endpoint from "../src/server/Endpoint.js";
+import { TestRequestEvent } from "../src/testing.js";
 
-/** A minimal RequestEvent carrying just the request the handler reads. */
-const eventFor = (url = "http://localhost/events"): RequestEvent =>
-  ({ request: new Request(url) }) as unknown as RequestEvent;
+/** A RequestEvent for `url`; the handler reads only its request. */
+const eventFor = (url = "http://localhost/events"): RequestEvent => TestRequestEvent({ url });
 
 /** Invoke a stream endpoint handler and read its whole SSE body as text. */
 const readBody = async (handler: ReturnType<typeof Endpoint.fromStream>): Promise<string> => {
