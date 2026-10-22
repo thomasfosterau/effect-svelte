@@ -35,7 +35,7 @@
     "fallow",
     // effect-sveltekit never imports it: the published `dependencies` entry
     // installs a matching effect-svelte alongside it, as its README promises.
-    // Whether it stays a dependency is #186.
+    // The owner kept it deliberately (#186).
     "@thomasfosterau/effect-svelte"
   ],
   "rules": {

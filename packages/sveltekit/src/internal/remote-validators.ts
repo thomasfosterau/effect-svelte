@@ -16,11 +16,11 @@ import * as Schema from "effect/Schema";
  * `Schema.toStandardSchemaV1`) return callable class values, which would be
  * mistaken for handler functions.
  */
-export const isStandardSchema = (value: unknown): value is StandardSchemaV1 =>
+export const isStandardSchema = <V>(value: V): value is V & StandardSchemaV1 =>
   Predicate.hasProperty(value, "~standard");
 
 /** True when the argument is the no-validation (bare handler) overload. */
-export const isBareHandler = (value: unknown): boolean =>
+export const isBareHandler = <V>(value: V): boolean =>
   Predicate.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
@@ -28,11 +28,21 @@ export const isBareHandler = (value: unknown): boolean =>
  * `Schema.toStandardSchemaV1` so callers can pass it directly; a Standard Schema
  * or the `"unchecked"` marker passes through untouched.
  */
-// SAFETY: the cast only drops `toStandardSchemaV1`'s compile-time
-// `DecodingServices: never` constraint; the runtime conversion is the same for
-// every schema, and the remote helpers' callers pass schemas whose decoding
-// needs no services (a schema that does would fail inside `validate`).
-export const toStandardValidator = (value: unknown): unknown =>
-  Schema.isSchema(value)
+export const toStandardValidator = <V>(value: V): StandardValidator<V> =>
+  // SAFETY: the inner cast only drops `toStandardSchemaV1`'s compile-time
+  // `DecodingServices: never` constraint (the runtime conversion is the same
+  // for every schema, and the remote helpers' callers pass schemas whose
+  // decoding needs no services); the outer one restates the branch
+  // `Schema.isSchema` took, which TypeScript cannot carry into the conditional
+  // return type.
+  (Schema.isSchema(value)
     ? (Schema.toStandardSchemaV1 as (schema: Schema.Top) => StandardSchemaV1)(value)
-    : value;
+    : value) as StandardValidator<V>;
+
+/**
+ * What {@link toStandardValidator} returns for `V`: a Standard Schema for an
+ * Effect `Schema`, else `V` unchanged.
+ */
+export type StandardValidator<V> = V extends Schema.Top
+  ? StandardSchemaV1<V["Encoded"], V["Type"]>
+  : V;

@@ -41,10 +41,11 @@ export const causeToThrowable = (
 };
 
 /**
- * The body {@link throwKitError} accepts: a message, or an `App.Error`-shaped
- * object (the shape of `SvelteKit.error`'s public `body`).
+ * The body of a SvelteKit HTTP error: a message, or your app's `App.Error`
+ * (with `status` optional — the error's status wins over it), exactly the body
+ * SvelteKit's own `error(status, body)` accepts.
  */
-export type KitErrorBody = string | Readonly<Record<string, unknown>>;
+export type KitErrorBody = string | (Omit<App.Error, "status"> & { readonly status?: number });
 
 /**
  * `error()` with the message and the extra `App.Error` properties as separate
@@ -57,7 +58,7 @@ export type KitErrorBody = string | Readonly<Record<string, unknown>>;
 const kitErrorWith = kitError as (
   status: number,
   message?: string,
-  properties?: Exclude<KitErrorBody, string>,
+  properties?: Omit<Exclude<KitErrorBody, string>, "message">,
 ) => never;
 
 /**

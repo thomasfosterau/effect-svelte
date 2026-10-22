@@ -95,27 +95,6 @@ export default defineConfig({
       // helper (`makeRunHelpers`) — so the rule has no service to point at.
       "effect/no-service-constructor-imports": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
-
-      // ---- Effect preset: published-API allowances -------------------------
-      // Each remaining site can only be fixed by changing a PUBLISHED
-      // signature, error class or thrown / logged behaviour, so the rule sits
-      // at `warn` (a new site is a defect, not headroom) until #185 decides
-      // each one. Once a rule's count reaches zero its line is deleted, so it
-      // is back at the preset's `error`. Counts as of the tooling-standard PR.
-      "effect/no-unsafe-dictionary-type": "warn", // 13
-      "effect/avoid-untagged-errors": "warn", // 7
-      "effect/avoid-data-tagged-error": "warn", // 6
-      "effect/no-unknown-returns": "warn", // 5
-      "effect/no-unknown-parameters": "warn", // 5
-      "effect/no-shape-in-symbol-names": "warn", // 5
-      "effect/effect-promise-vs-trypromise": "warn", // 3
-      "effect/use-console-service": "warn", // 2
-      "effect/avoid-native-object-helpers": "warn", // 2
-      "effect/no-known-value-widening": "warn", // 2
-      "effect/avoid-direct-json": "warn", // 1
-      "effect/no-chained-type-assertions": "warn", // 1
-      "effect/avoid-any": "warn", // 1
-      "effect/no-unknown-type-aliases": "warn", // 1
     },
     overrides: [
       // Build/test configs are evaluated by Vite and Vitest in bare Node,
@@ -256,6 +235,36 @@ export default defineConfig({
         rules: {
           "effect/use-filesystem-service": "off",
           "effect/avoid-sync-fs": "off",
+        },
+      },
+      // `unknown` where it is the honest type (#185). Each site below has no
+      // narrower type to parse against or return:
+      // - the squashed failure of an arbitrary Effect (`Cause.squash` returns
+      //   `unknown`) handed to a translator case or a form error mapper;
+      // - a user module's export, a load / hook function whose result is an
+      //   Effect or a plain SvelteKit value until `Effect.isEffect` tells;
+      // - the `Success` / `Failure` constraints of SvelteKit's own
+      //   `ActionResult`, which a wrapper of `applyAction` / `deserialize`
+      //   must accept unchanged;
+      // - `enhance`'s type-level inference helpers, where `unknown` is the
+      //   not-yet-inferred default every handler is assignable to.
+      {
+        files: ["packages/sveltekit/src/kit.ts", "packages/sveltekit/src/internal/remote-run.ts"],
+        rules: { "effect/no-unknown-parameters": "off" },
+      },
+      {
+        files: ["packages/sveltekit/src/internal/auto.ts"],
+        rules: { "effect/no-unknown-returns": "off" },
+      },
+      {
+        files: ["packages/sveltekit/src/forms.ts"],
+        rules: { "effect/no-unsafe-dictionary-type": "off" },
+      },
+      {
+        files: ["packages/sveltekit/src/internal/enhance.ts"],
+        rules: {
+          "effect/no-unsafe-dictionary-type": "off",
+          "effect/no-unknown-type-aliases": "off",
         },
       },
       // Tests.

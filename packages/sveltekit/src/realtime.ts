@@ -11,7 +11,7 @@
 
 import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
@@ -35,12 +35,12 @@ export interface SseMessage {
  * for an invalid URL; `cause` holds the thrown value) or its connection fails
  * fatally (its `readyState` is `CLOSED`; `cause` is absent).
  */
-export class EventSourceError extends Data.TaggedError("EventSourceError")<{
+export class EventSourceError extends Schema.TaggedError<EventSourceError>()("EventSourceError", {
   /** The URL the `EventSource` was opened with. */
-  readonly url: string;
+  url: Schema.String,
   /** What the `EventSource` constructor threw, when that is why the stream failed. */
-  readonly cause?: unknown;
-}> {}
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {}
 
 /** The subset of the `EventSource` constructor this module relies on. */
 export type EventSourceConstructor = new (
@@ -141,16 +141,16 @@ export const fromEventSource = (
  * an invalid URL or protocol list; `cause` holds the thrown value), errors, or
  * closes uncleanly (`code` and `reason` come from the close event).
  */
-export class WebSocketError extends Data.TaggedError("WebSocketError")<{
+export class WebSocketError extends Schema.TaggedError<WebSocketError>()("WebSocketError", {
   /** The URL the `WebSocket` was opened with. */
-  readonly url: string;
+  url: Schema.String,
   /** The close code, when an unclean close is why the stream failed. */
-  readonly code?: number;
+  code: Schema.optionalKey(Schema.Number),
   /** The close reason, when an unclean close is why the stream failed. */
-  readonly reason?: string;
+  reason: Schema.optionalKey(Schema.String),
   /** What the `WebSocket` constructor threw, when that is why the stream failed. */
-  readonly cause?: unknown;
-}> {}
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {}
 
 /** The subset of the `WebSocket` constructor this module relies on. */
 export type WebSocketConstructor = new (

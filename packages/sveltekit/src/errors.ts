@@ -54,16 +54,13 @@
 import { redirect as kitRedirect } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Predicate from "effect/Predicate";
-import { throwKitError, type KitErrorBody } from "./internal/error.js";
+import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
 /** Any value carrying a string `_tag` — `Schema.TaggedError`, `Data.TaggedError`, … */
 export interface Tagged {
   readonly _tag: string;
 }
-
-/** An error `_tag` with arbitrary fields: the element type of an untyped catalogue. */
-export type AnyTagged = Tagged & { readonly [field: string]: any };
 
 /** A 4xx / 5xx status for SvelteKit's `error()`. */
 export type ErrorStatus = number;
@@ -120,40 +117,50 @@ export const rethrowSquashed: KitErrorTranslator = (cause) => {
   throw Cause.squash(cause);
 };
 
-const isTagged = (value: unknown): value is AnyTagged =>
+const isTagged = (value: unknown): value is Tagged =>
   Predicate.hasProperty(value, "_tag") && Predicate.isString(value._tag);
 
-const isErrorStatus = (status: unknown): status is number =>
-  Predicate.isNumber(status) && Number.isInteger(status) && status >= 400 && status <= 599;
+const isErrorStatus = (status: number | undefined): status is number =>
+  status !== undefined && Number.isInteger(status) && status >= 400 && status <= 599;
 
 const isRedirectStatus = (
-  status: unknown,
+  status: number | undefined,
 ): status is 300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308 =>
-  Predicate.isNumber(status) && Number.isInteger(status) && status >= 300 && status <= 308;
+  status !== undefined && Number.isInteger(status) && status >= 300 && status <= 308;
 
 /** The error's own non-empty `message` field, else its `_tag`. */
-const defaultBody = (error: AnyTagged): string =>
-  Object.hasOwn(error, "message") && Predicate.isString(error.message) && error.message !== ""
+const defaultBody = (error: Tagged): string =>
+  Object.hasOwn(error, "message") &&
+  Predicate.hasProperty(error, "message") &&
+  Predicate.isString(error.message) &&
+  error.message !== ""
     ? error.message
     : error._tag;
 
-const throwError = (status: number, body: string | App.Error): never =>
-  // SAFETY: an `App.Error` is a plain object of string-keyed fields; it lacks
-  // only the implicit index signature an interface never carries.
-  throwKitError(status, body as KitErrorBody);
+const throwError = (status: number, body: string | App.Error): never => throwKitError(status, body);
 
-const apply = (entry: CatalogueEntry<AnyTagged>, error: AnyTagged): never => {
+/** The error's numeric `status` field, if it has one. */
+const statusField = (error: Tagged): number | undefined =>
+  Predicate.hasProperty(error, "status") && Predicate.isNumber(error.status)
+    ? error.status
+    : undefined;
+
+/** The error's redirect target: its `to` field, else its `location`, if a string or `URL`. */
+const locationField = (error: Tagged): string | URL | undefined => {
+  const to = Predicate.hasProperty(error, "to") ? error.to : undefined;
+  const location = to ?? (Predicate.hasProperty(error, "location") ? error.location : undefined);
+  return Predicate.isString(location) || location instanceof URL ? location : undefined;
+};
+
+const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
   if (Predicate.isNumber(entry)) return throwError(entry, defaultBody(error));
   if (Predicate.isFunction(entry)) return entry(error);
+  const status = statusField(error);
   if (entry === "status") {
-    return throwError(isErrorStatus(error.status) ? error.status : 500, defaultBody(error));
+    return throwError(isErrorStatus(status) ? status : 500, defaultBody(error));
   }
   if (entry === "redirect") {
-    const location: unknown = error.to ?? error.location;
-    return kitRedirect(
-      isRedirectStatus(error.status) ? error.status : 303,
-      Predicate.isString(location) || location instanceof URL ? location : "/",
-    );
+    return kitRedirect(isRedirectStatus(status) ? status : 303, locationField(error) ?? "/");
   }
   return throwError(
     entry.status,
@@ -171,15 +178,17 @@ const apply = (entry: CatalogueEntry<AnyTagged>, error: AnyTagged): never => {
  * {@link SvelteKit.translate}).
  *
  * Pass the application's error union as the type argument to have the keys and
- * each entry's callbacks checked against it; without it the catalogue is
- * untyped (`Record<string, CatalogueEntry<AnyTagged>>`).
+ * each entry's callbacks checked against it (a callback reads the matching
+ * member's fields); without it any tag is a key, and a callback receives only
+ * a {@link Tagged}.
  *
  * @example
  * ```ts
  * import { Errors } from "@thomasfosterau/effect-sveltekit/server";
  * import { error } from "@sveltejs/kit";
+ * import type { AppError } from "$lib/errors"; // your tagged-error union
  *
- * const translateError = Errors.toSvelteKit({
+ * const translateError = Errors.toSvelteKit<AppError>({
  *   NotFound: 404,
  *   Unauthorized: 401,
  *   Forbidden: 403,
@@ -190,14 +199,15 @@ const apply = (entry: CatalogueEntry<AnyTagged>, error: AnyTagged): never => {
  * });
  * ```
  */
-export const toSvelteKit = <E extends Tagged = AnyTagged>(
+export const toSvelteKit = <E extends Tagged = Tagged>(
   catalogue: Catalogue<E>,
   options: ToSvelteKitOptions = {},
 ): KitErrorTranslator => {
   // SAFETY: every key of a `Catalogue<E>` is one of `E`'s tags and its entry is
-  // a `CatalogueEntry` of the matching member, which is an `AnyTagged`; the
-  // lookup below is guarded by `Object.hasOwn`, so absent keys read `undefined`.
-  const entries = catalogue as Readonly<Record<string, CatalogueEntry<AnyTagged> | undefined>>;
+  // a `CatalogueEntry` of the matching member, which `apply` only ever calls
+  // with an error of that tag; the lookup below is guarded by `Object.hasOwn`,
+  // so absent keys read `undefined`.
+  const entries = catalogue as Readonly<Record<string, CatalogueEntry<Tagged> | undefined>>;
   const fallback = options.fallback ?? SvelteKit.translate;
   return (cause) => {
     const squashed = Cause.squash(cause);

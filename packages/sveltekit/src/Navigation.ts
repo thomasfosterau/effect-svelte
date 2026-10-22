@@ -45,7 +45,7 @@ import {
   refreshAll as kitRefreshAll,
 } from "$app/navigation";
 import type { AfterNavigate, BeforeNavigate, OnNavigate } from "$app/navigation";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "./internal/navigation-events.js";
@@ -64,18 +64,19 @@ import { onNavigateWith, registeredStream } from "./internal/navigation-events.j
  * callback throws; and every one of them throws when called during server
  * rendering. Recover with `Effect.catchTag("NavigationError", ...)`.
  */
-export class NavigationError extends Data.TaggedError("NavigationError")<{
+export class NavigationError extends Schema.TaggedError<NavigationError>()("NavigationError", {
   /** The wrapper whose SvelteKit call failed. */
-  readonly operation:
-    | "goto"
-    | "invalidate"
-    | "invalidateAll"
-    | "refreshAll"
-    | "preloadData"
-    | "preloadCode";
+  operation: Schema.Literals([
+    "goto",
+    "invalidate",
+    "invalidateAll",
+    "refreshAll",
+    "preloadData",
+    "preloadCode",
+  ]),
   /** The rejection reason, or the value thrown, as SvelteKit produced it. */
-  readonly cause: unknown;
-}> {}
+  cause: Schema.Defect(),
+}) {}
 
 /**
  * Runs a `$app/navigation` call as an Effect, so a rejection, or a synchronous

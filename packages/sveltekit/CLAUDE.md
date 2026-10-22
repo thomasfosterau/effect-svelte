@@ -21,7 +21,7 @@ The fallow zones in `.fallowrc.json` enforce the "may import" column between thi
 - **No source file matches SvelteKit's remote-module matcher** (`/[/.]remote(\.[^/]+)+$/`, e.g. `remote.server.ts`, `*.remote.ts`): kit's build rejects a built file whose exports are not all remote functions. That is why the factories live in `src/remote-functions.ts`; `tests/remote-module-naming.test.ts` guards it.
 - **`$app/*` and `node:` stay external** (`pack.deps.neverBundle`); the consuming app provides `$app/*`.
 - **This package is a runtime boundary.** SvelteKit calls loads, actions, endpoints, hooks and remote functions as Promise APIs, so the wrappers run the caller's Effect there (the `effect/effect-run-in-body` lint rule is off for that reason). A failure the caller did not map surfaces as a 500 / `error()`, never as an unhandled rejection.
-- **`@thomasfosterau/effect-svelte` is a dependency but is not imported.** It is installed alongside for the runes hooks the README pairs with this package; fallow's `ignoreDependencies` records why.
+- **`@thomasfosterau/effect-svelte` is a dependency but is not imported.** It is kept deliberately (#186) so a compatible version installs alongside; the README tells consumers to list it themselves to import it, and fallow's `ignoreDependencies` records why.
 
 ## Tests
 

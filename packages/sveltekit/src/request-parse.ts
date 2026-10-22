@@ -30,7 +30,6 @@
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as Arr from "effect/Array";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Rec from "effect/Record";
 import * as Schema from "effect/Schema";
@@ -46,6 +45,14 @@ export interface ParseIssue {
   readonly message: string;
   readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>;
 }
+
+/** The schema of a {@link ParseIssue}, so {@link ParseError} can carry it. */
+const ParseIssue: Schema.Codec<ParseIssue> = Schema.Struct({
+  message: Schema.String,
+  path: Schema.optionalKey(
+    Schema.Array(Schema.Union([Schema.PropertyKey, Schema.Struct({ key: Schema.PropertyKey })])),
+  ),
+});
 
 /**
  * Raised when a schema validator rejects the request data.
@@ -63,19 +70,17 @@ export interface ParseIssue {
  * );
  * ```
  */
-export class ParseError extends Data.TaggedError("ParseError")<{
-  readonly issues: ReadonlyArray<ParseIssue>;
-}> {}
+export class ParseError extends Schema.TaggedError<ParseError>()("ParseError", {
+  /** The validator's issues, in the order it reported them. */
+  issues: Schema.Array(ParseIssue),
+}) {}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
 /** Validate `value` against `schema` and return the typed output or fail. */
-const validate = <O>(
-  schema: StandardSchemaV1<unknown, O>,
-  value: unknown,
-): Effect.Effect<O, ParseError> =>
+const validate = <I, O>(schema: StandardSchemaV1<I, O>, value: I): Effect.Effect<O, ParseError> =>
   Effect.callback<O, ParseError>((resume) => {
     const resultOrPromise = schema["~standard"].validate(value);
     const settle = (result: StandardSchemaV1.Result<O>) => {

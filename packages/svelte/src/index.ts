@@ -4,12 +4,17 @@
  */
 
 // Layer 0: Runtime Context
-export { provideRuntime, getRuntime, createRuntimeContext } from "./context.svelte.js";
+export {
+  provideRuntime,
+  getRuntime,
+  createRuntimeContext,
+  RuntimeNotFoundError,
+} from "./context.svelte.js";
 export type { RuntimeLike, RuntimeContext } from "./context.svelte.js";
 export { SvelteRuntime, defaultSvelteRuntime } from "./runtime.js";
 
 // Layer 1: Scope Primitive
-export { useScope, useScopeCallback } from "./scope.svelte.js";
+export { useScope, useScopeCallback, type ScopeRef } from "./scope.svelte.js";
 
 // Layer 2: Core Runners
 export { useEffect, type UseEffectOptions, type UseEffectReturn } from "./effect.svelte.js";
