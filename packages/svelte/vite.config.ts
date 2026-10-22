@@ -1,13 +1,6 @@
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
 
-/**
- * The Svelte plugin, with `experimental.async` enabled so component fixtures
- * can use `{await ...}` in templates under `<svelte:boundary>` — the surface
- * `useLiveStream`'s `promise` is designed for.
- */
-const svelteAsync = () => svelte({ compilerOptions: { experimental: { async: true } } });
-
 export default defineConfig({
   /**
    * `vp pack` (tsdown) builds the publishable Svelte runes library.
@@ -52,7 +45,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [svelteAsync()],
+        plugins: [svelte()],
         resolve: { conditions: ["browser"] },
         test: {
           name: "dom",
@@ -61,7 +54,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [svelteAsync()],
+        plugins: [svelte()],
         test: {
           name: "ssr",
           include: ["tests/ssr/**/*.test.ts"],

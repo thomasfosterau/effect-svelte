@@ -10,7 +10,7 @@
     "typescript",
     "vite-plugin"
   ],
-  "homepage": "https://github.com/thomasfosterau/effect-svelte/tree/main/packages/sveltekit#readme",
+  "homepage": "https://github.com/thomasfosterau/effect-svelte/tree/trunk/packages/sveltekit#readme",
   "bugs": {
     "url": "https://github.com/thomasfosterau/effect-svelte/issues"
   },
@@ -73,7 +73,8 @@
   },
   "scripts": {
     "build": "vp pack",
-    "test": "vp test",
+    "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
+    "test:unit": "vp test run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -85,6 +86,7 @@
     "@effect/platform-node": "catalog:",
     "@sveltejs/kit": "catalog:",
     "svelte": "catalog:",
+    "svelte-check": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
