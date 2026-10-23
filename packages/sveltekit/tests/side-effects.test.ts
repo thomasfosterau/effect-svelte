@@ -12,7 +12,7 @@ import * as Match from "effect/Match";
 import * as Order from "effect/Order";
 import * as Predicate from "effect/Predicate";
 import * as Rec from "effect/Record";
-import config from "../vite.config.ts";
+import config from "../vite.config.js";
 import manifest from "../package.json";
 
 /**
@@ -168,23 +168,20 @@ const bundledModules = async (
 /**
  * Packs the package with its own `pack` config into a temporary directory,
  * beside a `package.json` that carries the published `sideEffects` flag, then
- * bundles `code` against that `index.js` with {@link bundledModules}.
+ * bundles each of `probes` against that `index.js` with {@link bundledModules}.
  *
  * The published `dist/` differs from `src/` in one way that matters here:
  * tsdown materialises an `export * as Ns` re-export into an `__exportAll({…})`
  * object, which a consumer's bundler cannot shake (#191). So a recipe has to
  * be probed against packed output, not only against the sources.
  */
-const packedModules = (code: string): Promise<ReadonlyArray<string>> =>
+const packedModules = (
+  probes: ReadonlyArray<string>,
+): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
   Effect.runPromise(
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const outDir = yield* fs.makeTempDirectoryScoped({ prefix: "effect-sveltekit-dist-" });
-      const packageJson = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))({
-        type: "module",
-        sideEffects: manifest.sideEffects,
-      });
-      yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
       const packConfig = config.pack;
       if (packConfig === undefined || Arr.isArray(packConfig))
         return yield* Effect.die("vite.config.ts must declare a single `pack` config");
@@ -199,8 +196,17 @@ const packedModules = (code: string): Promise<ReadonlyArray<string>> =>
           logLevel: "silent",
         }),
       );
-      return yield* Effect.tryPromise(() =>
-        bundledModules(code, { root: `${outDir}/`, entry: "index.js" }),
+      // After the pack, which empties `outDir` first.
+      const packageJson = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))({
+        type: "module",
+        sideEffects: manifest.sideEffects,
+      });
+      yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
+      return yield* Effect.forEach(
+        probes,
+        (code) =>
+          Effect.tryPromise(() => bundledModules(code, { root: `${outDir}/`, entry: "index.js" })),
+        { concurrency: 1 },
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
@@ -234,6 +240,14 @@ describe('"sideEffects": false', () => {
     // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
     const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
       export const hooks = transport({ ResponseHeaders: responseHeadersTransporter });`;
-    expect(await packedModules(recipe)).toEqual(["response-headers.js", "transport.js"]);
+    // Control: the same recipe through the `Hooks` namespace. The packed build
+    // turns `export * as Hooks` into one object, which keeps `Hooks.reroute`
+    // and the default universal runtime behind it; that is why the root entry
+    // also exports the members by name.
+    const viaNamespace = `import { Hooks } from "$pkg";
+      export const hooks = Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter });`;
+    const [flat, namespaced] = await packedModules([recipe, viaNamespace]);
+    expect(flat).toEqual(["response-headers.js", "transport.js"]);
+    expect(namespaced).toContain("internal/default-runtime.js");
   }, 60_000);
 });
