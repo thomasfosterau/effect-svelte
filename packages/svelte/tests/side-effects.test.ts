@@ -150,6 +150,13 @@ const bundledModules = async (
   return Arr.sort(modules, Order.String);
 };
 
+/**
+ * The timeout for a test that bundles through `vp pack` / rolldown: each
+ * bundle is real CPU work, which a loaded runner or Istanbul instrumentation
+ * can push past vitest's 5 s default (#199).
+ */
+const bundleTimeout = 60_000;
+
 describe('"sideEffects": false', () => {
   it("finds the source modules", () => {
     expect(Rec.keys(sources)).toContain("../src/index.ts");
@@ -165,10 +172,14 @@ describe('"sideEffects": false', () => {
     expect(offenders).toEqual([]);
   });
 
-  it("a single named import from the root entry keeps only what it reaches", async () => {
-    const code = 'import { SignalEmitter } from "$pkg"; export const Emitter = SignalEmitter;';
-    expect(await bundledModules(code)).toEqual(["src/emitter.ts"]);
-    // Control: without the flag the same import keeps the default runtime.
-    expect(await bundledModules(code, true)).toContain("src/runtime.ts");
-  });
+  it(
+    "a single named import from the root entry keeps only what it reaches",
+    async () => {
+      const code = 'import { SignalEmitter } from "$pkg"; export const Emitter = SignalEmitter;';
+      expect(await bundledModules(code)).toEqual(["src/emitter.ts"]);
+      // Control: without the flag the same import keeps the default runtime.
+      expect(await bundledModules(code, true)).toContain("src/runtime.ts");
+    },
+    bundleTimeout,
+  );
 });

@@ -211,6 +211,13 @@ const packedModules = (
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
+/**
+ * The timeout for a test that bundles through `vp pack` / rolldown: each
+ * bundle is real CPU work, which a loaded runner or Istanbul instrumentation
+ * can push past vitest's 5 s default (#199).
+ */
+const bundleTimeout = 60_000;
+
 describe('"sideEffects": false', () => {
   it("finds the source modules", () => {
     expect(Rec.keys(sources)).toContain("../src/index.ts");
@@ -226,28 +233,36 @@ describe('"sideEffects": false', () => {
     expect(offenders).toEqual([]);
   });
 
-  it("a single named import from the root entry keeps only what it reaches", async () => {
-    const code =
-      'import { ResponseHeaders } from "$pkg"; export const headers = new ResponseHeaders();';
-    expect(await bundledModules(code)).toEqual(["src/response-headers.ts", "src/transport.ts"]);
-    // Control: without the flag the same import keeps the runtime and request services.
-    expect(await bundledModules(code, { moduleSideEffects: true })).toEqual(
-      expect.arrayContaining(["src/runtime.ts", "src/request-services.ts", "src/kit.ts"]),
-    );
-  });
+  it(
+    "a single named import from the root entry keeps only what it reaches",
+    async () => {
+      const code =
+        'import { ResponseHeaders } from "$pkg"; export const headers = new ResponseHeaders();';
+      expect(await bundledModules(code)).toEqual(["src/response-headers.ts", "src/transport.ts"]);
+      // Control: without the flag the same import keeps the runtime and request services.
+      expect(await bundledModules(code, { moduleSideEffects: true })).toEqual(
+        expect.arrayContaining(["src/runtime.ts", "src/request-services.ts", "src/kit.ts"]),
+      );
+    },
+    bundleTimeout,
+  );
 
-  it("the README's ResponseHeaders recipe, packed, keeps only what it reaches", async () => {
-    // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
-    const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
+  it(
+    "the README's ResponseHeaders recipe, packed, keeps only what it reaches",
+    async () => {
+      // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
+      const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
       export const hooks = transport({ ResponseHeaders: responseHeadersTransporter });`;
-    // Control: the same recipe through the `Hooks` namespace. The packed build
-    // turns `export * as Hooks` into one object, which keeps `Hooks.reroute`
-    // and the default universal runtime behind it; that is why the root entry
-    // also exports the members by name.
-    const viaNamespace = `import { Hooks } from "$pkg";
+      // Control: the same recipe through the `Hooks` namespace. The packed build
+      // turns `export * as Hooks` into one object, which keeps `Hooks.reroute`
+      // and the default universal runtime behind it; that is why the root entry
+      // also exports the members by name.
+      const viaNamespace = `import { Hooks } from "$pkg";
       export const hooks = Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter });`;
-    const [flat, namespaced] = await packedModules([recipe, viaNamespace]);
-    expect(flat).toEqual(["response-headers.js", "transport.js"]);
-    expect(namespaced).toContain("internal/default-runtime.js");
-  }, 60_000);
+      const [flat, namespaced] = await packedModules([recipe, viaNamespace]);
+      expect(flat).toEqual(["response-headers.js", "transport.js"]);
+      expect(namespaced).toContain("internal/default-runtime.js");
+    },
+    bundleTimeout,
+  );
 });
