@@ -11,6 +11,7 @@
  * 3. **The hook follows its thunk.** A query atom is identified by its request,
  *    so a paged view names a different atom per window.
  */
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Rec from "effect/Record";
@@ -50,11 +51,16 @@ describe("useAtomResult", () => {
   });
 
   it("renders loading until an async atom settles", async () => {
-    const atom = Atom.make(Effect.sleep("20 millis").pipe(Effect.as("late")));
+    // The atom settles only when the test opens the gate, so "loading" is
+    // asserted while it is certainly still pending, however slow the runner.
+    const gate = Effect.runSync(Deferred.make<void>());
+    const atom = Atom.make(Deferred.await(gate).pipe(Effect.as("late")));
     const target = mounter.mount(AtomProbe, { select: fixed(atom) });
     await flush();
 
     expect(text(target, "atom-state")).toBe("loading");
+
+    Effect.runSync(Deferred.succeed(gate, undefined));
     await expect.poll(() => text(target, "atom-state")).toBe("late");
   });
 
