@@ -168,7 +168,8 @@ const bundledModules = async (
 /**
  * Packs the package with its own `pack` config into a temporary directory,
  * beside a `package.json` that carries the published `sideEffects` flag, then
- * bundles each of `probes` against that `index.js` with {@link bundledModules}.
+ * bundles each of `probes` against that build's `entry` (default `index.js`,
+ * the root entry) with {@link bundledModules}.
  *
  * The published `dist/` differs from `src/` in one way that matters here:
  * tsdown materialises an `export * as Ns` re-export into an `__exportAll({…})`
@@ -177,6 +178,7 @@ const bundledModules = async (
  */
 const packedModules = (
   probes: ReadonlyArray<string>,
+  entry = "index.js",
 ): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
   Effect.runPromise(
     Effect.gen(function* () {
@@ -204,8 +206,7 @@ const packedModules = (
       yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
       return yield* Effect.forEach(
         probes,
-        (code) =>
-          Effect.tryPromise(() => bundledModules(code, { root: `${outDir}/`, entry: "index.js" })),
+        (code) => Effect.tryPromise(() => bundledModules(code, { root: `${outDir}/`, entry })),
         { concurrency: 1 },
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
@@ -262,6 +263,21 @@ describe('"sideEffects": false', () => {
       const [flat, namespaced] = await packedModules([recipe, viaNamespace]);
       expect(flat).toEqual(["response-headers.js", "transport.js"]);
       expect(namespaced).toContain("internal/default-runtime.js");
+    },
+    bundleTimeout,
+  );
+
+  it(
+    "a named import from ./client, packed, keeps only what it reaches",
+    async () => {
+      // A browser bundle's `goto` (#195): the flat export keeps only
+      // `Navigation.js`, while the namespace's `__exportAll` object also
+      // keeps the lifecycle members and the event registry behind them.
+      const flat = `import { goto } from "$pkg"; export const go = goto;`;
+      const viaNamespace = `import { Navigation } from "$pkg"; export const go = Navigation.goto;`;
+      const [named, namespaced] = await packedModules([flat, viaNamespace], "client.js");
+      expect(named).toEqual(["Navigation.js"]);
+      expect(namespaced).toContain("internal/navigation-events.js");
     },
     bundleTimeout,
   );

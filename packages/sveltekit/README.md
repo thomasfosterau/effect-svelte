@@ -49,7 +49,7 @@ optional `effectKit()` Vite plugin lets route files export bare Effects instead.
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace and `Hooks` (`reroute`, `transport`), each also exported member by member, `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                                                 |
 | `…/server`                         | Server wrappers (`serverLoad`, `action`, `actions`, `endpoint`), `Hooks`, `Endpoint`, `makeServerRuntime`, the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `Errors`, `RemoteFunction` / `RemoteFunctionUsageError`, `KitError` / `KitErrorBody`, request decoding (`decodeParams`, `decodeJson`, …) |
-| `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery` / `RemoteQueryResult`                                                                                                                                                      |
+| `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, each also exported member by member, and `useRemoteQuery` / `RemoteQueryResult`                                                                                                                 |
 | `…/vite`                           | The `effectKit()` Vite plugin (auto-wraps bare-Effect route exports)                                                                                                                                                                                                                                                        |
 | `…/adapter`                        | The Effect HTTP deployment adapter (`effectAdapter`)                                                                                                                                                                                                                                                                        |
 | `…/adapter/handler`                | The SvelteKit app as an Effect HTTP app (`makeHandler`, `makeHandlerWith`, `AssetSource`, `toWebHandler`, the `SvelteKitServerError` / `AssetFetchError` defects)                                                                                                                                                           |
@@ -387,6 +387,15 @@ import {
 // e.g. Navigation.goto('/done'), Navigation.refreshAll(),
 //      Remote.callQuery(getTodos), State.page()
 ```
+
+Every member of `Navigation`, `State`, `Remote`, `Realtime`, `Forms` and
+`Hooks` is also a named export of `…/client` (`goto`, `page`, `callQuery`,
+`fromEventSource`, `enhance`, `handleError`, …), and the named imports are the
+ones to prefer in the browser bundle. The published build turns each namespace
+into a single object, so `Navigation.goto` also keeps `beforeNavigate`,
+`afterNavigate`, `onNavigate` and the navigation-event registry behind them,
+while `import { goto } from "@thomasfosterau/effect-sveltekit/client"` keeps
+only `goto` and what it uses.
 
 `Navigation.goto`, `invalidate`, `invalidateAll`, `refreshAll`, `preloadData`
 and `preloadCode` fail with `Navigation.NavigationError` when SvelteKit rejects
