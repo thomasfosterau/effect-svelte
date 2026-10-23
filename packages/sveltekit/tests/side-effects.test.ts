@@ -2,11 +2,18 @@
 
 import { describe, expect, it } from "vite-plus/test";
 import { build, parseAst } from "vite-plus";
+import { build as pack } from "vite-plus/pack";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Schema from "effect/Schema";
 import * as Arr from "effect/Array";
 import * as Match from "effect/Match";
 import * as Order from "effect/Order";
 import * as Predicate from "effect/Predicate";
 import * as Rec from "effect/Record";
+import config from "../vite.config.ts";
+import manifest from "../package.json";
 
 /**
  * `package.json` declares `"sideEffects": false`, which lets a consumer's
@@ -97,12 +104,19 @@ const pkgRoot = decodeURIComponent(new URL("..", import.meta.url).pathname);
 
 /**
  * Bundles `code` (which imports from the package root as `$pkg`) the way a
- * consumer's Vite build would, and returns the package modules that contribute code to it.
+ * consumer's Vite build would, and returns the package modules that contribute
+ * code to it, relative to `root`. `$pkg` resolves to `root` + `entry`:
+ * `src/index.ts` in the package, or `index.js` in a packed `dist/`.
  */
 const bundledModules = async (
   code: string,
-  moduleSideEffects?: true,
+  options: {
+    readonly root?: string;
+    readonly entry?: string;
+    readonly moduleSideEffects?: true;
+  } = {},
 ): Promise<ReadonlyArray<string>> => {
+  const { root = pkgRoot, entry = "src/index.ts", moduleSideEffects } = options;
   const probe = "\0probe";
   const result = await build({
     configFile: false,
@@ -112,7 +126,7 @@ const bundledModules = async (
       {
         name: "side-effects-probe",
         resolveId: (id) =>
-          id === "virtual:probe" ? probe : id === "$pkg" ? `${pkgRoot}src/index.ts` : undefined,
+          id === "virtual:probe" ? probe : id === "$pkg" ? `${root}${entry}` : undefined,
         load: (id) => (id === probe ? code : undefined),
       },
       {
@@ -121,7 +135,7 @@ const bundledModules = async (
         name: "side-effects-override",
         enforce: "pre",
         async resolveId(id, importer) {
-          if (!moduleSideEffects || importer === undefined || !importer.startsWith(pkgRoot))
+          if (!moduleSideEffects || importer === undefined || !importer.startsWith(root))
             return undefined;
           const resolved = await this.resolve(id, importer, { skipSelf: true });
           return resolved && !resolved.external
@@ -146,10 +160,50 @@ const bundledModules = async (
     .flatMap((output) => ("output" in output ? output.output : []))
     .flatMap((chunk) => (chunk.type === "chunk" ? Rec.toEntries(chunk.modules) : []))
     // A module whose every binding was shaken away is still listed, with no code.
-    .flatMap(([id, module]) => (module.renderedLength > 0 && id.startsWith(pkgRoot) ? [id] : []))
-    .map((id) => id.slice(pkgRoot.length));
+    .flatMap(([id, module]) => (module.renderedLength > 0 && id.startsWith(root) ? [id] : []))
+    .map((id) => id.slice(root.length));
   return Arr.sort(modules, Order.String);
 };
+
+/**
+ * Packs the package with its own `pack` config into a temporary directory,
+ * beside a `package.json` that carries the published `sideEffects` flag, then
+ * bundles `code` against that `index.js` with {@link bundledModules}.
+ *
+ * The published `dist/` differs from `src/` in one way that matters here:
+ * tsdown materialises an `export * as Ns` re-export into an `__exportAll({…})`
+ * object, which a consumer's bundler cannot shake (#191). So a recipe has to
+ * be probed against packed output, not only against the sources.
+ */
+const packedModules = (code: string): Promise<ReadonlyArray<string>> =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const outDir = yield* fs.makeTempDirectoryScoped({ prefix: "effect-sveltekit-dist-" });
+      const packageJson = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))({
+        type: "module",
+        sideEffects: manifest.sideEffects,
+      });
+      yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
+      const packConfig = config.pack;
+      if (packConfig === undefined || Arr.isArray(packConfig))
+        return yield* Effect.die("vite.config.ts must declare a single `pack` config");
+      yield* Effect.tryPromise(() =>
+        pack({
+          ...packConfig,
+          config: false,
+          cwd: pkgRoot,
+          outDir,
+          dts: false,
+          sourcemap: false,
+          logLevel: "silent",
+        }),
+      );
+      return yield* Effect.tryPromise(() =>
+        bundledModules(code, { root: `${outDir}/`, entry: "index.js" }),
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
 
 describe('"sideEffects": false', () => {
   it("finds the source modules", () => {
@@ -171,8 +225,15 @@ describe('"sideEffects": false', () => {
       'import { ResponseHeaders } from "$pkg"; export const headers = new ResponseHeaders();';
     expect(await bundledModules(code)).toEqual(["src/response-headers.ts", "src/transport.ts"]);
     // Control: without the flag the same import keeps the runtime and request services.
-    expect(await bundledModules(code, true)).toEqual(
+    expect(await bundledModules(code, { moduleSideEffects: true })).toEqual(
       expect.arrayContaining(["src/runtime.ts", "src/request-services.ts", "src/kit.ts"]),
     );
   });
+
+  it("the README's ResponseHeaders recipe, packed, keeps only what it reaches", async () => {
+    // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
+    const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
+      export const hooks = transport({ ResponseHeaders: responseHeadersTransporter });`;
+    expect(await packedModules(recipe)).toEqual(["response-headers.js", "transport.js"]);
+  }, 60_000);
 });
