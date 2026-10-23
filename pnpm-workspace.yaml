@@ -35,7 +35,7 @@ catalog:
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.5
   fallow: 3.34.1
-  happy-dom: ^20.14.5
+  happy-dom: ^21.0.4
   magic-string: ^1.4.3
   svelte: ^5.57.2
   svelte-check: ^4.7.6
