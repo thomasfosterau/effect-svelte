@@ -47,7 +47,7 @@ optional `effectKit()` Vite plugin lets route files export bare Effects instead.
 
 | Entry point                        | What it provides                                                                                                                                                                                                                                                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace, `Hooks` (`reroute`, `transport`), `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                                                                                         |
+| `@thomasfosterau/effect-sveltekit` | Universal helpers: `load` / `makeUniversalRuntime`, the `Remote` call namespace and `Hooks` (`reroute`, `transport`), each also exported member by member, `ResponseHeaders`, `sveltekitConfig` / `readConfig`, `apiClient`                                                                                                 |
 | `…/server`                         | Server wrappers (`serverLoad`, `action`, `actions`, `endpoint`), `Hooks`, `Endpoint`, `makeServerRuntime`, the per-request runtime seam (`makeRuntimeAdapter` / `RequestRuntime`), `Errors`, `RemoteFunction` / `RemoteFunctionUsageError`, `KitError` / `KitErrorBody`, request decoding (`decodeParams`, `decodeJson`, …) |
 | `…/client`                         | Browser-only `Navigation`, `State` (incl. the `CurrentPage` service), `Remote`, `Realtime`, `Forms` and `Hooks` namespaces, and `useRemoteQuery` / `RemoteQueryResult`                                                                                                                                                      |
 | `…/vite`                           | The `effectKit()` Vite plugin (auto-wraps bare-Effect route exports)                                                                                                                                                                                                                                                        |
@@ -434,14 +434,14 @@ const logPath = Effect.gen(function* () {
 Move custom types (`Option`, `DateTime`, branded types, `Schema.Class`
 instances, tagged errors, ...) across the server/client boundary — for `load`
 data and remote functions — by building SvelteKit's universal `transport` hook
-from Effect schemas (part of the universal `Hooks` namespace):
+from Effect schemas (also reachable as `Hooks.transport`):
 
 ```ts
 // src/hooks.ts
-import { Hooks } from "@thomasfosterau/effect-sveltekit";
+import { transport as effectTransport } from "@thomasfosterau/effect-sveltekit";
 import { Schema } from "effect";
 
-export const transport = Hooks.transport({
+export const transport = effectTransport({
   Option: Schema.Option(Schema.Number),
   Date: Schema.Date,
 });
@@ -468,8 +468,11 @@ declare global {
 }
 
 // src/hooks.ts
-import { Hooks } from "@thomasfosterau/effect-sveltekit";
-export const transport = Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter });
+import {
+  transport as effectTransport,
+  responseHeadersTransporter,
+} from "@thomasfosterau/effect-sveltekit";
+export const transport = effectTransport({ ResponseHeaders: responseHeadersTransporter });
 
 // src/hooks.server.ts
 import { ResponseHeaders } from "@thomasfosterau/effect-sveltekit";
@@ -490,6 +493,14 @@ export const load = ({ locals }) => ({ headers: locals.headers });
 handler effects; `ResponseHeaders` is the buffer for everything `setHeaders`
 cannot do.)
 
+Import the universal hook helpers by name, as above, rather than through the
+`Hooks` namespace. `src/hooks.ts` runs on every page, and the published build
+turns `Hooks` into a single object: `Hooks.transport` keeps `Hooks.reroute`
+and the default universal runtime (with Effect's `HttpClient`, `Stream` and
+`ManagedRuntime`) in the client bundle, while the named imports keep only the
+transport helpers. The same holds for `Remote`, whose members are also root
+exports (`callQuery`, `callCommand`, …).
+
 ### `$env` as an Effect `Config` source
 
 Back Effect's `Config` with SvelteKit's environment, so app-layer services read
@@ -508,7 +519,9 @@ export const runtime = makeServerRuntime(Database.layer.pipe(Layer.provide(svelt
 ### SvelteKit hooks as Effects (`Hooks`)
 
 Every SvelteKit hook has an explicit Effect wrapper, grouped into a `Hooks`
-namespace per hook file (mirroring the auto-wrap table above):
+namespace per hook file (mirroring the auto-wrap table above). The universal
+members are also exported by name from the root entry; prefer those in
+`src/hooks.ts` (see the `ResponseHeaders` recipe above for why):
 
 | Import path                               | `Hooks` members                                | Runs on                                          |
 | ----------------------------------------- | ---------------------------------------------- | ------------------------------------------------ |
@@ -518,10 +531,10 @@ namespace per hook file (mirroring the auto-wrap table above):
 
 ```ts
 // src/hooks.ts
-import { Hooks } from "@thomasfosterau/effect-sveltekit";
+import { reroute as effectReroute } from "@thomasfosterau/effect-sveltekit";
 import { Effect } from "effect";
 
-export const reroute = Hooks.reroute((event) =>
+export const reroute = effectReroute((event) =>
   Effect.succeed(event.url.pathname === "/old" ? "/new" : undefined),
 );
 ```
