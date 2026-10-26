@@ -59,7 +59,7 @@ catalog:
   # `@vitest/coverage-istanbul`) must match vite-plus's exact pin because the
   # `vitest: "catalog:"` override forces every resolution to the catalog
   # singleton.
-  vite-plus: 1.3.0
+  vite-plus: 1.4.0
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0
   vitest: 5.0.5
 
