@@ -11,7 +11,7 @@
  * Shape copied from the effect-web library's root config.
  */
 
-import effect from "@mpsuesser/oxlint-plugin-effect";
+import effect from "@enfect/oxlint";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -58,8 +58,14 @@ export default defineConfig({
   lint: {
     ignorePatterns: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
     extends: [effect.configs.recommended],
+    // oxlint's built-in plugins beyond its defaults (`import`, `promise`,
+    // `vitest`), so `correctness` and `perf` cover them too. `suspicious` is
+    // not on: it reports ~240 sites (mostly `no-unsafe-type-assertion`, the
+    // casts `casting-awareness` already surfaces), tracked in #211.
+    plugins: ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "vitest"],
     categories: {
       correctness: "error",
+      perf: "error",
     },
     rules: {
       // `casting-awareness` is an awareness prompt, not a defect rule — it
@@ -95,6 +101,12 @@ export default defineConfig({
       // helper (`makeRunHelpers`) — so the rule has no service to point at.
       "effect/no-service-constructor-imports": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
+      // The suites assert through their own helpers (`expectFailsWith`,
+      // `expectFailure`, ...) as well as `expect` / `assert`.
+      "vitest/expect-expect": [
+        "error",
+        { assertFunctionNames: ["expect", "expect*", "assert", "assert.*"] },
+      ],
     },
     overrides: [
       // Build/test configs are evaluated by Vite and Vitest in bare Node,
@@ -106,8 +118,6 @@ export default defineConfig({
         files: ["**/vite.config.ts", "**/svelte.config.js"],
         rules: {
           "effect/avoid-node-imports": "off",
-          "effect/avoid-process-env": "off",
-          "effect/use-path-service": "off",
         },
       },
       // Build-time hooks: the `effectKit()` Vite plugin (`src/vite.ts`) and
@@ -122,7 +132,6 @@ export default defineConfig({
           "effect/avoid-node-imports": "off",
           "effect/avoid-sync-fs": "off",
           "effect/use-filesystem-service": "off",
-          "effect/use-path-service": "off",
           "effect/avoid-direct-json": "off",
         },
       },
@@ -283,6 +292,13 @@ export default defineConfig({
           // path.
           "effect/avoid-untagged-errors": "off",
         },
+      },
+      // The `Forms.enhance` type-level tests assert at compile time: each body
+      // is calls under expect-error directives (or calls that must compile),
+      // checked by `vp run check`, with nothing to assert at runtime.
+      {
+        files: ["packages/sveltekit/tests/client/forms.test.ts"],
+        rules: { "vitest/expect-expect": "off" },
       },
     ],
     // Type-aware rules stay on (floating promises and the like); type

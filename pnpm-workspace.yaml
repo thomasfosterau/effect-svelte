@@ -25,7 +25,9 @@ catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.5
   "@effect/platform-node": 4.0.5
-  "@mpsuesser/oxlint-plugin-effect": ^0.6.0
+  # The Effect lint preset (`effect/*` rules, anti-slop included), run as a
+  # JS plugin inside vite-plus's oxlint: it moves in the `toolchain` group.
+  "@enfect/oxlint": ^0.9.0
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^3.1.0
   "@sveltejs/vite-plugin-svelte": ^7.3.1
@@ -34,7 +36,7 @@ catalog:
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.5
-  fallow: 3.35.0
+  fallow: 3.37.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.3
   svelte: ^5.57.2
@@ -53,14 +55,16 @@ catalog:
   # `vite`'s optional peer, giving vite-plus-core (and so every plugin type) a
   # second instance and svelte-check a stack-depth crash on `defineConfig`.
   typescript: "npm:@typescript/typescript6@6.0.2"
-  # vite-plus pins `oxlint`, `oxfmt` and `vitest` to exact versions: 1.3.0
-  # carries oxlint 1.88.0, tsgolint 7.0.2004 and vitest 5.0.5. `vite` is the
+  # vite-plus pins `oxlint`, `oxfmt` and `vitest` to exact versions: 1.4.0
+  # carries oxlint 1.89.0, oxfmt 0.74.0, tsgolint 7.0.2004 and vitest 5.0.5. `vite` is the
   # same release under its aliased core package, and `vitest` (with
   # `@vitest/coverage-istanbul`) must match vite-plus's exact pin because the
   # `vitest: "catalog:"` override forces every resolution to the catalog
-  # singleton.
-  vite-plus: 1.3.0
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
+  # singleton. Move all three with `pnpm dlx --package=vite-plus@<v> vp
+  # migrate --no-interactive`, then drop the `minimumReleaseAgeExclude`
+  # entries it adds and restore the bare `overrides` keys (see there).
+  vite-plus: 1.4.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vitest: 5.0.5
 
 # Peer ranges the PUBLISHED packages declare. Kept as a named catalog so the
@@ -82,6 +86,10 @@ overrides:
   # range admits the fix but whose lockfile resolution stayed below it.
   # Drop once that resolution reaches >=8.12.2 on its own.
   undici: ^8.12.2
+  # Bare keys, not the `vite@*` / `vitest@*` that `vp migrate` writes: with
+  # `vite@*`, effect-sveltekit's own `vite` peer (a range in `catalogs.peers`)
+  # is auto-installed as the real `vite@8`, and `vp pack` then refuses to run
+  # ("Expected @voidzero-dev/vite-plus-core"). Restore these after a migrate.
   vite: "catalog:"
   vitest: "catalog:"
   # Keep the transitive `platform-node-shared` on the same release line as
@@ -114,9 +122,10 @@ peerDependencyRules:
     vitest: "*"
 
 # Supply-chain delay (the owner's policy): hold newly published versions for
-# 1 day (unit: MINUTES) before pnpm will install them. Dependabot's `cooldown`
-# mirrors it.
-minimumReleaseAge: 1440
+# 8 hours (unit: MINUTES) before pnpm will install them. Dependabot's
+# `cooldown` only takes whole days, so it waits 1 day, longer than this: a
+# Dependabot PR never proposes a version pnpm would still refuse.
+minimumReleaseAge: 480
 minimumReleaseAgeExclude:
   # @thomasfosterau/* is first-party — exempt so our own releases install immediately.
   - "@thomasfosterau/*"

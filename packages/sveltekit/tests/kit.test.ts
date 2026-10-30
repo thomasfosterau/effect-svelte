@@ -266,7 +266,7 @@ describe("SvelteKit.makeTranslator", () => {
     ]);
 
     const cause = Cause.fail(new NotFound());
-    expect(() => translator(cause)).toThrow();
+    expect(() => translator(cause)).toThrow(expect.objectContaining({ status: 404 }));
     expect(order).toEqual(["first"]);
   });
 });

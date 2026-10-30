@@ -153,3 +153,4 @@ fallow.sarif
 # Per-machine Claude Code state.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.vitest/

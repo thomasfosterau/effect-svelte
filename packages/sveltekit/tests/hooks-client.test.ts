@@ -3,6 +3,7 @@ import type { NavigationEvent } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import { handleError, init } from "../src/client/Hooks.js";
+import { EffectCauseError } from "../src/internal/error.js";
 
 const navigationEvent = (pathname = "/"): NavigationEvent => ({
   url: new URL(`http://localhost${pathname}`),
@@ -43,7 +44,7 @@ describe("client Hooks.handleError", () => {
         error: new Error("boom"),
         event: navigationEvent(),
       }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(EffectCauseError);
   });
 });
 
@@ -61,6 +62,6 @@ describe("client Hooks.init", () => {
 
   it("throws when the init effect fails", async () => {
     const hook = init(Effect.fail("startup failed"));
-    await expect(hook()).rejects.toThrow();
+    await expect(hook()).rejects.toThrow(EffectCauseError);
   });
 });

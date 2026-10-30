@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
+import { EffectCauseError } from "../src/internal/error.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
 import { mockEvent, mockLoadEvent, toServerLoadEvent } from "./fixtures/request-event.js";
 
@@ -158,7 +159,7 @@ describe("makeServerRuntime", () => {
   it("throws an EffectCauseError on failure", async () => {
     const runtime = makeServerRuntime(greeterLayer);
     const load = runtime.serverLoad(() => Effect.fail("boom"));
-    await expect(load(mockEvent())).rejects.toThrow();
+    await expect(load(mockEvent())).rejects.toThrow(EffectCauseError);
   });
 
   it("translateError maps a domain failure to SvelteKit control flow", async () => {

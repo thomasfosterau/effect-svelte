@@ -1,9 +1,10 @@
 # Composite setup shared by every workflow that needs the toolchain: pnpm +
 # Node.js, the pnpm store cache (keyed on pnpm-lock.yaml by setup-node), and a
 # frozen-lockfile install (retried — see the Install step's own comment).
-# `vp`, `fallow` and the other dev bins land in node_modules/.bin, which this
-# adds to PATH so later steps invoke `vp …` directly. Copied in shape from the
-# effect-web library's action.
+# `vp`, `fallow` and the other dev bins land in node_modules/.bin; later steps
+# call them through `pnpm exec` rather than adding that directory to
+# `GITHUB_PATH` (a write to an environment file zizmor flags as `github-env`).
+# Copied in shape from the effect-web library's action.
 #
 # Callers must run `actions/checkout` BEFORE this (a local composite action
 # needs the repo on disk first).
@@ -50,7 +51,3 @@ runs:
           echo "::warning::pnpm install failed (attempt ${attempt}/3); retrying in ${delay}s"
           sleep "$delay"
         done
-
-    - name: Expose the local bins
-      shell: bash
-      run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
