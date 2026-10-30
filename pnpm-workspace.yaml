@@ -39,7 +39,7 @@ catalog:
   fallow: 3.37.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.3
-  svelte: ^5.57.2
+  svelte: ^5.57.3
   svelte-check: ^4.7.6
   # TypeScript 6 under the `typescript` name: TS7 (the native Go compiler)
   # ships no JS API until 7.1, so the JS-API consumers (@effect/language-service,
