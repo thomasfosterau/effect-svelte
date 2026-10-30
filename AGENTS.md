@@ -33,7 +33,7 @@ Package-local invariants and terms live in each package's `CLAUDE.md` (`packages
 ## Commands
 
 - `pnpm install` — dependencies plus the Vite+ git hooks (`prepare` runs `vp config`; pre-commit runs `vp staged`: format + lint on staged files). No pre-push hook: run the gates yourself.
-- `vp check` — format + lint (Oxfmt + Oxlint, type-aware rules on); `--fix` autofixes. `vp run check` — the type gate: svelte-check over every package's `src`, `tests` and `.svelte` fixtures. They are different commands.
+- `vp check` — format + lint (Oxfmt + Oxlint); lint is type-aware through vite-plus's bundled oxlint-tsgolint (`typeAware` and `typeCheck` in `vite.config.ts`, so it also reports TypeScript errors in `.ts` files); `--fix` autofixes. `vp run check` — the type gate: svelte-check over every package's `src`, `tests` and `.svelte` fixtures. They are different commands.
 - `vp run -r test:unit` — every package's Vitest suite; `vp test run` inside one package.
 - `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`.
 - `vp run test:coverage` — every package's suite under one Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores. Without the map fallow scores every function as uncovered, and any function with cyclomatic complexity ≥ 5 fails the gate on its own.

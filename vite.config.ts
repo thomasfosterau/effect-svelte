@@ -301,12 +301,15 @@ export default defineConfig({
         rules: { "vitest/expect-expect": "off" },
       },
     ],
-    // Type-aware rules stay on (floating promises and the like); type
-    // checking itself is the `check` task's job (svelte-check), which also
-    // covers the `.svelte` fixtures tsgolint cannot read.
+    // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the
+    // type-aware rules (floating promises and the like), plus `typeCheck`,
+    // which reports TypeScript errors in the `.ts` files from `vp check`
+    // itself. Measured on 2026-10-30: zero findings on this tree, a planted
+    // TS2322 is caught, and it adds ~3 s to `vp lint`. It does not replace
+    // the `check` task (svelte-check), which alone reads `.svelte` files.
     options: {
       typeAware: true,
-      typeCheck: false,
+      typeCheck: true,
     },
     jsPlugins: [
       {
