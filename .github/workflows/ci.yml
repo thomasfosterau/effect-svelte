@@ -48,17 +48,17 @@ jobs:
             vp-task-v1-${{ runner.os }}-
 
       - name: Format and lint
-        run: vp check
+        run: pnpm exec vp check
 
       # svelte-check over every package's src, tests and .svelte fixtures.
       - name: Type gate
-        run: vp run check
+        run: pnpm exec vp run check
 
       - name: Unit tests
-        run: vp run -r test:unit
+        run: pnpm exec vp run -r test:unit
 
       - name: Build
-        run: vp run -r build
+        run: pnpm exec vp run -r build
 
       - name: Audit
         run: pnpm audit --audit-level high

@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
+import { EffectCauseError } from "../src/internal/error.js";
 import {
   wrapAction,
   wrapActions,
@@ -50,7 +51,7 @@ describe("wrapServerLoad", () => {
 
   it("throws an EffectCauseError on failure", async () => {
     const fn = wrapServerLoad(() => Effect.fail("boom"));
-    await expect(fn(mockEvent())).rejects.toThrow();
+    await expect(fn(mockEvent())).rejects.toThrow(EffectCauseError);
   });
 
   it("passes redirect() through to SvelteKit", async () => {

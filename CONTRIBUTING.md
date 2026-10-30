@@ -4,7 +4,7 @@ This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and 
 
 ## Development setup
 
-- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node (`node-version: latest`).
+- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node (`node-version: "*"` with `check-latest: true`, resolved from setup-node's manifest of stable releases; `latest` would take whatever heads nodejs.org's dist index, pre-releases included).
 - [pnpm](https://pnpm.io) 11 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
 - Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`.
 
@@ -35,7 +35,7 @@ Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editabl
 ## Running individual checks
 
 ```sh
-vp lint                                        # oxlint (with @mpsuesser/oxlint-plugin-effect)
+vp lint                                        # oxlint (with the @enfect/oxlint Effect preset)
 vp fmt                                         # oxfmt
 vp check --fix                                 # apply format and lint fixes
 vp run check                                   # the whole type gate
@@ -51,6 +51,8 @@ vp run fallow:audit                            # change-set review (not a CI gat
 ## CI expectations
 
 [ci.yml](.github/workflows/ci.yml) runs one job, `ci`, on the latest stable Node for every push to and pull request against `trunk`: the gates in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `trunk` under the protected `release` environment ([PUBLISHING.md](PUBLISHING.md)).
+
+The workflows are hardened for Dependabot PRs: `permissions: {}` at the top with per-job grants, every action pinned to a commit SHA, `persist-credentials: false` except where the Changesets action pushes, no secrets or OIDC in anything a PR can trigger (the release job also skips `dependabot[bot]`), and `uvx zizmor --offline .github` clean (its config is `.github/zizmor.yml`). CI calls the dev bins through `pnpm exec` instead of writing to `GITHUB_PATH`.
 
 ## Changesets
 

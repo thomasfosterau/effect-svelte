@@ -1,9 +1,10 @@
 # Composite setup shared by every workflow that needs the toolchain: pnpm +
 # Node.js, the pnpm store cache (keyed on pnpm-lock.yaml by setup-node), and a
 # frozen-lockfile install (retried — see the Install step's own comment).
-# `vp`, `fallow` and the other dev bins land in node_modules/.bin, which this
-# adds to PATH so later steps invoke `vp …` directly. Copied in shape from the
-# effect-web library's action.
+# `vp`, `fallow` and the other dev bins land in node_modules/.bin; later steps
+# call them through `pnpm exec` rather than adding that directory to
+# `GITHUB_PATH` (a write to an environment file zizmor flags as `github-env`).
+# Copied in shape from the effect-web library's action.
 #
 # Callers must run `actions/checkout` BEFORE this (a local composite action
 # needs the repo on disk first).
@@ -11,10 +12,16 @@ name: Setup toolchain
 description: Set up Node.js and pnpm, restore the package cache and install dependencies against the lockfile.
 inputs:
   node-version:
-    # CI tests one Node version, the latest stable release (#114).
-    description: The Node.js version to set up.
+    # CI tests one Node version, the latest stable release (#114). Not
+    # `latest`: setup-node resolves that to the first entry of nodejs.org's
+    # dist index, whatever it is, and on 2026-10-29 that became
+    # `v27.0.0-alpha.0.0.0`, a pre-release on which file responses hang.
+    # `*` with `check-latest` resolves against actions/node-versions'
+    # manifest of stable releases instead, so a new major arrives once it
+    # ships stable.
+    description: The Node.js version (a semver range) to set up.
     required: false
-    default: latest
+    default: "*"
 runs:
   using: composite
   steps:
@@ -27,6 +34,7 @@ runs:
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ inputs.node-version }}
+        check-latest: true
         cache: pnpm
 
     # --frozen-lockfile fails if pnpm-lock.yaml is out of sync with the
@@ -50,7 +58,3 @@ runs:
           echo "::warning::pnpm install failed (attempt ${attempt}/3); retrying in ${delay}s"
           sleep "$delay"
         done
-
-    - name: Expose the local bins
-      shell: bash
-      run: echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"

@@ -13,7 +13,9 @@
 #   `vitest` it carries, `vite` is vite-plus-core under an alias, the
 #   `vitest` / `@vitest/*` catalog entries must equal vite-plus's exact pin,
 #   the `typescript` alias (TS6) is what svelte-check and the declaration
-#   emit drive, and the Effect lint plugin runs inside that oxlint.
+#   emit drive, and the Effect lint preset (`@enfect/oxlint`) runs inside
+#   that oxlint. `fallow` rides here too: it reads the coverage map Vitest
+#   writes and gates agent commits.
 # - `svelte`: the Svelte compiler, SvelteKit, the Vite plugin and svelte-check.
 # - `happy-dom`, `changesets`: their own sets.
 # - `minor-and-patch`: every remaining minor / patch update in one PR, so PR
@@ -22,8 +24,21 @@
 # Dependabot assigns a dependency to the FIRST group that matches, so the
 # groups run specific → general.
 #
-# `cooldown` mirrors pnpm-workspace.yaml's `minimumReleaseAge` (1 day), with
-# `@thomasfosterau/*` exempt as `minimumReleaseAgeExclude` exempts it.
+# Hand moves Dependabot cannot make (AGENTS.md § Common pitfalls):
+# - `vite` (`npm:@voidzero-dev/vite-plus-core@<v>`) and `typescript`
+#   (`npm:@typescript/typescript6@<v>`) are npm aliases: on a `toolchain` PR
+#   that bumps vite-plus, run `pnpm dlx --package=vite-plus@<v> vp migrate
+#   --no-interactive` on its branch (it re-pins vite-plus, the `vite` alias and
+#   the `vitest` pin together; drop the `minimumReleaseAgeExclude` entries it
+#   adds and restore the bare `vite` / `vitest` override keys) and set `@vitest/coverage-istanbul` to the same vitest.
+# - `overrides`-only pins (`@effect/platform-node-shared` with the `effect`
+#   group; the security floors `undici`, `shell-quote`, `launch-editor`,
+#   `source-map-js`) are raised or dropped by hand.
+#
+# `cooldown`: pnpm-workspace.yaml's `minimumReleaseAge` holds a new version for
+# 8 hours, but Dependabot's cooldown only takes whole days, so it waits 1 day.
+# That is longer than pnpm's hold, so a Dependabot PR never proposes a version
+# pnpm would still refuse. `@thomasfosterau/*` is exempt in both.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -61,7 +76,9 @@ updates:
           - "oxlint-tsgolint"
           - "typescript"
           - "@typescript/typescript6"
-          - "@mpsuesser/oxlint-plugin-effect"
+          - "@oxlint/*"
+          - "@enfect/oxlint"
+          - "fallow"
         update-types: ["major", "minor", "patch"]
       svelte:
         applies-to: version-updates
