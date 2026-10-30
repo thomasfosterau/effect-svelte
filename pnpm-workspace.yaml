@@ -31,14 +31,14 @@ catalog:
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^3.1.0
   "@sveltejs/vite-plugin-svelte": ^7.3.1
-  "@types/node": ^26.6.5
+  "@types/node": ^26.6.6
   # Must equal the vitest that vite-plus bundles (see `vitest` below); vite-plus
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.5
   fallow: 3.37.0
   happy-dom: ^21.0.4
-  magic-string: ^1.4.3
+  magic-string: ^1.4.5
   svelte: ^5.57.3
   svelte-check: ^4.7.6
   # TypeScript 6 under the `typescript` name: TS7 (the native Go compiler)
