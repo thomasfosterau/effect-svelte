@@ -4,7 +4,7 @@ This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and 
 
 ## Development setup
 
-- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node (`node-version: latest`).
+- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node (`node-version: "*"` with `check-latest: true`, resolved from setup-node's manifest of stable releases; `latest` would take whatever heads nodejs.org's dist index, pre-releases included).
 - [pnpm](https://pnpm.io) 11 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
 - Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`.
 
