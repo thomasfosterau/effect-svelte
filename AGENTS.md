@@ -81,7 +81,6 @@ Read the installed package before writing Effect code: `node_modules/effect/AGEN
 ## Agent sessions
 
 - The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) repairs a broken `node` shim, installs dependencies against the lockfile, and puts `vp` (a re-exec shim that prefers the nearest worktree's `node_modules`), `fallow` and `tsx` (when installed) on PATH for non-interactive shells. It hydrates no secrets; none are needed, and nothing here can publish.
-- `.claude/settings.json` enables the `@enfect/claude` plugin (Effect guidance, skills and post-write pattern checks), pinned by `ref` to the `mpsuesser/enfect` commit that published 0.9.0; moving it is a reviewed edit of that SHA.
 - A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/trunk` fails; it reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
 - Every gate in [Verification](#verification) runs in an agent session; `pnpm audit` needs the network.
 
