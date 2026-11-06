@@ -29,6 +29,8 @@
 # - `overrides`-only pins (`@effect/platform-node-shared` with the `effect`
 #   group; the security floors `undici`, `shell-quote`, `launch-editor`,
 #   `source-map-js`) are raised or dropped by hand.
+# - the `ghcr.io/voidzero-dev/vite-plus:<tag>` image in .devcontainer/devcontainer.json:
+#   it equals the catalog's `vite-plus` pin, moved on the toolchain PR.
 #
 # `cooldown`: pnpm-workspace.yaml's `minimumReleaseAge` holds a new version for
 # 8 hours, but Dependabot's cooldown only takes whole days, so it waits 1 day.
@@ -83,6 +85,23 @@ updates:
     directories:
       - "/"
       - "/.github/actions/*"
+    target-branch: "trunk"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+    cooldown:
+      default-days: 1
+
+  # The dev container's features (.devcontainer/devcontainer.json) and their
+  # lockfile. The base image tag is not a feature: it is the catalog's
+  # `vite-plus` pin, moved by hand on the toolchain PR.
+  - package-ecosystem: "devcontainers"
+    directory: "/"
     target-branch: "trunk"
     schedule:
       interval: "weekly"

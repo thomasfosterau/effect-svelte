@@ -18,6 +18,8 @@ vp run -r build                  # every package's dist/
 
 In an agent session the committed SessionStart hook ([.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)) installs the global Vite+ CLI at the catalog's `vite-plus` pin (it needs `vite.plus` and `viteplus.dev` reachable), links `vp` and `vpx` onto PATH and does the install; fallow then runs as `vp exec fallow`. The devcontainer's `postCreateCommand` runs the same file.
 
+Open in a Codespace or Dev Container: `.devcontainer/` provisions it with the same hook as agent sessions.
+
 ## Branches
 
 Branch off `trunk`, rebase rather than merge, squash-merge with a conventional prefix: see [AGENTS.md](AGENTS.md#branches-and-pull-requests).
