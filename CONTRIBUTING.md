@@ -16,7 +16,7 @@ vp run -r test:unit              # every package's Vitest suite
 vp run -r build                  # every package's dist/
 ```
 
-In an agent session the committed SessionStart hook ([.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)) does the install and puts `vp` and `fallow` on PATH; the devcontainer's `postCreateCommand` runs the same file.
+In an agent session the committed SessionStart hook ([.claude/hooks/session-start.sh](.claude/hooks/session-start.sh)) installs the global Vite+ CLI at the catalog's `vite-plus` pin (it needs `vite.plus` and `viteplus.dev` reachable), links `vp` and `vpx` onto PATH and does the install; fallow then runs as `vp exec fallow`. The devcontainer's `postCreateCommand` runs the same file.
 
 ## Branches
 

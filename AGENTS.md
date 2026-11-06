@@ -37,7 +37,7 @@ Package-local invariants and terms live in each package's `CLAUDE.md` (`packages
 - `vp run -r test:unit` — every package's Vitest suite; `vp test run` inside one package.
 - `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`.
 - `vp run test:coverage` — every package's suite under one Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores. Without the map fallow scores every function as uncovered, and any function with cyclomatic complexity ≥ 5 fails the gate on its own.
-- `fallow dead-code` / `fallow audit` (also `vp run fallow` / `vp run fallow:audit`) — unused code and dependencies, boundaries, and the change-set gate.
+- `vp exec fallow dead-code` / `vp exec fallow audit` (also `vp run fallow` / `vp run fallow:audit`) — unused code and dependencies, boundaries, and the change-set gate.
 - `pnpm changeset` — add a changeset.
 
 Invoke everything through `vp` (`vp exec` instead of `npx`; `vp run <task>` instead of bare `pnpm`). The sanctioned non-`vp` invocations: `pnpm install` (and `pnpm install --frozen-lockfile` in CI), `pnpm audit`, `pnpm changeset` and the release scripts. Single-check variants are in [CONTRIBUTING.md](CONTRIBUTING.md#running-individual-checks).
@@ -52,7 +52,7 @@ Before you report work as done, run the gates below in order and quote each comm
 4. `vp run -r test:unit`
 5. `vp run -r build`
 6. `pnpm audit --audit-level high` (network)
-7. `vp run test:coverage`, then `fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The PreToolUse fallow gate audits against `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first.
+7. `vp run test:coverage`, then `vp exec fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The PreToolUse fallow gate audits against `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first.
 
 Steps 2–6 are CI's one `ci` job, in its order ([ci.yml](.github/workflows/ci.yml)). `CONTRIBUTING.md` and the PR template link here rather than restating the list.
 
@@ -80,8 +80,8 @@ Read the installed package before writing Effect code: `node_modules/effect/AGEN
 
 ## Agent sessions
 
-- The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) repairs a broken `node` shim, installs dependencies against the lockfile, and puts `vp` (a re-exec shim that prefers the nearest worktree's `node_modules`), `fallow` and `tsx` (when installed) on PATH for non-interactive shells. It hydrates no secrets; none are needed, and nothing here can publish.
-- A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/trunk` fails; it reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
+- The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) installs the global Vite+ CLI at the catalog's `vite-plus` pin with the official installer (npm-provenance and SHA-512 checked; it needs `vite.plus` and `viteplus.dev` on the environment's allowlist), links `vp` and `vpx` into `~/.local/bin` for non-interactive shells, repairs a broken `node` shim, and runs `vp install --frozen-lockfile`. The global `vp` delegates to each checkout's own `vite-plus`, worktrees included. Everything else goes through Vite+: `vp exec fallow …` for fallow, `vpx <file>.ts` for scripts; nothing else is put on PATH. If the installer can't run, `vp` falls back to this checkout's `node_modules` copy. It hydrates no secrets; none are needed, and nothing here can publish.
+- A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/trunk` (run through `vp exec fallow`) fails, in this checkout and its `.claude/worktrees/*` only: for a commit in any other tree it runs none of that tree's tooling and skips the audit with a notice. It reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
 - Every gate in [Verification](#verification) runs in an agent session; `pnpm audit` needs the network.
 
 ## Documentation surfaces
