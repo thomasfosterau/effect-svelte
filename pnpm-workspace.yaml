@@ -37,7 +37,7 @@ catalog:
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
   effect: 4.0.5
-  fallow: 3.38.1
+  fallow: 3.39.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
   svelte: ^5.57.3
