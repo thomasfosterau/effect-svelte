@@ -26,7 +26,8 @@ catalog:
   "@effect/language-service": ^0.87.5
   "@effect/platform-node": 4.0.5
   # The Effect lint preset (`effect/*` rules, anti-slop included), run as a
-  # JS plugin inside vite-plus's oxlint: it moves in the `toolchain` group.
+  # JS plugin inside vite-plus's oxlint. Not in the `toolchain` group: it takes
+  # `@oxlint/plugins` at a caret range.
   "@enfect/oxlint": ^0.9.0
   "@standard-schema/spec": ^1.1.0
   "@sveltejs/kit": ^3.1.1
@@ -49,7 +50,7 @@ catalog:
   # package here type-checks through svelte-check, so there is no pure-TS
   # surface worth a second compiler, and without it the `@effect/tsgo` patch
   # and its `effecttsgo` lint preset have nothing to patch.
-  # Pinned exact; Dependabot moves it in the `toolchain` group.
+  # Pinned exact; an npm alias, so it is a hand move (.github/dependabot.yml).
   # Every workspace package lists `typescript: "catalog:"`: without it,
   # peer auto-install resolves the alias's inner `typescript@6.0.x` as
   # `vite`'s optional peer, giving vite-plus-core (and so every plugin type) a
