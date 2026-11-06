@@ -12,10 +12,12 @@
 # installs with `--frozen-lockfile`, so a stale lockfile fails at once.
 #
 # Shape copied from the library standard (effect-drizzle-ext / effect-jsonapi).
-# The Effect line is `4.0.2` (the programme-wide 4.0 line, #143).
-# The peer floor in `catalogs.peers` is the same release, `>=4.0.2` (#164), so
-# CI tests the floor. The `effect` and `@effect/platform-node` floors move
-# together and stay `>=` ranges.
+# Development runs on the exact `effect` / `@effect/platform-node` pin below.
+# The published `effect` and `@effect/platform-node` peers in `catalogs.peers`
+# are `^4.0.0` (owner policy), set per package and raised only when one of that
+# package's dependencies requires a newer `effect`, named beside the floor. CI
+# tests the pin, not the floor (#164): re-run the gates with the pin set to the
+# floor before relying on an API newer than 4.0.0.
 packages:
   - "packages/*"
 
@@ -74,9 +76,9 @@ catalog:
 # ranges in the published manifest.
 catalogs:
   peers:
-    "@effect/platform-node": ">=4.0.2"
+    "@effect/platform-node": ^4.0.0
     "@sveltejs/kit": ^3.1.1
-    effect: ">=4.0.2"
+    effect: ^4.0.0
     svelte: ^5.40.0
     vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 

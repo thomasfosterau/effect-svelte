@@ -153,8 +153,9 @@ describe("watchedStream", () => {
       throw thrown;
     };
 
-    // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2,
-    // the peer floor. The timeout only guards against a regression to a hang, so
+    // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2;
+    // `failQueueOnSetupError` does it on 4.0.0 / 4.0.1, inside the `^4.0.0` peer
+    // range. The timeout only guards against a regression to a hang, so
     // it fails the test rather than passing it.
     const exit = await Effect.runPromise(
       watchedStream(throwingWatch, () => 1).pipe(

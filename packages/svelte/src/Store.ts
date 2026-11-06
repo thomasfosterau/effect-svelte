@@ -6,6 +6,7 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { type Readable, readable } from "svelte/store";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
+import { failQueueOnSetupError } from "./internal/stream-callback.js";
 
 /**
  * Converts a Svelte [store](https://svelte.dev/docs/svelte/stores) (anything
@@ -44,7 +45,7 @@ export function toStream<A>(store: Readable<A>): Stream.Stream<A> {
         }),
       ),
       (unsubscribe) => Effect.sync(() => unsubscribe()),
-    ),
+    ).pipe(failQueueOnSetupError(queue)),
   );
 }
 

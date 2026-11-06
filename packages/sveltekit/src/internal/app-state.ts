@@ -18,6 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
+import { failQueueOnSetupError } from "./stream-callback.js";
 
 /**
  * The fields of SvelteKit's `page` we snapshot. Mirrors the shape of
@@ -126,7 +127,7 @@ export function watchedStream<A>(watch: Watch, read: () => A): Stream.Stream<A> 
         }),
       ),
       (dispose) => Effect.sync(dispose),
-    ),
+    ).pipe(failQueueOnSetupError(queue)),
   );
 }
 

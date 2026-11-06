@@ -23,7 +23,7 @@ To use both the Svelte and SvelteKit packages:
 pnpm add @thomasfosterau/effect-svelte @thomasfosterau/effect-sveltekit effect svelte @sveltejs/kit
 ```
 
-`effect` (`>=4.0.2`) is a peer: keep a single copy of it in your app.
+`effect` (`^4.0.0`) is a peer: keep a single copy of it in your app.
 
 ## Example
 
