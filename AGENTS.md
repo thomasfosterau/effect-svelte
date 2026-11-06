@@ -75,7 +75,7 @@ Steps 2–6 are CI's one `ci` job, in its order ([ci.yml](.github/workflows/ci.y
 
 Read the installed package before writing Effect code: `node_modules/effect/AGENTS.md` and `node_modules/effect/ai-docs/` (the pinned version ships both), then `node_modules/effect/dist/*.d.ts` and `node_modules/effect/src` for the exact API. Never guess at an Effect API.
 
-- The pinned version is the catalog's `effect` entry in `pnpm-workspace.yaml`. Both packages target Effect v4: `effect` and `@effect/platform-node` move together on the one exact version pinned in the catalog, and the published peer floor is `catalogs.peers` — currently `>=4.0.2` for both, the same release as the pin's line, so CI tests the floor (#164). Raising the floor is a breaking change for both packages.
+- The pinned version is the catalog's `effect` entry in `pnpm-workspace.yaml`. Both packages target Effect v4: `effect` and `@effect/platform-node` move together on the one exact version pinned in the catalog, and the published peers are `catalogs.peers`. The `effect` (and `@effect/platform-node`) peer is `^4.0.0`; raise it only when a dependency requires it, naming the dependency in the catalog comment. CI tests only the pin, not the floor (#164), so a change that relies on behaviour or an API newer than 4.0.0 is checked by re-running the gates with the catalog pin set to 4.0.0. Raising the floor is a breaking change for both packages.
 - HTTP lives under `effect/http/*` and `effect/http-api/*`; `Reactivity` and atoms under `effect/reactivity`, `AsyncResult` under `effect/reactivity/AsyncResult`. `@effect/platform` and `@effect/experimental` do not exist in v4.
 
 ## Agent sessions

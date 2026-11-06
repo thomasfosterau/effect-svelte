@@ -18,9 +18,9 @@ pnpm add @thomasfosterau/effect-sveltekit effect svelte @sveltejs/kit
 pnpm add @effect/platform-node
 ```
 
-`effect` (`>=4.0.2`) and `svelte` (`^5.40.0`) are required peers;
+`effect` (`^4.0.0`) and `svelte` (`^5.40.0`) are required peers;
 `@sveltejs/kit` (`^3.0.0`), `vite` (for `./vite`) and
-`@effect/platform-node` (`>=4.0.2`, for `./adapter`) are optional. The
+`@effect/platform-node` (`^4.0.0`, for `./adapter`) are optional. The
 HTTP modules that lived in `@effect/platform` in v3 are part of `effect` itself
 in v4 (`effect/http`), so no other Effect package is needed. Keep a single copy
 of `effect`, and keep `effect` and `@effect/platform-node` on the same
