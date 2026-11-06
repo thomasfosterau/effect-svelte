@@ -13,7 +13,7 @@
 # version pinned in `pnpm-workspace.yaml`'s catalog, using the official
 # installer, which takes the release from the npm registry, refuses a package
 # without npm provenance and checks its SHA-512 `dist.integrity`. It installs
-# under `~/.local/share/vite-plus` and touches no shell profile, so `vp` and
+# under `$VP_HOME` (else `~/.local/share/vite-plus`) and touches no shell profile, so `vp` and
 # `vpx` are then linked into `~/.local/bin`, which is on PATH in the session
 # container (an `export` here cannot reach the caller's later shells; a
 # symlink to the real binary can).
@@ -71,7 +71,11 @@ log() { printf '[session-start] %s\n' "$1" >&2; }
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 LOCAL_BIN="${HOME:-/root}/.local/bin"
-VP_GLOBAL_BIN="${HOME:-/root}/.local/share/vite-plus/bin"
+# The installer installs under `$VP_HOME` when it is set (the Vite+ dev
+# container image sets VP_HOME=/home/vp/.vite-plus and ships the CLI there),
+# else under `~/.local/share/vite-plus`. Look where it put it, or the pin check
+# never matches and the hook reinstalls and falls back on every run.
+VP_GLOBAL_BIN="${VP_HOME:-${HOME:-/root}/.local/share/vite-plus}/bin"
 SHIM_MARKER="# generated-by: .claude/hooks/session-start.sh"
 
 mkdir -p "$LOCAL_BIN" 2>/dev/null || log "cannot create $LOCAL_BIN; continuing"
