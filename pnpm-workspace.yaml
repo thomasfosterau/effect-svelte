@@ -43,7 +43,7 @@ catalog:
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
   svelte: ^5.57.3
-  svelte-check: ^4.7.6
+  svelte-check: ^4.7.8
   # TypeScript 6 under the `typescript` name: TS7 (the native Go compiler)
   # ships no JS API until 7.1, so the JS-API consumers (@effect/language-service,
   # svelte-check — the `check` type gate — and the tsdown declaration bundler
