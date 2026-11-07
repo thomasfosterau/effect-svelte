@@ -5,8 +5,8 @@ set -euo pipefail
 # Installer version: 3.6.0
 # Local deviations, re-apply after `fallow hooks install` regenerates this
 # file: the trusted-checkout block and vp runner (which replace the generated
-# fallow lookup arms) and the `--base origin/trunk` audit base, each marked
-# below.
+# fallow lookup arms), the first-line cut of `fallow --version` and the
+# `--base origin/trunk` audit base, each marked below.
 # Requires bash and jq. On Windows run via git-bash or WSL.
 # Blocks Claude Code git commit and git push when fallow audit returns verdict fail.
 # Runtime errors fail open with a single stderr notice so skips stay visible.
@@ -94,6 +94,10 @@ fi
 # --- End trusted checkouts and the vp runner ---
 
 VERSION_RAW="$("${RUNNER[@]}" --version 2>/dev/null || true)"
+# Local deviation from the generated script: keep only the first line. The npm
+# launcher appends a `verified: …` line, which would otherwise leak into
+# VERSION and split every message that prints it across two lines.
+VERSION_RAW="${VERSION_RAW%%$'\n'*}"
 VERSION="${VERSION_RAW#fallow }"
 VERSION="${VERSION%% *}"
 
