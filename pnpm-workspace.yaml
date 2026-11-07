@@ -26,7 +26,7 @@ catalogMode: strict
 catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.5
-  "@effect/platform-node": 4.0.5
+  "@effect/platform-node": 4.1.2
   # The Effect lint preset (`effect/*` rules, anti-slop included), run as a
   # JS plugin inside vite-plus's oxlint. Not in the `toolchain` group: it takes
   # `@oxlint/plugins` at a caret range.
@@ -38,7 +38,7 @@ catalog:
   # Must equal the vitest that vite-plus bundles (see `vitest` below); vite-plus
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.0.5
-  effect: 4.0.5
+  effect: 4.1.2
   fallow: 3.39.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
@@ -83,12 +83,6 @@ catalogs:
     vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
 
 overrides:
-  # undici <8.12.2 — GHSA-xjj6-f33q-929c (high): an unhandled error on a
-  # response with excessive content-encodings is a denial of service
-  # (#203). Reached transitively (@effect/platform-node > undici), whose
-  # range admits the fix but whose lockfile resolution stayed below it.
-  # Drop once that resolution reaches >=8.12.2 on its own.
-  undici: ^8.12.2
   # Bare keys, not the `vite@*` / `vitest@*` that `vp migrate` writes: with
   # `vite@*`, effect-sveltekit's own `vite` peer (a range in `catalogs.peers`)
   # is auto-installed as the real `vite@8`, and `vp pack` then refuses to run
@@ -98,7 +92,7 @@ overrides:
   # Keep the transitive `platform-node-shared` on the same release line as
   # `@effect/platform-node`. Dependabot cannot bump an overrides-only pin:
   # move it by hand with every `effect` group PR (AGENTS.md).
-  "@effect/platform-node-shared": 4.0.2
+  "@effect/platform-node-shared": 4.1.2
   # `effect` MUST be a singleton (see the header): force every resolution to
   # the catalog version so a hoisting reshuffle cannot introduce a second copy.
   effect: "catalog:"
