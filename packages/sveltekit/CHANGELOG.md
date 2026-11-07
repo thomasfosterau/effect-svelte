@@ -1,5 +1,16 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.9.2
+
+### Patch Changes
+
+- d8f4571: Remote functions pass a schema already converted with `Schema.toStandardSchemaV1` through untouched on effect 4.1, where that conversion returns a `Schema` and was being wrapped a second time.
+- ed665bc: Declarations drop type arguments that restate their defaults (`Effect.Effect<A, E, never>` is now written `Effect.Effect<A, E>`), and `SignalEmitter`'s private fields lose their leading underscores. The types themselves are unchanged.
+- 7d1a6d0: Include `CHANGELOG.md` in the published tarball, so the release notes can be read from `node_modules`.
+- Updated dependencies [ed665bc]
+- Updated dependencies [7d1a6d0]
+  - @thomasfosterau/effect-svelte@0.6.2
+
 ## 0.9.1
 
 ### Patch Changes
