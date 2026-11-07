@@ -99,7 +99,7 @@ export interface EnhanceOptions<R = never> {
  * them unchanged.
  */
 export type EnhanceOptionsArgs<R> = [R] extends [never]
-  ? [options?: EnhanceOptions<never> | undefined]
+  ? [options?: EnhanceOptions | undefined]
   : [options: EnhanceOptions<R> & { readonly runtime: EnhanceRuntime<R> }];
 
 /** The handler names {@link makeSubmitFunction} accepts. */
@@ -186,7 +186,7 @@ const runPromiseWith =
     if (runtime === undefined) {
       // SAFETY: `EnhanceOptionsArgs` makes the runtime optional only when the
       // handlers require no services, so without one `R` is `never`.
-      return Effect.runPromise(effect as Effect.Effect<A, E, never>);
+      return Effect.runPromise(effect as Effect.Effect<A, E>);
     }
     return Context.isContext(runtime)
       ? Effect.runPromiseWith(runtime)(effect)

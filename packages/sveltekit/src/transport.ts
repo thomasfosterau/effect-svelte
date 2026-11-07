@@ -93,7 +93,7 @@ export interface MarkerTransporterOptions<T> {
 }
 
 /** An entry accepted by {@link transport}: an Effect schema or a ready Transporter. */
-export type TransportEntry = Schema.Codec<any, any> | Transporter<any, any>;
+export type TransportEntry = Schema.Codec<any, any> | Transporter;
 
 /**
  * Assembles a SvelteKit `transport` object from a record of entries. Each entry
@@ -103,6 +103,4 @@ export type TransportEntry = Schema.Codec<any, any> | Transporter<any, any>;
  * labels (they only need to be stable between server and client).
  */
 export const transport = (entries: Record<string, TransportEntry>): Transport =>
-  Rec.map(entries, (entry): Transporter<any, any> =>
-    Schema.isSchema(entry) ? transporter(entry) : entry,
-  );
+  Rec.map(entries, (entry): Transporter => (Schema.isSchema(entry) ? transporter(entry) : entry));

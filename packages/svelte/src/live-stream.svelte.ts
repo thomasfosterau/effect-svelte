@@ -120,11 +120,11 @@ export function useLiveStream<A, E, R>(
   // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
   // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
-  // SAFETY: `initial` is declared `?: A` without `| undefined` (and
+  // `initial` is declared `?: A` without `| undefined` (and
   // `exactOptionalPropertyTypes` is on), so when the key is present its value
   // is an `A` — possibly `undefined`, if `A` itself admits it.
   const seed: Option.Option<A> =
-    "initial" in options ? Option.some(options.initial as A) : Option.none();
+    "initial" in options ? Option.some(options.initial) : Option.none();
 
   const state = makeLiveResult<A, E>(seed);
   const core = makeLiveStream(runtime, state);

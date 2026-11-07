@@ -496,9 +496,9 @@ describe("useReactiveStream", () => {
   /** A `Reactivity` runtime plus a synchronous `invalidate` for the tests. */
   const makeReactivity = async () => {
     const managed = ManagedRuntime.make(Reactivity.layer);
-    const runtime = await managed.context();
+    const context = await managed.context();
     return {
-      runtime,
+      runtime: context,
       invalidate: (keys: ReadonlyArray<unknown>) => managed.runSync(Reactivity.invalidate(keys)),
       dispose: async () => {
         mounter.cleanup();

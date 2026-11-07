@@ -13,7 +13,7 @@ import * as Stream from "effect/Stream";
  * Wraps a remote call so a rejection, or a synchronous throw from `thunk`,
  * fails the Effect with the original reason instead of becoming a defect.
  */
-function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unknown, never> {
+function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unknown> {
   return Effect.tryPromise({
     try: () => Promise.resolve(thunk()),
     catch: (error) => error,
@@ -30,7 +30,7 @@ function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unk
  */
 export function callQuery<Output>(
   query: RemoteQueryFunction<void, Output>,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 /**
  * Calls a SvelteKit remote `query` with `input` as an Effect that succeeds
  * with its output.
@@ -43,11 +43,11 @@ export function callQuery<Output>(
 export function callQuery<Input, Output>(
   query: RemoteQueryFunction<Input, Output>,
   input: Input,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 export function callQuery<Input, Output>(
   query: RemoteQueryFunction<Input, Output>,
   input?: Input,
-): Effect.Effect<Output, unknown, never> {
+): Effect.Effect<Output, unknown> {
   // SAFETY: `input` is only absent in the no-input overload, which fixes
   // `Input` to `void`, so `query(undefined)` is the call that overload means.
   return fromRemotePromise(() => query(input as Input));
@@ -64,7 +64,7 @@ export function callQuery<Input, Output>(
  */
 export function callCommand<Output>(
   command: RemoteCommand<void, Output>,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 /**
  * Calls a SvelteKit remote `command` with `input` as an Effect that succeeds
  * with its output.
@@ -77,11 +77,11 @@ export function callCommand<Output>(
 export function callCommand<Input, Output>(
   command: RemoteCommand<Input, Output>,
   input: Input,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 export function callCommand<Input, Output>(
   command: RemoteCommand<Input, Output>,
   input?: Input,
-): Effect.Effect<Output, unknown, never> {
+): Effect.Effect<Output, unknown> {
   // SAFETY: `input` is only absent in the no-input overload, which fixes
   // `Input` to `void`, so `command(undefined)` is the call that overload means.
   return fromRemotePromise(() => command(input as Input));
@@ -104,7 +104,7 @@ export function callCommandWithUpdates<Input, Output>(
   command: RemoteCommand<Input, Output>,
   input: Input,
   ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>
-): Effect.Effect<Output, unknown, never> {
+): Effect.Effect<Output, unknown> {
   return fromRemotePromise(() => command(input).updates(...queries));
 }
 
@@ -119,7 +119,7 @@ export function callCommandWithUpdates<Input, Output>(
  */
 export function callPrerender<Output>(
   prerender: RemotePrerenderFunction<void, Output>,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 /**
  * Calls a SvelteKit remote `prerender` function with `input` as an Effect
  * that succeeds with its output.
@@ -132,11 +132,11 @@ export function callPrerender<Output>(
 export function callPrerender<Input, Output>(
   prerender: RemotePrerenderFunction<Input, Output>,
   input: Input,
-): Effect.Effect<Output, unknown, never>;
+): Effect.Effect<Output, unknown>;
 export function callPrerender<Input, Output>(
   prerender: RemotePrerenderFunction<Input, Output>,
   input?: Input,
-): Effect.Effect<Output, unknown, never> {
+): Effect.Effect<Output, unknown> {
   // SAFETY: `input` is only absent in the no-input overload, which fixes
   // `Input` to `void`, so `prerender(undefined)` is the call that overload means.
   return fromRemotePromise(() => prerender(input as Input));
@@ -159,9 +159,7 @@ export type RemoteSubmit = () => PromiseLike<boolean> & {
  * SvelteKit's `HttpError`; a server-side `redirect()` navigates instead of
  * failing.
  */
-export function submitForm(
-  submit: () => PromiseLike<boolean>,
-): Effect.Effect<void, unknown, never> {
+export function submitForm(submit: () => PromiseLike<boolean>): Effect.Effect<void, unknown> {
   return Effect.asVoid(fromRemotePromise(() => submit()));
 }
 
@@ -177,7 +175,7 @@ export function submitForm(
 export function submitFormWithUpdates(
   submit: RemoteSubmit,
   ...queries: Array<RemoteQuery<any> | RemoteQueryOverride>
-): Effect.Effect<void, unknown, never> {
+): Effect.Effect<void, unknown> {
   return Effect.asVoid(fromRemotePromise(() => submit().updates(...queries)));
 }
 

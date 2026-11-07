@@ -81,7 +81,7 @@ export function useReactiveQuery<A, E, R>(
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = makeResult<A, E>();
-  let fiber: Fiber.Fiber<void, never> | null = null;
+  let fiber: Fiber.Fiber<void> | null = null;
 
   $effect(() => {
     // Get the current keys and effect: the reads these thunks make are the

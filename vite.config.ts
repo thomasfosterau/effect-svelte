@@ -59,15 +59,39 @@ export default defineConfig({
     ignorePatterns: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
     extends: [effect.configs.recommended],
     // oxlint's built-in plugins beyond its defaults (`import`, `promise`,
-    // `vitest`), so `correctness` and `perf` cover them too. `suspicious` is
-    // not on: it reports ~240 sites (mostly `no-unsafe-type-assertion`, the
-    // casts `casting-awareness` already surfaces), tracked in #211.
+    // `vitest`), so `correctness`, `perf` and `suspicious` cover them too.
     plugins: ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "vitest"],
     categories: {
       correctness: "error",
       perf: "error",
+      suspicious: "error",
     },
     rules: {
+      // Every `as` already gets `effect/casting-awareness` (below) and must
+      // carry a `// SAFETY:` comment (`effect/require-safety-comment-for-type-assertion`);
+      // a second report on the same casts adds nothing. Burning the casts
+      // down is #213's `casting-awareness` work.
+      "typescript/no-unsafe-type-assertion": "off",
+      // It asks for every closure that captures nothing from its immediate
+      // parent to move to the outermost scope it could live in. Here that
+      // means pulling test helpers out of the `describe` / `it` that owns them,
+      // the type-level probes in `tests/client/forms.test.ts` away from the
+      // expected-error directives they sit beside, no-op placeholders for a `let` that is reassigned,
+      // and an EventSource listener out of the step that registers it
+      // (`src/realtime.ts`): the scoping is deliberate at every site.
+      "unicorn/consistent-function-scoping": "off",
+      // `_tag` is Effect's discriminant (tagged errors, `Data.TaggedEnum`,
+      // `Exit`, `Cause` reasons), which tests and error mappers read.
+      "eslint/no-underscore-dangle": ["error", { allow: ["_tag"] }],
+      // `SvelteRuntime` and `SvelteKitRuntime` are published static-only
+      // namespaces; turning them into modules would break every consumer.
+      "typescript/no-extraneous-class": ["error", { allowStaticOnly: true }],
+      // Its fix (`<V>(value: V)` → `(value: unknown)`) is exactly what
+      // `effect/no-unknown-parameters` rejects: the single-use type parameter is
+      // that rule's own remedy for a passthrough predicate. The other sites are
+      // published caller-chosen-result signatures (`requested<Result>()`
+      // mirrors `$app/server`), where dropping the parameter breaks callers.
+      "typescript/no-unnecessary-type-parameters": "off",
       // `casting-awareness` is an awareness prompt, not a defect rule — it
       // fires on every `as`, including the narrowings Svelte's and SvelteKit's
       // types structurally require. Stays visible as a warning.

@@ -110,9 +110,9 @@ describe("makeServerRuntime", () => {
     });
     expect(await fetchResponse.text()).toBe("hello fetch / /api");
 
-    const handleError = runtime.handleError(({ error }) =>
+    const handleError = runtime.handleError(({ error: failure }) =>
       Effect.map(Greeter, (g) => ({
-        message: g.greet(error instanceof Error ? error.message : String(error)),
+        message: g.greet(failure instanceof Error ? failure.message : String(failure)),
       })),
     );
     const appError = await handleError({

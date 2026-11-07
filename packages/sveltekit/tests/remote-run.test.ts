@@ -12,7 +12,7 @@ type FormIssue = Parameters<FormErrorMapper>[1]["issue"];
 const runExitBare = <A>(effect: Effect.Effect<A, unknown, any>) =>
   // SAFETY: every effect passed in these tests (`Effect.succeed` / `Effect.fail`)
   // has no requirements, so providing none is sound.
-  Effect.runPromiseExit(effect as Effect.Effect<A, unknown, never>);
+  Effect.runPromiseExit(effect as Effect.Effect<A, unknown>);
 
 /** A resolver that runs effects with no services and no teardown. */
 const bareResolver = () => ({ runExit: runExitBare });

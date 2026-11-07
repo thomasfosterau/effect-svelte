@@ -77,7 +77,7 @@ export function toStream<A>(store: Readable<A>): Stream.Stream<A> {
  * ```
  */
 export function fromStream<A, E>(
-  stream: Stream.Stream<A, E, never>,
+  stream: Stream.Stream<A, E>,
   initial: A,
   runtime: RuntimeLike<never>,
 ): Readable<A> {

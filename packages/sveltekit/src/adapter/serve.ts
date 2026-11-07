@@ -29,7 +29,7 @@ export interface ServeOptions {
    * Additional layer merged into the server context, e.g. tracing or logging
    * layers.
    */
-  readonly layer?: Layer.Layer<never, never>;
+  readonly layer?: Layer.Layer<never>;
   /**
    * Disable the default request logger middleware.
    */

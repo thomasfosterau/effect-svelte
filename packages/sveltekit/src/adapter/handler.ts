@@ -198,7 +198,7 @@ export const makeHandler = (
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const context = yield* Effect.context<never>();
+    const context = yield* Effect.context();
 
     const serverDir = path.join(options.dir, "server");
 
@@ -265,7 +265,7 @@ export class SvelteKitServerError extends Schema.TaggedError<SvelteKitServerErro
  */
 export const makeHandlerWith = <RAssets = never>(
   options: SvelteKitNeutralHandlerOptions<RAssets>,
-): Effect.Effect<SvelteKitHttpApp<RAssets>, never, never> =>
+): Effect.Effect<SvelteKitHttpApp<RAssets>> =>
   Effect.gen(function* () {
     const config = yield* handlerConfig(options.envPrefix ?? "").pipe(Effect.orDie);
 
@@ -283,7 +283,7 @@ export const makeHandlerWith = <RAssets = never>(
     // The HTTP handler itself, evaluated once per request.
     return Effect.gen(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest;
-      const requestContext = yield* Effect.context<never>();
+      const requestContext = yield* Effect.context();
 
       const origin = originOf(request, config);
       const url = new URL(request.url, origin);
@@ -331,7 +331,7 @@ export const makeHandlerWith = <RAssets = never>(
  * ```
  */
 export const toWebHandler = <RAssets, E>(
-  app: Effect.Effect<SvelteKitHttpApp<RAssets>, never, never>,
+  app: Effect.Effect<SvelteKitHttpApp<RAssets>>,
   layer: Layer.Layer<RAssets, E>,
 ): ((request: Request) => Promise<Response>) => {
   // Build the app (server.init) and the per-request web handler once, lazily on

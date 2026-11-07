@@ -18,12 +18,12 @@ const isPending = (promise: Promise<unknown>): Promise<boolean> => {
 
 describe("resultToPromise", () => {
   it("resolves a Success with its value", async () => {
-    const promise = resultToPromise(AsyncResult.success<number, never>(42));
+    const promise = resultToPromise(AsyncResult.success<number>(42));
     await expect(promise).resolves.toBe(42);
   });
 
   it("resolves a waiting Success with the stale value (stale-while-revalidate)", async () => {
-    const stale = AsyncResult.waiting(AsyncResult.success<number, never>(7));
+    const stale = AsyncResult.waiting(AsyncResult.success<number>(7));
     const promise = resultToPromise(stale);
     await expect(promise).resolves.toBe(7);
   });
@@ -43,12 +43,12 @@ describe("resultToPromise", () => {
   });
 
   it("stays pending for the Initial state", async () => {
-    const promise = resultToPromise(AsyncResult.initial<number, never>());
+    const promise = resultToPromise(AsyncResult.initial<number>());
     expect(await isPending(promise)).toBe(true);
   });
 
   it("stays pending for a waiting Initial (no value yet)", async () => {
-    const promise = resultToPromise(AsyncResult.initial<number, never>(true));
+    const promise = resultToPromise(AsyncResult.initial<number>(true));
     expect(await isPending(promise)).toBe(true);
   });
 });

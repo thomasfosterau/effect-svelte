@@ -106,9 +106,9 @@ const validate = <I, O>(schema: StandardSchemaV1<I, O>, value: I): Effect.Effect
 const normalise = <O>(
   schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
 ): StandardSchemaV1<unknown, O> =>
-  // SAFETY: `toStandardValidator` wraps an Effect `Schema<O>` as a Standard
+  // `toStandardValidator` wraps an Effect `Schema<O>` as a Standard
   // Schema with output `O` and passes a Standard Schema through unchanged.
-  toStandardValidator(schema) as StandardSchemaV1<unknown, O>;
+  toStandardValidator(schema);
 
 /** A field's values: the sole value of a single-valued field, else all of them. */
 const fieldValue = (values: Array<string>): string | Array<string> => {
