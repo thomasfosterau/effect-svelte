@@ -24,18 +24,29 @@ export const isBareHandler = <V>(value: V): boolean =>
   Predicate.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
+ * True for an Effect `Schema` that carries no Standard Schema adapter of its
+ * own. Since effect 4.1, `Schema.toStandardSchemaV1` returns a `Schema` with an
+ * own `~standard` property, so `Schema.isSchema` alone would wrap it twice.
+ * The check is for an own property: an inherited adapter describes a parent
+ * class, not this schema.
+ */
+const isBareSchema = <V>(value: V): value is V & Schema.Top =>
+  Schema.isSchema(value) && !Object.hasOwn(value, "~standard");
+
+/**
  * Normalise a validator argument: a bare Effect `Schema` is wrapped with
  * `Schema.toStandardSchemaV1` so callers can pass it directly; a Standard Schema
- * or the `"unchecked"` marker passes through untouched.
+ * (an Effect `Schema` already converted included) or the `"unchecked"` marker
+ * passes through untouched.
  */
 export const toStandardValidator = <V>(value: V): StandardValidator<V> =>
   // SAFETY: the inner cast only drops `toStandardSchemaV1`'s compile-time
   // `DecodingServices: never` constraint (the runtime conversion is the same
   // for every schema, and the remote helpers' callers pass schemas whose
   // decoding needs no services); the outer one restates the branch
-  // `Schema.isSchema` took, which TypeScript cannot carry into the conditional
+  // `isBareSchema` took, which TypeScript cannot carry into the conditional
   // return type.
-  (Schema.isSchema(value)
+  (isBareSchema(value)
     ? (Schema.toStandardSchemaV1 as (schema: Schema.Top) => StandardSchemaV1)(value)
     : value) as StandardValidator<V>;
 
