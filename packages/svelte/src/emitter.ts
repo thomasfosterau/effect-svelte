@@ -75,37 +75,37 @@ const normaliseBufferSize = (bufferSize: number | undefined): number => {
  * ```
  */
 export class SignalEmitter<A> {
-  private _stream: Stream.Stream<A, never, never>;
+  private source: Stream.Stream<A>;
   /** Delivers each value to every connected run. Never shut down: it lives as long as the emitter. */
-  private _pubsub: PubSub.PubSub<A>;
+  private pubsub: PubSub.PubSub<A>;
   /** Values emitted while no run is connected, oldest first. */
-  private _buffer: Array<A> = [];
-  private _bufferSize: number;
+  private buffer: Array<A> = [];
+  private bufferSize: number;
   /** How many runs are connected. */
-  private _connected = 0;
+  private connected = 0;
 
   constructor(options: SignalEmitterOptions = {}) {
-    this._bufferSize = normaliseBufferSize(options.bufferSize);
+    this.bufferSize = normaliseBufferSize(options.bufferSize);
     // `PubSub.unbounded` is pure allocation (an `Effect.sync`), so this
     // cannot suspend and needs no runtime.
-    this._pubsub = Effect.runSync(PubSub.unbounded<A>());
+    this.pubsub = Effect.runSync(PubSub.unbounded<A>());
     // Subscribe first, then count this run as connected and take the buffer in
     // one synchronous step. A value emitted in between is buffered (no run was
     // counted yet) and taken with the rest; every later value is published to
     // the subscription. So nothing is lost, duplicated or reordered. Both are
     // released when the stream's scope closes; the count drops first, so from
     // then on values are buffered for the next run.
-    this._stream = Stream.unwrap(
+    this.source = Stream.unwrap(
       Effect.gen({ self: this }, function* () {
-        const subscription = yield* PubSub.subscribe(this._pubsub);
+        const subscription = yield* PubSub.subscribe(this.pubsub);
         const buffered = yield* Effect.acquireRelease(
           Effect.sync(() => {
-            this._connected += 1;
-            return this._buffer.splice(0);
+            this.connected += 1;
+            return this.buffer.splice(0);
           }),
           () =>
             Effect.sync(() => {
-              this._connected -= 1;
+              this.connected -= 1;
             }),
         );
         return Stream.concat(Stream.fromIterable(buffered), Stream.fromSubscription(subscription));
@@ -120,13 +120,13 @@ export class SignalEmitter<A> {
    * Synchronous, and needs no runtime.
    */
   emit(value: A): void {
-    if (this._connected > 0) {
-      PubSub.publishUnsafe(this._pubsub, value);
+    if (this.connected > 0) {
+      PubSub.publishUnsafe(this.pubsub, value);
       return;
     }
-    if (this._bufferSize <= 0) return;
-    if (this._buffer.length >= this._bufferSize) this._buffer.shift();
-    this._buffer.push(value);
+    if (this.bufferSize <= 0) return;
+    if (this.buffer.length >= this.bufferSize) this.buffer.shift();
+    this.buffer.push(value);
   }
 
   /**
@@ -134,7 +134,7 @@ export class SignalEmitter<A> {
    * Can be used in Effect pipelines, composed with other streams, etc.
    * Never fails and does not end on its own.
    */
-  get stream(): Stream.Stream<A, never, never> {
-    return this._stream;
+  get stream(): Stream.Stream<A> {
+    return this.source;
   }
 }

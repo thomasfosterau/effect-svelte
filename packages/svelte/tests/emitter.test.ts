@@ -21,7 +21,7 @@ import { SignalEmitter } from "../src/emitter.js";
  */
 const connect = (emitter: SignalEmitter<number>) =>
   Effect.gen(function* () {
-    const connectedRuns = (): number => emitter["_connected"];
+    const connectedRuns = (): number => emitter["connected"];
     const before = connectedRuns();
     const received = yield* Queue.unbounded<number>();
     const fiber = yield* Effect.forkChild(
@@ -179,7 +179,7 @@ describe("SignalEmitter", () => {
     // White-box: an unbounded PubSub retains a published message only while
     // some subscription has yet to take it, so a leaked subscription shows up
     // as a non-zero size.
-    const pubsub: PubSub.PubSub<number> = emitter["_pubsub"];
+    const pubsub: PubSub.PubSub<number> = emitter["pubsub"];
 
     const value = await Effect.runPromise(
       Effect.gen(function* () {

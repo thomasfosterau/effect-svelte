@@ -18,10 +18,7 @@ import {
  * Runs `effect` and asserts it failed on the error channel with exactly
  * `error` (a `Fail` reason), not as a defect (a `Die` reason).
  */
-const expectFailsWith = async <E>(
-  effect: Effect.Effect<unknown, E, never>,
-  error: E,
-): Promise<void> => {
+const expectFailsWith = async <E>(effect: Effect.Effect<unknown, E>, error: E): Promise<void> => {
   const exit = await Effect.runPromise(Effect.exit(effect));
   assert(Exit.isFailure(exit), "expected the effect to fail");
   expect(Cause.hasDies(exit.cause)).toBe(false);
@@ -37,10 +34,10 @@ const expectFailsWith = async <E>(
  * un-awaited (when only `.updates()` is) reports no unhandled rejection;
  * awaiting it still rejects.
  */
-const rejecting = <E>(error: E) => {
-  const base = Promise.reject(error);
+const rejecting = <E>(reason: E) => {
+  const base = Promise.reject(reason);
   base.catch(() => {});
-  return Object.assign(base, { updates: () => Promise.reject(error) });
+  return Object.assign(base, { updates: () => Promise.reject(reason) });
 };
 
 /** A remote-call result that resolves with `value`, recording `.updates()` calls. */

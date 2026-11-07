@@ -210,14 +210,14 @@ describe("makeLiveStream", () => {
 
 describe("useLiveStream promise mapping (unit)", () => {
   it("initial seed yields a synchronous non-waiting Success and a resolved promise", async () => {
-    const seeded = AsyncResult.success<ReadonlyArray<number>, never>([1, 2]);
+    const seeded = AsyncResult.success<ReadonlyArray<number>>([1, 2]);
     expect(AsyncResult.isSuccess(seeded)).toBe(true);
     expect(AsyncResult.isWaiting(seeded)).toBe(false);
     await expect(resultToPromise(seeded)).resolves.toEqual([1, 2]);
   });
 
   it("stays pending until the first emission, then resolves per emission", async () => {
-    const pending = AsyncResult.initial<number, never>(true);
+    const pending = AsyncResult.initial<number>(true);
     // No value yet → pending.
     const marker = Symbol("pending");
     const race = await Promise.race([
@@ -227,7 +227,7 @@ describe("useLiveStream promise mapping (unit)", () => {
     expect(race).toBe(marker);
 
     // First emission → resolved; a second emission produces a new resolved promise.
-    await expect(resultToPromise(AsyncResult.success<number, never>(1))).resolves.toBe(1);
-    await expect(resultToPromise(AsyncResult.success<number, never>(2))).resolves.toBe(2);
+    await expect(resultToPromise(AsyncResult.success<number>(1))).resolves.toBe(1);
+    await expect(resultToPromise(AsyncResult.success<number>(2))).resolves.toBe(2);
   });
 });

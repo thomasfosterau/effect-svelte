@@ -11,7 +11,7 @@ import { defer } from "../src/streamed-load.js";
 
 // JS/TS auto-flattens nested Promises, so `await Effect.runPromise(defer(eff))`
 // gives `A`, not `Promise<A>`. Wrapping in an object prevents the flattening.
-const runDefer = <A>(eff: Effect.Effect<A, never, never>): Promise<{ promise: Promise<A> }> =>
+const runDefer = <A>(eff: Effect.Effect<A>): Promise<{ promise: Promise<A> }> =>
   Effect.runPromise(
     Effect.gen(function* () {
       return { promise: yield* defer(eff) };

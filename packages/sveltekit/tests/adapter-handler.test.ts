@@ -89,7 +89,7 @@ const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
     return yield* HttpClient.HttpClient;
   });
 
-const run = <A, E>(effect: Effect.Effect<A, E, never>): Promise<A> => Effect.runPromise(effect);
+const run = <A, E>(effect: Effect.Effect<A, E>): Promise<A> => Effect.runPromise(effect);
 
 const withTestServer = <A, E>(
   effect: Effect.Effect<A, E, HttpClient.HttpClient | HttpServer.HttpServer>,

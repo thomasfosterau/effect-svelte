@@ -34,7 +34,7 @@ import * as Arr from "effect/Array";
 import * as Option from "effect/Option";
 import * as Rec from "effect/Record";
 import * as Result from "effect/Result";
-import MagicString from "magic-string";
+import { MagicString } from "magic-string";
 import type { Plugin } from "vite";
 
 const INTERNAL_IMPORT = "@thomasfosterau/effect-sveltekit/internal/auto";

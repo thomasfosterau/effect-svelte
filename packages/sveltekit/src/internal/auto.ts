@@ -36,7 +36,7 @@ import {
 } from "../app-runtime.js";
 import { causeToThrowable } from "./error.js";
 
-type AnyEffect = Effect.Effect<unknown, unknown, never>;
+type AnyEffect = Effect.Effect<unknown, unknown>;
 
 /**
  * The function form of a user export: called with the hook / load argument, it
@@ -138,9 +138,9 @@ export function wrapLoad<T extends LoadLikeInput>(
     // and per-request services stay in one place.
     // SAFETY: the effect is the user's `load`; its value is the page data,
     // which SvelteKit itself validates when the load resolves.
-    return universalRuntimeOf(runtimeMod).load(
-      () => result as Effect.Effect<LoadData, unknown, never>,
-    )(event);
+    return universalRuntimeOf(runtimeMod).load(() => result as Effect.Effect<LoadData, unknown>)(
+      event,
+    );
   };
   // SAFETY: see the `undefined` case above; a non-Effect result is the user's
   // own `load` return value, passed through unchanged.
@@ -148,7 +148,7 @@ export function wrapLoad<T extends LoadLikeInput>(
 }
 
 /** Shared implementation for server-side, event-based wrappers. */
-function wrapServerEvent<T extends LoadLikeInput>(value: T, runtimeMod?: RuntimeModule) {
+function wrapServerEvent(value: LoadLikeInput, runtimeMod?: RuntimeModule) {
   if (value === undefined) return undefined;
 
   return async (event: RequestEvent) => {
@@ -232,10 +232,10 @@ export function wrapHandle<T extends undefined | AnyEffect | UserFn<Parameters<H
     // Route through `handle` so the per-request runtime is installed on
     // `event.locals` for the rest of the request, like the explicit wrapper.
     // SAFETY: the effect is the user's `handle`, which resolves to the
-    // `Response`; the runtime's `Handle` is async, so it returns a promise.
-    return serverRuntimeOf(runtimeMod).handle(
-      () => result as Effect.Effect<Response, unknown, never>,
-    )(input) as Promise<Response>;
+    // `Response`.
+    return serverRuntimeOf(runtimeMod).handle(() => result as Effect.Effect<Response, unknown>)(
+      input,
+    );
   };
   // SAFETY: see the `undefined` case above.
   return handle as never;

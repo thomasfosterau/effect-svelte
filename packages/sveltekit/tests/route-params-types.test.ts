@@ -101,11 +101,11 @@ export function typeChecks() {
   // ── 2. wrappers accept SvelteKit's own base param type (no clamp) ──────────
   // A `LayoutServerLoad`-style annotation infers `Params` to SvelteKit's base;
   // the wrapper must accept it. This is the assignment that broke before.
-  const layoutLoad: ServerLoad<KitServerLoadParams> = serverLoad(({ params }) => {
+  const layoutLoad: ServerLoad = serverLoad(({ params }) => {
     expectTypeOf(params).toEqualTypeOf<KitServerLoadParams>();
     return Effect.succeed({ ok: true });
   });
-  expectTypeOf(layoutLoad).toMatchTypeOf<ServerLoad<KitServerLoadParams>>();
+  expectTypeOf(layoutLoad).toMatchTypeOf<ServerLoad>();
 
   // ── 3. concrete-param routes (`[id]`) still infer precisely ───────────────
   const idLoad: ServerLoad<RouteParams> = serverLoad(({ params }) => {

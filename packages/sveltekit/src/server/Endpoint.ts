@@ -70,9 +70,7 @@ type WebHandlerWithContext = (
  */
 export type RequestContext<RequestServices> = (
   request: Request,
-) =>
-  | Context.Context<RequestServices>
-  | Effect.Effect<Context.Context<RequestServices>, never, never>;
+) => Context.Context<RequestServices> | Effect.Effect<Context.Context<RequestServices>>;
 
 const resolveRequestContext = async <RequestServices>(
   request: Request,

@@ -32,7 +32,7 @@ afterEach(resetFormsStubs);
  * Runs `effect` and returns the single error it failed with on the error
  * channel (a `Fail` reason), asserting it did not die.
  */
-const failureOf = async <E>(effect: Effect.Effect<unknown, E, never>): Promise<E> => {
+const failureOf = async <E>(effect: Effect.Effect<unknown, E>): Promise<E> => {
   const exit = await Effect.runPromise(Effect.exit(effect));
   assert(Exit.isFailure(exit), "expected the effect to fail");
   expect(Cause.hasDies(exit.cause)).toBe(false);

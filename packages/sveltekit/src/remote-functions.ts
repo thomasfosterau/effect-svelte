@@ -145,10 +145,10 @@ const makeQuery = <Env>(run: Runner): QueryFn<Env> => {
 
     return AppServer.query(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
   };
-  // SAFETY: `impl` dispatches on the argument kind exactly as the `QueryFn`
+  // `impl` dispatches on the argument kind exactly as the `QueryFn`
   // overloads distinguish them (bare handler, or validator then handler), and
   // returns kit's `RemoteQueryFunction` for that overload.
-  return impl as QueryFn<Env>;
+  return impl;
 };
 
 /** The public shape of `query.batch`, parameterised by its handler env. */
@@ -178,9 +178,9 @@ const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> => {
     validate: Validator,
     fn: (args: In[]) => Effect.Effect<(arg: In, idx: number) => Out, unknown, Env>,
   ) => AppServer.query.batch(toKitValidator(validate), (args: In[]) => run(fn(args)));
-  // SAFETY: every `QueryBatchFn` overload is (validator, batch handler), which
+  // Every `QueryBatchFn` overload is (validator, batch handler), which
   // `impl` forwards to kit's `query.batch` unchanged.
-  return impl as QueryBatchFn<Env>;
+  return impl;
 };
 
 /** `$app/server`, with `requested` typed as a generic passthrough. */
@@ -300,10 +300,10 @@ const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> => {
       helpers.runForm(arg2(data, issue), { issue, data }),
     );
   };
-  // SAFETY: `impl` dispatches on the argument kind exactly as the `FormFn`
+  // `impl` dispatches on the argument kind exactly as the `FormFn`
   // overloads distinguish them (bare handler, or validator then handler), and
   // returns kit's `RemoteForm` for that overload.
-  return impl as FormFn<Env>;
+  return impl;
 };
 
 /** The public shape of the `command` helper, parameterised by its handler env. */
@@ -341,10 +341,10 @@ const makeCommand = <Env>(run: Runner): CommandFn<Env> => {
 
     return AppServer.command(toKitValidator(arg1), (arg: In) => run(arg2(arg)));
   };
-  // SAFETY: `impl` dispatches on the argument kind exactly as the `CommandFn`
+  // `impl` dispatches on the argument kind exactly as the `CommandFn`
   // overloads distinguish them (bare handler, or validator then handler), and
   // returns kit's `RemoteCommand` for that overload.
-  return impl as CommandFn<Env>;
+  return impl;
 };
 
 /** The public shape of the `prerender` helper, parameterised by its handler env. */
@@ -408,11 +408,11 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
 
     return AppServer.prerender(toKitValidator(arg1), (arg: In) => run(arg2(arg)), arg3);
   };
-  // SAFETY: `impl` dispatches on the argument kind exactly as the
+  // `impl` dispatches on the argument kind exactly as the
   // `PrerenderFn` overloads distinguish them (bare handler plus options, or
   // validator, handler and options), and returns kit's
   // `RemotePrerenderFunction` for that overload.
-  return impl as PrerenderFn<Env>;
+  return impl;
 };
 
 /**
