@@ -1,5 +1,12 @@
 # @thomasfosterau/effect-svelte
 
+## 0.6.2
+
+### Patch Changes
+
+- ed665bc: Declarations drop type arguments that restate their defaults (`Effect.Effect<A, E, never>` is now written `Effect.Effect<A, E>`), and `SignalEmitter`'s private fields lose their leading underscores. The types themselves are unchanged.
+- 7d1a6d0: Include `CHANGELOG.md` in the published tarball, so the release notes can be read from `node_modules`.
+
 ## 0.6.1
 
 ### Patch Changes
