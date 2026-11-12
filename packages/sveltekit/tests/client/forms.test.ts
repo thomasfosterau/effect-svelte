@@ -62,16 +62,26 @@ type AnyHandlerResult = Effect.Effect<void, unknown, unknown>;
  * handler parameters their types: `Handlers` is inferred from the argument, so
  * it admits a key `Forms.enhance` does not know.
  */
-type RejectedEnhance = <
-  Handlers extends {
-    readonly onSubmit?: ((input: SubmitInput) => AnyHandlerResult) | undefined;
-    readonly onResult?: ((options: Forms.ResultOptions) => AnyHandlerResult) | undefined;
-    readonly onError?: ((error: never) => AnyHandlerResult) | undefined;
-  },
->(
-  handlers: Handlers,
-  ...options: ReadonlyArray<unknown>
-) => RejectedSubmit;
+/** The handler keys `Forms.enhance` knows. */
+type HandlerName = "onSubmit" | "onResult" | "onError";
+
+interface RejectedEnhance {
+  <
+    Handlers extends {
+      readonly onSubmit?: (input: SubmitInput) => AnyHandlerResult;
+      readonly onResult?: (options: Forms.ResultOptions) => AnyHandlerResult;
+      readonly onError?: (error: never) => AnyHandlerResult;
+    },
+  >(
+    handlers: Handlers,
+    ...options: ReadonlyArray<unknown>
+  ): RejectedSubmit;
+  /** Handlers whose values are not functions at all, such as an explicit `undefined`. */
+  (
+    handlers: Partial<Readonly<Record<HandlerName, Forms.EnhanceHandlers[HandlerName]>>>,
+    ...options: ReadonlyArray<unknown>
+  ): RejectedSubmit;
+}
 const rejectedEnhance: RejectedEnhance = () =>
   assert.fail("only its type is used: orRejected() returns the function itself");
 
