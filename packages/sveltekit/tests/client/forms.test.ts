@@ -31,14 +31,11 @@ import type {
   SubmitInput,
 } from "../../src/forms.js";
 import { formsStubs, resetFormsStubs } from "./fixtures/app-forms.js";
+import { rejectedDeserialize, rejectedEnhance } from "./fixtures/rejected-calls.js";
+import type { Rejected, RejectedSubmit } from "./fixtures/rejected-calls.js";
 import { ForeignError } from "../fixtures/foreign-error.js";
 
 afterEach(resetFormsStubs);
-
-/** The type of a call that the function's own signature does not accept. */
-interface Rejected {
-  readonly rejected: true;
-}
 
 /**
  * `f` with `fallback`'s signatures as further overloads, so a call that `f`'s
@@ -51,50 +48,8 @@ interface Rejected {
 const orRejected = <F extends object, Fallback>(f: F, fallback: Fallback): F & Fallback =>
   Object.assign(f, fallback);
 
-/** What {@link enhanceOrRejected} returns for a call `Forms.enhance` rejects. */
-type RejectedSubmit = SubmitFunction & Rejected;
-
-/** A handler's result, whatever it fails with or requires. */
-type AnyHandlerResult = Effect.Effect<void, unknown, unknown>;
-
-/**
- * Accepts any handlers and options. The constraint only gives unannotated
- * handler parameters their types: `Handlers` is inferred from the argument, so
- * it admits a key `Forms.enhance` does not know.
- */
-/** The handler keys `Forms.enhance` knows. */
-type HandlerName = "onSubmit" | "onResult" | "onError";
-
-interface RejectedEnhance {
-  <
-    Handlers extends {
-      readonly onSubmit?: (input: SubmitInput) => AnyHandlerResult;
-      readonly onResult?: (options: Forms.ResultOptions) => AnyHandlerResult;
-      readonly onError?: (error: never) => AnyHandlerResult;
-    },
-  >(
-    handlers: Handlers,
-    ...options: ReadonlyArray<unknown>
-  ): RejectedSubmit;
-  /** Handlers whose values are not functions at all, such as an explicit `undefined`. */
-  (
-    handlers: Partial<Readonly<Record<HandlerName, Forms.EnhanceHandlers[HandlerName]>>>,
-    ...options: ReadonlyArray<unknown>
-  ): RejectedSubmit;
-}
-const rejectedEnhance: RejectedEnhance = () =>
-  assert.fail("only its type is used: orRejected() returns the function itself");
-
 /** `Forms.enhance`, typing a call it rejects as a {@link RejectedSubmit}. */
 const enhanceOrRejected = orRejected(Forms.enhance, rejectedEnhance);
-
-/** Accepts one or two type arguments of any type, as `Forms.deserialize` does not. */
-interface RejectedDeserialize {
-  <_Success>(result: string): Rejected;
-  <_Success, _Failure>(result: string): Rejected;
-}
-const rejectedDeserialize: RejectedDeserialize = () =>
-  assert.fail("only its type is used: orRejected() returns the function itself");
 
 /** `Forms.deserialize`, typing a call it rejects as {@link Rejected}. */
 const deserializeOrRejected = orRejected(Forms.deserialize, rejectedDeserialize);
@@ -204,6 +159,59 @@ describe("Forms.deserialize", () => {
   });
 });
 
+/** A `SubmitFunction` input whose `cancel()` is recorded in `cancelled`. */
+const submitInput = () => {
+  let cancelled = false;
+  // SAFETY: `Forms.enhance`'s submit phase only calls `cancel()` on its input
+  // (the handlers these tests run read nothing else), so the other fields of
+  // a `SubmitInput` are never touched.
+  const input = {
+    cancel: () => {
+      cancelled = true;
+    },
+  } as SubmitInput;
+  return { input, cancelled: () => cancelled };
+};
+
+/**
+ * Runs `submit` through both phases with `result`, as `use:enhance` would,
+ * resolving with how many times the result callback called SvelteKit's
+ * `update()`.
+ */
+const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
+  const callback = await submit(submitInput().input);
+  assert(P.isFunction(callback), "expected a result callback");
+  let updates = 0;
+  const update = () => {
+    updates++;
+    return Promise.resolve();
+  };
+  // SAFETY: `Forms.enhance`'s result phase reads only `result` and `update`
+  // from SvelteKit's callback options; the rest are never touched.
+  await callback({ result, update } as Parameters<typeof callback>[0]);
+  return updates;
+};
+
+/** An `onError` annotated with one error only: too narrow for handlers that fail with more. */
+const onApplyActionError = (error: Forms.ApplyActionError) => Effect.log(error.cause);
+
+// The generic wrappers of "lets a generic wrapper forward its options": type
+// probes for how a wrapper generic in `R` may hand its options to `Forms.enhance`.
+
+/** Forwards the handlers and the options tuple, runtime required exactly when `R` is. */
+const wrap = <R>(handlers: EnhanceHandlers<R>, ...options: EnhanceOptionsArgs<R>) =>
+  Forms.enhance(handlers, ...options);
+
+/** Forwards options that always carry a runtime. */
+const wrapWithRuntime = <R>(
+  handlers: EnhanceHandlers<R>,
+  options: { readonly runtime: EnhanceRuntime<R> },
+) => Forms.enhance(handlers, options);
+
+/** Forwards options whose runtime is optional, which `Forms.enhance` rejects. */
+const wrapOptional = <R>(handlers: EnhanceHandlers<R>, options: EnhanceOptions<R>) =>
+  enhanceOrRejected(handlers, options);
+
 describe("Forms.enhance with failing handlers", () => {
   class Invalid extends Schema.TaggedError<Invalid>()("Invalid", { field: Schema.String }) {}
 
@@ -214,39 +222,6 @@ describe("Forms.enhance with failing handlers", () => {
   interface OptionalOnResult {
     readonly onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>;
   }
-
-  /** A `SubmitFunction` input whose `cancel()` is recorded in `cancelled`. */
-  const submitInput = () => {
-    let cancelled = false;
-    // SAFETY: `Forms.enhance`'s submit phase only calls `cancel()` on its input
-    // (the handlers these tests run read nothing else), so the other fields of
-    // a `SubmitInput` are never touched.
-    const input = {
-      cancel: () => {
-        cancelled = true;
-      },
-    } as SubmitInput;
-    return { input, cancelled: () => cancelled };
-  };
-
-  /**
-   * Runs `submit` through both phases with `result`, as `use:enhance` would,
-   * resolving with how many times the result callback called SvelteKit's
-   * `update()`.
-   */
-  const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
-    const callback = await submit(submitInput().input);
-    assert(P.isFunction(callback), "expected a result callback");
-    let updates = 0;
-    const update = () => {
-      updates++;
-      return Promise.resolve();
-    };
-    // SAFETY: `Forms.enhance`'s result phase reads only `result` and `update`
-    // from SvelteKit's callback options; the rest are never touched.
-    await callback({ result, update } as Parameters<typeof callback>[0]);
-    return updates;
-  };
 
   it("routes a failed applyAction returned from onResult to onError", async () => {
     const cause = new ForeignError("navigation failed");
@@ -508,7 +483,6 @@ describe("Forms.enhance with failing handlers", () => {
 
     // A narrower annotation would let an error through unhandled: onError must
     // also accept Invalid.
-    const onApplyActionError = (error: Forms.ApplyActionError) => Effect.log(error.cause);
     expectTypeOf(
       enhanceOrRejected({
         onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
@@ -755,8 +729,6 @@ describe("Forms.enhance with failing handlers", () => {
     });
     const greeter = Context.make(Greeter, { hi: "hello" });
 
-    const wrap = <R>(handlers: EnhanceHandlers<R>, ...options: EnhanceOptionsArgs<R>) =>
-      Forms.enhance(handlers, ...options);
     wrap({ onSubmit: () => greet() }, { runtime: greeter });
     wrap({ onSubmit: () => Effect.void });
     // onSubmit requires Greeter, so a runtime is required.
@@ -764,16 +736,10 @@ describe("Forms.enhance with failing handlers", () => {
       orRejected(wrap, rejectedEnhance)({ onSubmit: () => greet() }),
     ).toEqualTypeOf<RejectedSubmit>();
 
-    const wrapWithRuntime = <R>(
-      handlers: EnhanceHandlers<R>,
-      options: { readonly runtime: EnhanceRuntime<R> },
-    ) => Forms.enhance(handlers, options);
     wrapWithRuntime({ onSubmit: () => greet() }, { runtime: greeter });
 
     // An optional runtime would let handlers that require services run without
     // one: EnhanceOptions<R> may omit the runtime, so the call is rejected.
-    const wrapOptional = <R>(handlers: EnhanceHandlers<R>, options: EnhanceOptions<R>) =>
-      enhanceOrRejected(handlers, options);
     expectTypeOf(wrapOptional).returns.toEqualTypeOf<RejectedSubmit>();
   });
 

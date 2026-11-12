@@ -210,17 +210,17 @@ describe("Errors.toSvelteKit", () => {
 
   it("reads a redirect target from `to`, else `location`, and only a string or URL", () => {
     const untyped = Errors.toSvelteKit({ Away: "redirect" });
-    const locationOf = <E extends Errors.Tagged>(failure: E) => {
-      const thrown = thrownBy(untyped, Cause.fail(failure));
+    const locationOf = (cause: Cause.Cause<Errors.Tagged>) => {
+      const thrown = thrownBy(untyped, cause);
       assert(isRedirect(thrown), "expected a redirect");
       return thrown.location;
     };
 
-    expect(locationOf({ _tag: "Away", to: "/a", location: "/b" })).toBe("/a");
-    expect(locationOf({ _tag: "Away", location: "/b" })).toBe("/b");
+    expect(locationOf(Cause.fail({ _tag: "Away", to: "/a", location: "/b" }))).toBe("/a");
+    expect(locationOf(Cause.fail({ _tag: "Away", location: "/b" }))).toBe("/b");
     // A nullish `to` is absent, so `location` is read.
-    expect(locationOf({ _tag: "Away", to: null, location: "/b" })).toBe("/b");
-    expect(locationOf({ _tag: "Away", to: undefined, location: "/b" })).toBe("/b");
+    expect(locationOf(Cause.fail({ _tag: "Away", to: null, location: "/b" }))).toBe("/b");
+    expect(locationOf(Cause.fail({ _tag: "Away", to: undefined, location: "/b" }))).toBe("/b");
     // A `URL` is a target too: it reaches SvelteKit's `redirect()`, which
     // refuses an absolute URL it was not told is external.
     const external = thrownBy(
@@ -230,7 +230,7 @@ describe("Errors.toSvelteKit", () => {
     expect(isRedirect(external)).toBe(false);
     expect(external).toBeInstanceOf(Error);
     // A `to` of another type is not a target, and `location` is not consulted.
-    expect(locationOf({ _tag: "Away", to: 42, location: "/b" })).toBe("/");
+    expect(locationOf(Cause.fail({ _tag: "Away", to: 42, location: "/b" }))).toBe("/");
   });
 
   it("treats a catalogue key set to undefined as absent", () => {
@@ -270,14 +270,15 @@ describe("Errors.toSvelteKit", () => {
   });
 });
 
-describe("Errors.toSvelteKit through makeRuntimeAdapter", () => {
-  const mockEvent = (): ServerLoadEvent => ({
-    ...TestRequestEvent(),
-    parent: () => Promise.resolve({}),
-    depends: () => undefined,
-    untrack: (fn) => fn(),
-  });
+/** A `ServerLoadEvent` for the adapter's `serverLoad`. */
+const mockEvent = (): ServerLoadEvent => ({
+  ...TestRequestEvent(),
+  parent: () => Promise.resolve({}),
+  depends: () => undefined,
+  untrack: (fn) => fn(),
+});
 
+describe("Errors.toSvelteKit through makeRuntimeAdapter", () => {
   it("makes the app's kit.ts a one-liner", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {
       translateError,

@@ -18,6 +18,45 @@ import { ForeignError } from "./fixtures/foreign-error.js";
 /** Yields to the event loop so forked reader fibers can drain pending values. */
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+/**
+ * A `writable` wrapped to count its live subscriptions, so the tests can see
+ * when `toStream` subscribes and unsubscribes.
+ */
+const countedWritable = (initial: number) => {
+  const store = writable(initial);
+  const counted = {
+    active: 0,
+    set: store.set,
+    subscribe(run: (value: number) => void) {
+      counted.active++;
+      const unsubscribe = store.subscribe(run);
+      return () => {
+        counted.active--;
+        unsubscribe();
+      };
+    },
+  };
+  return counted;
+};
+
+/**
+ * Forks a fiber that forwards every element of `stream` into a queue, so the
+ * test can take elements one at a time. The store pushes its current value
+ * from inside `subscribe`, so taking the first element proves the
+ * subscription is open — no sleep is needed to wait for the stream to start.
+ */
+const forward = <A>(stream: Stream.Stream<A>) =>
+  Effect.gen(function* () {
+    const received = yield* Queue.unbounded<A>();
+    const fiber = yield* Effect.forkChild(
+      Stream.runForEach(stream, (value) => Queue.offer(received, value)),
+    );
+    // Bounded only so a regression fails fast instead of hanging the suite;
+    // the passing path never waits on the clock.
+    const next = Queue.take(received).pipe(Effect.timeout("2 seconds"));
+    return { fiber, next };
+  });
+
 describe("Store.toStream", () => {
   it.effect("emits the store's current value on subscribe", () =>
     Effect.gen(function* () {
@@ -46,45 +85,6 @@ describe("Store.toStream", () => {
       expect(values).toEqual([1, 2, 3]);
     }),
   );
-
-  /**
-   * A `writable` wrapped to count its live subscriptions, so the tests can see
-   * when `toStream` subscribes and unsubscribes.
-   */
-  const countedWritable = (initial: number) => {
-    const store = writable(initial);
-    const counted = {
-      active: 0,
-      set: store.set,
-      subscribe(run: (value: number) => void) {
-        counted.active++;
-        const unsubscribe = store.subscribe(run);
-        return () => {
-          counted.active--;
-          unsubscribe();
-        };
-      },
-    };
-    return counted;
-  };
-
-  /**
-   * Forks a fiber that forwards every element of `stream` into a queue, so the
-   * test can take elements one at a time. The store pushes its current value
-   * from inside `subscribe`, so taking the first element proves the
-   * subscription is open — no sleep is needed to wait for the stream to start.
-   */
-  const forward = <A>(stream: Stream.Stream<A>) =>
-    Effect.gen(function* () {
-      const received = yield* Queue.unbounded<A>();
-      const fiber = yield* Effect.forkChild(
-        Stream.runForEach(stream, (value) => Queue.offer(received, value)),
-      );
-      // Bounded only so a regression fails fast instead of hanging the suite;
-      // the passing path never waits on the clock.
-      const next = Queue.take(received).pipe(Effect.timeout("2 seconds"));
-      return { fiber, next };
-    });
 
   it.live("delivers values the store pushes after the stream has started", () =>
     Effect.gen(function* () {

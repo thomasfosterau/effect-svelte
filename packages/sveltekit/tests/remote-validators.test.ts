@@ -7,6 +7,9 @@ import {
   toStandardValidator,
 } from "../src/internal/remote-validators.js";
 
+/** A bare remote-function handler: neither a schema nor the `"unchecked"` marker. */
+const handler = () => Effect.succeed(1);
+
 describe("toStandardValidator", () => {
   it("wraps a bare Effect Schema into a Standard Schema", () => {
     const schema = Schema.Struct({ name: Schema.String });
@@ -29,7 +32,6 @@ describe("toStandardValidator", () => {
   });
 
   it("passes a handler function through untouched", () => {
-    const handler = () => Effect.succeed(1);
     expect(toStandardValidator(handler)).toBe(handler);
   });
 });

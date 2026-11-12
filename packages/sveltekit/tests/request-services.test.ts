@@ -55,16 +55,17 @@ const run = <A, R>(effect: Effect.Effect<A, never, R>, layer: Layer.Layer<R>): E
 
 // ─── SvelteKitCookies via Layer ───────────────────────────────────────────────
 
-describe("SvelteKitCookies (mock layer)", () => {
-  const makeMockCookiesLayer = () =>
-    Layer.succeed(SvelteKitCookies, {
-      get: (name) => Effect.succeed(name === "session" ? "tok123" : undefined),
-      getAll: () => Effect.succeed([{ name: "session", value: "tok123" }]),
-      set: () => Effect.void,
-      delete: () => Effect.void,
-      serialize: (n, v) => Effect.succeed(`${n}=${v}`),
-    });
+/** A `SvelteKitCookies` layer with one stubbed cookie, `session=tok123`. */
+const makeMockCookiesLayer = () =>
+  Layer.succeed(SvelteKitCookies, {
+    get: (name) => Effect.succeed(name === "session" ? "tok123" : undefined),
+    getAll: () => Effect.succeed([{ name: "session", value: "tok123" }]),
+    set: () => Effect.void,
+    delete: () => Effect.void,
+    serialize: (n, v) => Effect.succeed(`${n}=${v}`),
+  });
 
+describe("SvelteKitCookies (mock layer)", () => {
   it.effect("get returns the stubbed value", () =>
     Effect.gen(function* () {
       const value = yield* run(

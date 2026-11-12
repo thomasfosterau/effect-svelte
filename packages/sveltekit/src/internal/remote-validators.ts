@@ -5,6 +5,7 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type * as Effect from "effect/Effect";
 import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 
@@ -19,8 +20,19 @@ import * as Schema from "effect/Schema";
 export const isStandardSchema = <V>(value: V): value is V & StandardSchemaV1 =>
   P.hasProperty(value, "~standard");
 
-/** True when the argument is the no-validation (bare handler) overload. */
-export const isBareHandler = <V>(value: V): boolean =>
+/** Any validator argument the remote helpers accept in the handler-with-validation position. */
+export type Validator = "unchecked" | StandardSchemaV1 | Schema.Top;
+
+/** A remote-function handler that takes no validated input. */
+export type EffectVoidHandler<Out, Env> = () => Effect.Effect<Out, unknown, Env>;
+
+/**
+ * True when the argument is the no-validation (bare handler) overload: a
+ * function that is neither kind of schema, which narrows it to the handler.
+ */
+export const isBareHandler = <Out, Env>(
+  value: Validator | EffectVoidHandler<Out, Env>,
+): value is EffectVoidHandler<Out, Env> =>
   P.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
