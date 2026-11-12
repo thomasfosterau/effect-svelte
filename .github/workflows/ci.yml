@@ -36,7 +36,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # pnpm + Node + a frozen-lockfile install; see the action's header.
+      # Vite+ (with its Node and pnpm) + a frozen-lockfile install; see the
+      # action's header.
       - uses: ./.github/actions/setup
 
       - name: Restore the Vite+ task cache
@@ -48,17 +49,17 @@ jobs:
             vp-task-v1-${{ runner.os }}-
 
       - name: Format and lint
-        run: pnpm exec vp check
+        run: vp check
 
       # svelte-check over every package's src, tests and .svelte fixtures.
       - name: Type gate
-        run: pnpm exec vp run check
+        run: vp run check
 
       - name: Unit tests
-        run: pnpm exec vp run -r test:unit
+        run: vp run -r test:unit
 
       - name: Build
-        run: pnpm exec vp run -r build
+        run: vp run -r build
 
       - name: Audit
         run: pnpm audit --audit-level high
