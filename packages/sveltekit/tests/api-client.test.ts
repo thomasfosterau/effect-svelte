@@ -14,6 +14,18 @@ const api = HttpApi.make("app").add(
   ),
 );
 
+/** Answers every request with a user whose `id` is a number, which `User` rejects. */
+const mismatchedFetch: typeof globalThis.fetch = () =>
+  Promise.resolve(
+    Response.json(
+      { id: 1 },
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    ),
+  );
+
 describe("apiClient", () => {
   it.effect("builds a typed client that encodes the request and decodes the response", () =>
     Effect.gen(function* () {
@@ -44,22 +56,11 @@ describe("apiClient", () => {
 
   it.effect("surfaces a decode failure when the response does not match the schema", () =>
     Effect.gen(function* () {
-      const fakeFetch: typeof globalThis.fetch = () =>
-        Promise.resolve(
-          Response.json(
-            { id: 1 },
-            {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            },
-          ),
-        );
-
       const exit = yield* Effect.exit(
         Effect.gen(function* () {
           const client = yield* apiClient(api, {
             baseUrl: "http://localhost/api",
-            fetch: fakeFetch,
+            fetch: mismatchedFetch,
           });
           return yield* client.users.get({ params: { id: "1" } });
         }),

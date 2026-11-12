@@ -72,14 +72,6 @@ export default defineConfig({
       // a second report on the same casts adds nothing. Burning the casts
       // down is #213's `casting-awareness` work.
       "typescript/no-unsafe-type-assertion": "off",
-      // It asks for every closure that captures nothing from its immediate
-      // parent to move to the outermost scope it could live in. Here that
-      // means pulling test helpers out of the `describe` / `it` that owns them,
-      // the type-level probes in `tests/client/forms.test.ts` away from the
-      // type assertions they sit beside, no-op placeholders for a `let` that is reassigned,
-      // and an EventSource listener out of the step that registers it
-      // (`src/realtime.ts`): the scoping is deliberate at every site.
-      "unicorn/consistent-function-scoping": "off",
       // `_tag` is Effect's discriminant (tagged errors, `Data.TaggedEnum`,
       // `Exit`, `Cause` reasons), which tests and error mappers read.
       "eslint/no-underscore-dangle": ["error", { allow: ["_tag"] }],

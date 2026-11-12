@@ -165,14 +165,15 @@ describe("decodeJson", () => {
 // decodeFormData
 // ---------------------------------------------------------------------------
 
+/** A POST event whose body is a form with `fields`. */
+const makeFormEvent = (fields: Record<string, string>): RequestEvent => {
+  const form = new FormData();
+  Arr.forEach(R.toEntries(fields), ([key, value]) => form.append(key, value));
+  return TestRequestEvent({ method: "POST", body: form });
+};
+
 describe("decodeFormData", () => {
   const SignupForm = Schema.Struct({ email: Schema.String });
-
-  const makeFormEvent = (fields: Record<string, string>): RequestEvent => {
-    const form = new FormData();
-    Arr.forEach(R.toEntries(fields), ([key, value]) => form.append(key, value));
-    return TestRequestEvent({ method: "POST", body: form });
-  };
 
   it.effect("parses and validates form data", () =>
     Effect.gen(function* () {

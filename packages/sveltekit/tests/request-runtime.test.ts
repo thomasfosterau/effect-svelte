@@ -164,6 +164,14 @@ describe("makeRuntimeAdapter wrappers", () => {
   });
 });
 
+/** Maps the domain errors of these tests to SvelteKit's `error()`; anything else is unexpected. */
+const translateError = (cause: Cause.Cause<unknown>): never => {
+  const failure = Cause.squash(cause);
+  if (failure instanceof NotFound) error(404, "not found");
+  if (failure instanceof ValidationFailure) error(400, `invalid:${failure.field}`);
+  throw new ForeignError("unexpected");
+};
+
 describe("boundary error translation", () => {
   it("passes SvelteKit redirect()/error() through by default", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty));
@@ -183,12 +191,6 @@ describe("boundary error translation", () => {
   });
 
   it("maps a domain error to SvelteKit control flow via translateError", async () => {
-    const translateError = (cause: Cause.Cause<unknown>): never => {
-      const failure = Cause.squash(cause);
-      if (failure instanceof NotFound) error(404, "not found");
-      if (failure instanceof ValidationFailure) error(400, `invalid:${failure.field}`);
-      throw new ForeignError("unexpected");
-    };
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {
       translateError,
     });

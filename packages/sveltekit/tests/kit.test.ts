@@ -312,18 +312,19 @@ describe("endpoint with Kit errors", () => {
 
 // ─── SvelteKit.translate → error(status, message, properties) ────────────────
 
+/** The `HttpError` that `SvelteKit.translate` throws for `failure`. */
+const translated = (failure: KitError): HttpError => {
+  const result = Result.try(() => SvelteKit.translate(Cause.fail(failure)));
+  assert(Result.isFailure(result), "SvelteKit.translate did not throw");
+  const thrown = result.failure;
+  assert(isHttpError(thrown), "expected an HttpError");
+  return thrown;
+};
+
 describe("SvelteKit.translate KitError bodies", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
-
-  const translated = (failure: KitError): HttpError => {
-    const result = Result.try(() => SvelteKit.translate(Cause.fail(failure)));
-    assert(Result.isFailure(result), "SvelteKit.translate did not throw");
-    const thrown = result.failure;
-    assert(isHttpError(thrown), "expected an HttpError");
-    return thrown;
-  };
 
   it("passes a string body as the message", () => {
     expect(translated(new KitError(404, "Not found")).body).toEqual({

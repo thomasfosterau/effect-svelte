@@ -187,10 +187,9 @@ export const RequestRuntime = {
     opts?: FromLayerPerRequestOptions,
   ): RequestRuntimeProvider<R, E> => ({
     run: (event) => {
-      const dispose = (rt: ManagedRuntime.ManagedRuntime<R, E>) => () => rt.dispose();
       const teardown = (rt: ManagedRuntime.ManagedRuntime<R, E>): Promise<void> => {
         if (opts?.afterResponse) {
-          opts.afterResponse(event, dispose(rt));
+          opts.afterResponse(event, () => rt.dispose());
           return Promise.resolve();
         }
         return rt.dispose();

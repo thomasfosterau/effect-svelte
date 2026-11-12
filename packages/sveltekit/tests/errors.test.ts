@@ -270,14 +270,15 @@ describe("Errors.toSvelteKit", () => {
   });
 });
 
-describe("Errors.toSvelteKit through makeRuntimeAdapter", () => {
-  const mockEvent = (): ServerLoadEvent => ({
-    ...TestRequestEvent(),
-    parent: () => Promise.resolve({}),
-    depends: () => undefined,
-    untrack: (fn) => fn(),
-  });
+/** A `ServerLoadEvent` for the adapter's `serverLoad`. */
+const mockEvent = (): ServerLoadEvent => ({
+  ...TestRequestEvent(),
+  parent: () => Promise.resolve({}),
+  depends: () => undefined,
+  untrack: (fn) => fn(),
+});
 
+describe("Errors.toSvelteKit through makeRuntimeAdapter", () => {
   it("makes the app's kit.ts a one-liner", async () => {
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {
       translateError,
