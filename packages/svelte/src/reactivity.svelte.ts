@@ -6,7 +6,7 @@ import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
 import { untrack } from "svelte";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import {
   emptyFiberSlot,
   interruptFiber,
@@ -84,10 +84,7 @@ export function useReactiveQuery<A, E, R>(
   effectFn: () => Effect.Effect<A, E, R>,
   options: UseReactiveOptions<R> = {},
 ): UseReactiveQueryReturn<A, E> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names plus `Reactivity`.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
+  const runtime = options.runtime ?? ambientRuntime<R | Reactivity.Reactivity>();
 
   const state = ResultState.makeResult<A, E>();
   let fiber: Option.Option<Fiber.Fiber<void>> = Option.none();
@@ -213,10 +210,7 @@ export function useReactiveStream<A, E, R>(
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
   options: UseReactiveOptions<R> = {},
 ): UseReactiveStreamReturn<A, E> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names plus `Reactivity`.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
+  const runtime = options.runtime ?? ambientRuntime<R | Reactivity.Reactivity>();
 
   // `streamState`'s subscriber starts the stream untracked (Svelte runs a
   // `createSubscriber` start callback under `untrack`), so the thunks are read
@@ -286,10 +280,7 @@ export function useReactiveMutation<A, E, R>(
   effect: Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>),
   options: UseReactiveOptions<R> = {},
 ): UseReactiveMutationReturn<A, E> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names plus `Reactivity`.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
+  const runtime = options.runtime ?? ambientRuntime<R | Reactivity.Reactivity>();
 
   const state = ResultState.makeResult<A, E>();
   const slot = emptyFiberSlot<A, E>();
@@ -414,10 +405,7 @@ export type ReactiveMutationReturn<A, E> = UseReactiveMutationReturn<A, E>;
 export function useInvalidateKeys(
   options: UseReactiveOptions<never> = {},
 ): (keys: ReadonlyArray<unknown>) => void {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied `Reactivity`.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<Reactivity.Reactivity>);
+  const runtime = options.runtime ?? ambientRuntime<Reactivity.Reactivity>();
   return (keys) => {
     // `Reactivity.invalidate` forks every matching query on the spot, so a
     // tracked call would subscribe the caller's `$effect` to whatever state

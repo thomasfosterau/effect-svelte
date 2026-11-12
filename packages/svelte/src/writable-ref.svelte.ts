@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
 import { refWriter } from "./internal/writable.js";
 
@@ -60,10 +60,7 @@ export function useWritableRef<A, R = never>(
   ref: SubscriptionRef.SubscriptionRef<A>,
   options: UseWritableRefOptions<R> = {},
 ): UseWritableRefReturn<A> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
+  const runtime = options.runtime ?? ambientRuntime<R>();
 
   // Read the initial value synchronously so it is available before (and during
   // SSR, instead of) the subscription.
