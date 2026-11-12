@@ -261,17 +261,11 @@ export default defineConfig({
       },
       // `unknown` where it is the honest type (#185). Each site below has no
       // narrower type to parse against or return:
-      // - a user module's export, a load / hook function whose result is an
-      //   Effect or a plain SvelteKit value until `Effect.isEffect` tells;
       // - the `Success` / `Failure` constraints of SvelteKit's own
       //   `ActionResult`, which a wrapper of `applyAction` / `deserialize`
       //   must accept unchanged;
       // - `enhance`'s type-level inference helpers, where `unknown` is the
       //   not-yet-inferred default every handler is assignable to.
-      {
-        files: ["packages/sveltekit/src/internal/auto.ts"],
-        rules: { "effect/no-unknown-returns": "off" },
-      },
       {
         files: ["packages/sveltekit/src/forms.ts"],
         rules: { "effect/no-unsafe-dictionary-type": "off" },
