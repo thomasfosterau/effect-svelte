@@ -15,7 +15,8 @@ import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { flushSync } from "svelte";
-import { afterEach, assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect } from "vite-plus/test";
 import * as State from "../../src/State.js";
 import {
   navigatingReads,
@@ -63,9 +64,9 @@ afterEach(() => {
 });
 
 describe("State.navigating", () => {
-  it("emits None when idle, Some while a navigation is in flight, then None again", async () => {
-    const seen = await Effect.runPromise(
-      Effect.scoped(
+  it.effect("emits None when idle, Some while a navigation is in flight, then None again", () =>
+    Effect.gen(function* () {
+      const seen = yield* Effect.scoped(
         Effect.gen(function* () {
           const { next } = yield* subscribe(State.navigating());
           const idle = yield* next;
@@ -77,20 +78,20 @@ describe("State.navigating", () => {
           const done = yield* next;
           return { idle, active, done };
         }),
-      ),
-    );
-    expect(Option.isNone(seen.idle)).toBe(true);
-    assert(Option.isSome(seen.active), "expected a navigation in flight");
-    const active = seen.active.value;
-    expect(active.type).toBe("link");
-    expect(active.to?.url.pathname).toBe("/about");
-    expect(active.delta).toBeNull();
-    expect(Option.isNone(seen.done)).toBe(true);
-  });
+      );
+      expect(Option.isNone(seen.idle)).toBe(true);
+      assert(Option.isSome(seen.active), "expected a navigation in flight");
+      const active = seen.active.value;
+      expect(active.type).toBe("link");
+      expect(active.to?.url.pathname).toBe("/about");
+      expect(active.delta).toBeNull();
+      expect(Option.isNone(seen.done)).toBe(true);
+    }),
+  );
 
-  it("disposes its watcher once interrupted", async () => {
-    const reads = await Effect.runPromise(
-      Effect.scoped(
+  it.effect("disposes its watcher once interrupted", () =>
+    Effect.gen(function* () {
+      const reads = yield* Effect.scoped(
         Effect.gen(function* () {
           const { next, fiber } = yield* subscribe(State.navigating());
           yield* next;
@@ -101,16 +102,16 @@ describe("State.navigating", () => {
           flushSync();
           return { before, after: navigatingReads() };
         }),
-      ),
-    );
-    expect(reads.after).toBe(reads.before);
-  });
+      );
+      expect(reads.after).toBe(reads.before);
+    }),
+  );
 });
 
 describe("State.updated", () => {
-  it("emits the current flag, then the new one when it flips", async () => {
-    const seen = await Effect.runPromise(
-      Effect.scoped(
+  it.effect("emits the current flag, then the new one when it flips", () =>
+    Effect.gen(function* () {
+      const seen = yield* Effect.scoped(
         Effect.gen(function* () {
           const { next } = yield* subscribe(State.updated());
           const before = yield* next;
@@ -118,44 +119,50 @@ describe("State.updated", () => {
           const after = yield* next;
           return [before, after];
         }),
-      ),
-    );
-    expect(seen).toEqual([false, true]);
-  });
+      );
+      expect(seen).toEqual([false, true]);
+    }),
+  );
 });
 
 describe("State.checkForUpdate", () => {
-  it("succeeds with updated.check()'s result", async () => {
-    setCheck(() => Promise.resolve(true));
-    await expect(Effect.runPromise(State.checkForUpdate())).resolves.toBe(true);
-  });
+  it.effect("succeeds with updated.check()'s result", () =>
+    Effect.gen(function* () {
+      setCheck(() => Promise.resolve(true));
+      expect(yield* State.checkForUpdate()).toBe(true);
+    }),
+  );
 
-  it("fails with UpdateCheckError when updated.check() rejects", async () => {
-    const boom = new Error("no window");
-    setCheck(() => Promise.reject(boom));
-    const exit = await Effect.runPromiseExit(State.checkForUpdate());
-    expect(exit).toEqual(Exit.fail(new State.UpdateCheckError({ cause: boom })));
-  });
+  it.effect("fails with UpdateCheckError when updated.check() rejects", () =>
+    Effect.gen(function* () {
+      const boom = new Error("no window");
+      setCheck(() => Promise.reject(boom));
+      const exit = yield* Effect.exit(State.checkForUpdate());
+      expect(exit).toEqual(Exit.fail(new State.UpdateCheckError({ cause: boom })));
+    }),
+  );
 });
 
 describe("State.CurrentPage", () => {
-  it("reads the current page through the layer", async () => {
-    setPage({ url: new URL("https://example.com/first"), status: 200 });
-    const read = Effect.gen(function* () {
-      const current = yield* State.CurrentPage;
-      return yield* current.get;
-    }).pipe(Effect.provide(State.CurrentPage.layer));
+  it.effect("reads the current page through the layer", () =>
+    Effect.gen(function* () {
+      setPage({ url: new URL("https://example.com/first"), status: 200 });
+      const read = Effect.gen(function* () {
+        const current = yield* State.CurrentPage;
+        return yield* current.get;
+      }).pipe(Effect.provide(State.CurrentPage.layer));
 
-    expect((await Effect.runPromise(read)).url.pathname).toBe("/first");
-    setPage({ url: new URL("https://example.com/second") });
-    const second = await Effect.runPromise(read);
-    expect(second.url.pathname).toBe("/second");
-    expect(second.status).toBe(200);
-  });
+      expect((yield* read).url.pathname).toBe("/first");
+      setPage({ url: new URL("https://example.com/second") });
+      const second = yield* read;
+      expect(second.url.pathname).toBe("/second");
+      expect(second.status).toBe(200);
+    }),
+  );
 
-  it("streams a fresh snapshot whenever the page changes", async () => {
-    const seen = await Effect.runPromise(
-      Effect.scoped(
+  it.effect("streams a fresh snapshot whenever the page changes", () =>
+    Effect.gen(function* () {
+      const seen = yield* Effect.scoped(
         Effect.gen(function* () {
           const current = yield* State.CurrentPage;
           const { next } = yield* subscribe(current.changes);
@@ -170,32 +177,30 @@ describe("State.CurrentPage", () => {
           const shallow = yield* next;
           return { first, navigated, shallow };
         }),
-      ).pipe(Effect.provide(State.CurrentPage.layer)),
-    );
-    expect(seen.first.url.pathname).toBe("/");
-    expect(seen.navigated).toMatchObject({ status: 404, error: "nope" });
-    expect(seen.navigated.url.pathname).toBe("/next");
-    expect(seen.shallow.state).toEqual({ modal: true });
-    expect(seen.shallow.url.pathname).toBe("/next");
-  });
+      ).pipe(Effect.provide(State.CurrentPage.layer));
+      expect(seen.first.url.pathname).toBe("/");
+      expect(seen.navigated).toMatchObject({ status: 404, error: "nope" });
+      expect(seen.navigated.url.pathname).toBe("/next");
+      expect(seen.shallow.state).toEqual({ modal: true });
+      expect(seen.shallow.url.pathname).toBe("/next");
+    }),
+  );
 
-  it("can be replaced with a test layer", async () => {
-    const snapshot = await Effect.runPromise(
-      Effect.gen(function* () {
+  it.effect("can be replaced with a test layer", () =>
+    Effect.gen(function* () {
+      const snapshot = yield* Effect.gen(function* () {
         const current = yield* State.CurrentPage;
         return yield* current.get;
-      }).pipe(Effect.provide(State.CurrentPage.layer)),
-    );
-    const fake = Layer.succeed(State.CurrentPage, {
-      get: Effect.succeed({ ...snapshot, url: new URL("https://example.com/fake") }),
-      changes: Stream.empty,
-    });
-    const page = await Effect.runPromise(
-      Effect.gen(function* () {
+      }).pipe(Effect.provide(State.CurrentPage.layer));
+      const fake = Layer.succeed(State.CurrentPage, {
+        get: Effect.succeed({ ...snapshot, url: new URL("https://example.com/fake") }),
+        changes: Stream.empty,
+      });
+      const page = yield* Effect.gen(function* () {
         const current = yield* State.CurrentPage;
         return yield* current.get;
-      }).pipe(Effect.provide(fake)),
-    );
-    expect(page.url.pathname).toBe("/fake");
-  });
+      }).pipe(Effect.provide(fake));
+      expect(page.url.pathname).toBe("/fake");
+    }),
+  );
 });

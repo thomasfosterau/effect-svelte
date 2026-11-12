@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -19,8 +20,10 @@ import { TestRequestEvent } from "../src/testing.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
-const run = <A, R>(effect: Effect.Effect<A, ParseError, R>, layer: Layer.Layer<R>): Promise<A> =>
-  Effect.runPromise(Effect.provide(effect, layer));
+const run = <A, R>(
+  effect: Effect.Effect<A, ParseError, R>,
+  layer: Layer.Layer<R>,
+): Effect.Effect<A, ParseError> => Effect.provide(effect, layer);
 
 const eventLayer = (event: RequestEvent): Layer.Layer<SvelteKitRequestEvent> =>
   Layer.succeed(SvelteKitRequestEvent, event);
@@ -32,35 +35,44 @@ const eventLayer = (event: RequestEvent): Layer.Layer<SvelteKitRequestEvent> =>
 describe("decodeParams", () => {
   const ItemParams = Schema.Struct({ id: Schema.String });
 
-  it("returns typed params when valid", async () => {
-    const event = TestRequestEvent({ params: { id: "abc" } });
-    const result = await run(decodeParams(ItemParams), eventLayer(event));
-    expect(result).toEqual({ id: "abc" });
-  });
+  it.effect("returns typed params when valid", () =>
+    Effect.gen(function* () {
+      const event = TestRequestEvent({ params: { id: "abc" } });
+      const result = yield* run(decodeParams(ItemParams), eventLayer(event));
+      expect(result).toEqual({ id: "abc" });
+    }),
+  );
 
-  it("fails with ParseError when params are invalid", async () => {
-    const event = TestRequestEvent({ params: {} });
-    const err = await Effect.runPromise(
-      Effect.provide(decodeParams(ItemParams).pipe(Effect.flip), eventLayer(event)),
-    );
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err._tag).toBe("ParseError");
-    expect(err.issues.length).toBeGreaterThan(0);
-  });
+  it.effect("fails with ParseError when params are invalid", () =>
+    Effect.gen(function* () {
+      const event = TestRequestEvent({ params: {} });
+      const err = yield* Effect.provide(
+        decodeParams(ItemParams).pipe(Effect.flip),
+        eventLayer(event),
+      );
+      expect(err).toBeInstanceOf(ParseError);
+      expect(err._tag).toBe("ParseError");
+      expect(err.issues.length).toBeGreaterThan(0);
+    }),
+  );
 
-  it("works with Standard Schema V1 validators directly", async () => {
-    const std = Schema.toStandardSchemaV1(ItemParams);
-    const event = TestRequestEvent({ params: { id: "hello" } });
-    const result = await run(decodeParams(std), eventLayer(event));
-    expect(result).toEqual({ id: "hello" });
-  });
+  it.effect("works with Standard Schema V1 validators directly", () =>
+    Effect.gen(function* () {
+      const std = Schema.toStandardSchemaV1(ItemParams);
+      const event = TestRequestEvent({ params: { id: "hello" } });
+      const result = yield* run(decodeParams(std), eventLayer(event));
+      expect(result).toEqual({ id: "hello" });
+    }),
+  );
 
-  it("coerces number params with NumberFromString", async () => {
-    const NumberParams = Schema.Struct({ page: Schema.NumberFromString });
-    const event = TestRequestEvent({ params: { page: "3" } });
-    const result = await run(decodeParams(NumberParams), eventLayer(event));
-    expect(result).toEqual({ page: 3 });
-  });
+  it.effect("coerces number params with NumberFromString", () =>
+    Effect.gen(function* () {
+      const NumberParams = Schema.Struct({ page: Schema.NumberFromString });
+      const event = TestRequestEvent({ params: { page: "3" } });
+      const result = yield* run(decodeParams(NumberParams), eventLayer(event));
+      expect(result).toEqual({ page: 3 });
+    }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -70,29 +82,36 @@ describe("decodeParams", () => {
 describe("decodeSearchParams", () => {
   const SearchQuery = Schema.Struct({ q: Schema.String });
 
-  it("returns typed search params when valid", async () => {
-    const event = TestRequestEvent({ url: new URL("http://localhost/?q=hello") });
-    const result = await run(decodeSearchParams(SearchQuery), eventLayer(event));
-    expect(result).toEqual({ q: "hello" });
-  });
+  it.effect("returns typed search params when valid", () =>
+    Effect.gen(function* () {
+      const event = TestRequestEvent({ url: new URL("http://localhost/?q=hello") });
+      const result = yield* run(decodeSearchParams(SearchQuery), eventLayer(event));
+      expect(result).toEqual({ q: "hello" });
+    }),
+  );
 
-  it("collapses single values to string, multiple to array", async () => {
-    const TaggedFields = Schema.Struct({
-      tag: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
-    });
-    const event = TestRequestEvent({ url: new URL("http://localhost/?tag=a&tag=b") });
-    const result = await run(decodeSearchParams(TaggedFields), eventLayer(event));
-    expect(result).toEqual({ tag: ["a", "b"] });
-  });
+  it.effect("collapses single values to string, multiple to array", () =>
+    Effect.gen(function* () {
+      const TaggedFields = Schema.Struct({
+        tag: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
+      });
+      const event = TestRequestEvent({ url: new URL("http://localhost/?tag=a&tag=b") });
+      const result = yield* run(decodeSearchParams(TaggedFields), eventLayer(event));
+      expect(result).toEqual({ tag: ["a", "b"] });
+    }),
+  );
 
-  it("fails with ParseError for missing required field", async () => {
-    const event = TestRequestEvent({ url: new URL("http://localhost/") });
-    const err = await Effect.runPromise(
-      Effect.provide(decodeSearchParams(SearchQuery).pipe(Effect.flip), eventLayer(event)),
-    );
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err.issues.length).toBeGreaterThan(0);
-  });
+  it.effect("fails with ParseError for missing required field", () =>
+    Effect.gen(function* () {
+      const event = TestRequestEvent({ url: new URL("http://localhost/") });
+      const err = yield* Effect.provide(
+        decodeSearchParams(SearchQuery).pipe(Effect.flip),
+        eventLayer(event),
+      );
+      expect(err).toBeInstanceOf(ParseError);
+      expect(err.issues.length).toBeGreaterThan(0);
+    }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -111,33 +130,35 @@ describe("decodeJson", () => {
       headers: { "Content-Type": "application/json" },
     });
 
-  it("parses and validates JSON body", async () => {
-    const event = makeJsonEvent({ name: "Alice" });
-    const result = await run(decodeJson(Person), eventLayer(event));
-    expect(result).toEqual({ name: "Alice" });
-  });
+  it.effect("parses and validates JSON body", () =>
+    Effect.gen(function* () {
+      const event = makeJsonEvent({ name: "Alice" });
+      const result = yield* run(decodeJson(Person), eventLayer(event));
+      expect(result).toEqual({ name: "Alice" });
+    }),
+  );
 
-  it("fails with ParseError when schema rejects", async () => {
-    const event = makeJsonEvent({ name: 123 });
-    const err = await Effect.runPromise(
-      Effect.provide(decodeJson(Person).pipe(Effect.flip), eventLayer(event)),
-    );
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err.issues.length).toBeGreaterThan(0);
-  });
+  it.effect("fails with ParseError when schema rejects", () =>
+    Effect.gen(function* () {
+      const event = makeJsonEvent({ name: 123 });
+      const err = yield* Effect.provide(decodeJson(Person).pipe(Effect.flip), eventLayer(event));
+      expect(err).toBeInstanceOf(ParseError);
+      expect(err.issues.length).toBeGreaterThan(0);
+    }),
+  );
 
-  it("fails with ParseError when body is not valid JSON", async () => {
-    const event = TestRequestEvent({
-      method: "POST",
-      body: "not json",
-      headers: { "Content-Type": "application/json" },
-    });
-    const err = await Effect.runPromise(
-      Effect.provide(decodeJson(Person).pipe(Effect.flip), eventLayer(event)),
-    );
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err.issues[0]?.message).toContain("Invalid JSON");
-  });
+  it.effect("fails with ParseError when body is not valid JSON", () =>
+    Effect.gen(function* () {
+      const event = TestRequestEvent({
+        method: "POST",
+        body: "not json",
+        headers: { "Content-Type": "application/json" },
+      });
+      const err = yield* Effect.provide(decodeJson(Person).pipe(Effect.flip), eventLayer(event));
+      expect(err).toBeInstanceOf(ParseError);
+      expect(err.issues[0]?.message).toContain("Invalid JSON");
+    }),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -153,30 +174,37 @@ describe("decodeFormData", () => {
     return TestRequestEvent({ method: "POST", body: form });
   };
 
-  it("parses and validates form data", async () => {
-    const event = makeFormEvent({ email: "user@example.com" });
-    const result = await run(decodeFormData(SignupForm), eventLayer(event));
-    expect(result).toEqual({ email: "user@example.com" });
-  });
+  it.effect("parses and validates form data", () =>
+    Effect.gen(function* () {
+      const event = makeFormEvent({ email: "user@example.com" });
+      const result = yield* run(decodeFormData(SignupForm), eventLayer(event));
+      expect(result).toEqual({ email: "user@example.com" });
+    }),
+  );
 
-  it("collapses multiple values for same key into array", async () => {
-    const TaggedFields = Schema.Struct({
-      tag: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
-    });
-    const form = new FormData();
-    form.append("tag", "x");
-    form.append("tag", "y");
-    const event = TestRequestEvent({ method: "POST", body: form });
-    const result = await run(decodeFormData(TaggedFields), eventLayer(event));
-    expect(result).toEqual({ tag: ["x", "y"] });
-  });
+  it.effect("collapses multiple values for same key into array", () =>
+    Effect.gen(function* () {
+      const TaggedFields = Schema.Struct({
+        tag: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
+      });
+      const form = new FormData();
+      form.append("tag", "x");
+      form.append("tag", "y");
+      const event = TestRequestEvent({ method: "POST", body: form });
+      const result = yield* run(decodeFormData(TaggedFields), eventLayer(event));
+      expect(result).toEqual({ tag: ["x", "y"] });
+    }),
+  );
 
-  it("fails with ParseError when schema rejects", async () => {
-    const event = makeFormEvent({});
-    const err = await Effect.runPromise(
-      Effect.provide(decodeFormData(SignupForm).pipe(Effect.flip), eventLayer(event)),
-    );
-    expect(err).toBeInstanceOf(ParseError);
-    expect(err.issues.length).toBeGreaterThan(0);
-  });
+  it.effect("fails with ParseError when schema rejects", () =>
+    Effect.gen(function* () {
+      const event = makeFormEvent({});
+      const err = yield* Effect.provide(
+        decodeFormData(SignupForm).pipe(Effect.flip),
+        eventLayer(event),
+      );
+      expect(err).toBeInstanceOf(ParseError);
+      expect(err.issues.length).toBeGreaterThan(0);
+    }),
+  );
 });

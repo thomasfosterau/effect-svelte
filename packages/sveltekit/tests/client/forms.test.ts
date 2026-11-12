@@ -15,7 +15,8 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
-import { afterEach, assert, describe, expect, expectTypeOf, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect, expectTypeOf } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
 import type {
   EnhanceHandlers,
@@ -32,65 +33,72 @@ afterEach(resetFormsStubs);
  * Runs `effect` and returns the single error it failed with on the error
  * channel (a `Fail` reason), asserting it did not die.
  */
-const failureOf = async <E>(effect: Effect.Effect<unknown, E>): Promise<E> => {
-  const exit = await Effect.runPromise(Effect.exit(effect));
-  assert(Exit.isFailure(exit), "expected the effect to fail");
-  expect(Cause.hasDies(exit.cause)).toBe(false);
-  expect(exit.cause.reasons).toHaveLength(1);
-  const [reason] = exit.cause.reasons;
-  assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
-  return reason.error;
-};
+const failureOf = <E>(effect: Effect.Effect<unknown, E>): Effect.Effect<E> =>
+  Effect.gen(function* () {
+    const exit = yield* Effect.exit(effect);
+    assert(Exit.isFailure(exit), "expected the effect to fail");
+    expect(Cause.hasDies(exit.cause)).toBe(false);
+    expect(exit.cause.reasons).toHaveLength(1);
+    const [reason] = exit.cause.reasons;
+    assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
+    return reason.error;
+  });
 
 const redirect: ActionResult = { type: "redirect", status: 303, location: "/done" };
 const success: ActionResult = { type: "success", status: 200, location: "/" };
 
 describe("Forms.applyAction", () => {
-  it("passes the result to SvelteKit and succeeds", async () => {
-    const calls: Array<unknown> = [];
-    formsStubs.applyAction = (result) => {
-      calls.push(result);
-      return Promise.resolve();
-    };
+  it.effect("passes the result to SvelteKit and succeeds", () =>
+    Effect.gen(function* () {
+      const calls: Array<unknown> = [];
+      formsStubs.applyAction = (result) => {
+        calls.push(result);
+        return Promise.resolve();
+      };
 
-    await Effect.runPromise(Forms.applyAction(redirect));
-    expect(calls).toEqual([redirect]);
-  });
+      yield* Forms.applyAction(redirect);
+      expect(calls).toEqual([redirect]);
+    }),
+  );
 
-  it("fails with an ApplyActionError carrying the rejection", async () => {
-    const cause = new Error("https://svelte.dev/e/kit/navigation_route_missing");
-    formsStubs.applyAction = () => Promise.reject(cause);
+  it.effect("fails with an ApplyActionError carrying the rejection", () =>
+    Effect.gen(function* () {
+      const cause = new Error("https://svelte.dev/e/kit/navigation_route_missing");
+      formsStubs.applyAction = () => Promise.reject(cause);
 
-    const error = await failureOf(Forms.applyAction(redirect));
-    expect(error).toMatchObject({ _tag: "ApplyActionError", cause });
-  });
+      const error = yield* failureOf(Forms.applyAction(redirect));
+      expect(error).toMatchObject({ _tag: "ApplyActionError", cause });
+    }),
+  );
 
-  it("fails with an ApplyActionError when SvelteKit throws synchronously", async () => {
+  it.effect("fails with an ApplyActionError when SvelteKit throws synchronously", () => {
     // Kit's server build throws synchronously (`server_api_unavailable`).
     const cause = new Error("Cannot call applyAction(...) on the server");
     formsStubs.applyAction = () => {
       throw cause;
     };
 
-    const error = await failureOf(Forms.applyAction(redirect));
-    expect(error).toMatchObject({ _tag: "ApplyActionError", cause });
+    return Effect.gen(function* () {
+      const error = yield* failureOf(Forms.applyAction(redirect));
+      expect(error).toMatchObject({ _tag: "ApplyActionError", cause });
+    });
   });
 
-  it("is an ApplyActionError instance that Effect.catchTag recovers from", async () => {
-    const cause = new Error("chunk failed to load");
-    formsStubs.applyAction = () => Promise.reject(cause);
+  it.effect("is an ApplyActionError instance that Effect.catchTag recovers from", () =>
+    Effect.gen(function* () {
+      const cause = new Error("chunk failed to load");
+      formsStubs.applyAction = () => Promise.reject(cause);
 
-    const error = await failureOf(Forms.applyAction(redirect));
-    expect(error).toBeInstanceOf(Forms.ApplyActionError);
+      const error = yield* failureOf(Forms.applyAction(redirect));
+      expect(error).toBeInstanceOf(Forms.ApplyActionError);
 
-    const recovered = await Effect.runPromise(
-      Forms.applyAction(redirect).pipe(
+      const recovered = yield* Forms.applyAction(redirect).pipe(
         Effect.as("applied"),
         Effect.catchTag("ApplyActionError", (e) => Effect.succeed(e.cause)),
-      ),
-    );
-    expect(recovered).toBe(cause);
-  });
+      );
+      expect(recovered).toBe(cause);
+    }),
+  );
 });
 
 describe("Forms.enhance with failing handlers", () => {

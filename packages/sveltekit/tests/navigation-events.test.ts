@@ -1,27 +1,31 @@
-import { assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { assert, describe, expect } from "vite-plus/test";
 import * as Effect from "effect/Effect";
 import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "../src/internal/navigation-events.js";
+import { runPromise } from "../src/internal/run.js";
 
 describe("registeredStream", () => {
-  it("yields events offered through the registered callback", async () => {
-    // Stand in for $app/navigation's beforeNavigate/afterNavigate registrar:
-    // capture the callback so the test can drive it directly.
-    let emit!: (value: number) => void;
-    const stream = registeredStream<number>((callback) => {
-      emit = callback;
-    });
+  it.effect("yields events offered through the registered callback", () =>
+    Effect.gen(function* () {
+      // Stand in for $app/navigation's beforeNavigate/afterNavigate registrar:
+      // capture the callback so the test can drive it directly.
+      let emit!: (value: number) => void;
+      const stream = registeredStream<number>((callback) => {
+        emit = callback;
+      });
 
-    // Offer a fixed number of events, then take exactly that many so the
-    // queue-backed stream terminates deterministically.
-    emit(1);
-    emit(2);
-    emit(3);
+      // Offer a fixed number of events, then take exactly that many so the
+      // queue-backed stream terminates deterministically.
+      emit(1);
+      emit(2);
+      emit(3);
 
-    const values = await Effect.runPromise(Stream.runCollect(Stream.take(stream, 3)));
-    expect(values).toEqual([1, 2, 3]);
-  });
+      const values = yield* Stream.runCollect(Stream.take(stream, 3));
+      expect(values).toEqual([1, 2, 3]);
+    }),
+  );
 
   it("registers the callback eagerly (synchronously)", () => {
     let registered = false;
@@ -45,7 +49,7 @@ describe("onNavigateWith", () => {
         Effect.sync(() => {
           seen.push(navigation);
         }),
-      Effect.runPromise,
+      runPromise,
     );
 
     await captured("/a");
@@ -62,7 +66,7 @@ describe("onNavigateWith", () => {
         captured = callback;
       },
       () => Effect.succeed(() => (cleanedUp = true)),
-      Effect.runPromise,
+      runPromise,
     );
 
     const cleanup = await captured("/a");

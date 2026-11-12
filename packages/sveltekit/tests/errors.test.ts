@@ -7,6 +7,7 @@ import { error, isHttpError, isRedirect, type ServerLoadEvent } from "@sveltejs/
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { afterEach, assert, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 import * as Errors from "../src/errors.js";
@@ -62,15 +63,14 @@ const translateError = Errors.toSvelteKit<AppError>({
 });
 
 /** What `translate` throws for `cause`; fails the test if it returns instead. */
-const thrownBy = (translate: (cause: Cause.Cause<unknown>) => never, cause: Cause.Cause<unknown>) =>
-  Effect.runSync(
-    Effect.flip(
-      Effect.try({
-        try: () => translate(cause),
-        catch: (thrown) => thrown,
-      }),
-    ),
-  );
+const thrownBy = (
+  translate: (cause: Cause.Cause<unknown>) => never,
+  cause: Cause.Cause<unknown>,
+) => {
+  const result = Result.try(() => translate(cause));
+  assert(Result.isFailure(result), "expected translate to throw");
+  return result.failure;
+};
 
 /** The SvelteKit `HttpError` that `translateError` throws for `cause`. */
 const httpErrorFor = (cause: Cause.Cause<unknown>) => {

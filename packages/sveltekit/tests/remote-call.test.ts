@@ -1,4 +1,5 @@
-import { assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { assert, describe, expect } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -18,15 +19,16 @@ import {
  * Runs `effect` and asserts it failed on the error channel with exactly
  * `error` (a `Fail` reason), not as a defect (a `Die` reason).
  */
-const expectFailsWith = async <E>(effect: Effect.Effect<unknown, E>, error: E): Promise<void> => {
-  const exit = await Effect.runPromise(Effect.exit(effect));
-  assert(Exit.isFailure(exit), "expected the effect to fail");
-  expect(Cause.hasDies(exit.cause)).toBe(false);
-  expect(exit.cause.reasons).toHaveLength(1);
-  const [reason] = exit.cause.reasons;
-  assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
-  expect(reason.error).toBe(error);
-};
+const expectFailsWith = <E>(effect: Effect.Effect<unknown, E>, error: E): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const exit = yield* Effect.exit(effect);
+    assert(Exit.isFailure(exit), "expected the effect to fail");
+    expect(Cause.hasDies(exit.cause)).toBe(false);
+    expect(exit.cause.reasons).toHaveLength(1);
+    const [reason] = exit.cause.reasons;
+    assert(reason !== undefined && Cause.isFailReason(reason), "expected a single Fail reason");
+    expect(reason.error).toBe(error);
+  });
 
 /**
  * A remote-call result that rejects with `error` when awaited, including via
@@ -50,43 +52,47 @@ const resolving = <A>(value: A, updatesCalls: Array<Array<unknown>> = []) =>
   });
 
 describe("Remote call helpers: success", () => {
-  it("callQuery / callCommand / callPrerender succeed with the remote output", async () => {
-    const inputs: Array<string | undefined> = [];
-    // SAFETY: `callQuery` / `callCommand` / `callPrerender` only call the remote
-    // function and await its result, which `resolving` provides.
-    const remote = ((input?: string) => {
-      inputs.push(input);
-      return resolving(42);
-    }) as never;
+  it.effect("callQuery / callCommand / callPrerender succeed with the remote output", () =>
+    Effect.gen(function* () {
+      const inputs: Array<string | undefined> = [];
+      // SAFETY: `callQuery` / `callCommand` / `callPrerender` only call the remote
+      // function and await its result, which `resolving` provides.
+      const remote = ((input?: string) => {
+        inputs.push(input);
+        return resolving(42);
+      }) as never;
 
-    expect(await Effect.runPromise(callQuery(remote))).toBe(42);
-    expect(await Effect.runPromise(callQuery(remote, "q"))).toBe(42);
-    expect(await Effect.runPromise(callCommand(remote))).toBe(42);
-    expect(await Effect.runPromise(callCommand(remote, "c"))).toBe(42);
-    expect(await Effect.runPromise(callPrerender(remote))).toBe(42);
-    expect(await Effect.runPromise(callPrerender(remote, "p"))).toBe(42);
-    expect(inputs).toEqual([undefined, "q", undefined, "c", undefined, "p"]);
-  });
+      expect(yield* callQuery(remote)).toBe(42);
+      expect(yield* callQuery(remote, "q")).toBe(42);
+      expect(yield* callCommand(remote)).toBe(42);
+      expect(yield* callCommand(remote, "c")).toBe(42);
+      expect(yield* callPrerender(remote)).toBe(42);
+      expect(yield* callPrerender(remote, "p")).toBe(42);
+      expect(inputs).toEqual([undefined, "q", undefined, "c", undefined, "p"]);
+    }),
+  );
 
-  it("callCommandWithUpdates / submitFormWithUpdates forward the queries to updates()", async () => {
-    const updatesCalls: Array<Array<unknown>> = [];
-    // SAFETY: the helpers only forward the queries to `.updates()`, which
-    // records them; no query member is ever read.
-    const query = { refresh: () => {} } as never;
+  it.effect("callCommandWithUpdates / submitFormWithUpdates forward the queries to updates()", () =>
+    Effect.gen(function* () {
+      const updatesCalls: Array<Array<unknown>> = [];
+      // SAFETY: the helpers only forward the queries to `.updates()`, which
+      // records them; no query member is ever read.
+      const query = { refresh: () => {} } as never;
 
-    // SAFETY: `callCommandWithUpdates` only calls the command and its
-    // `.updates()`, both of which `resolving` provides.
-    const command = ((input: string) => resolving(`ok:${input}`, updatesCalls)) as never;
-    expect(await Effect.runPromise(callCommandWithUpdates(command, "x", query))).toBe("ok:x");
+      // SAFETY: `callCommandWithUpdates` only calls the command and its
+      // `.updates()`, both of which `resolving` provides.
+      const command = ((input: string) => resolving(`ok:${input}`, updatesCalls)) as never;
+      expect(yield* callCommandWithUpdates(command, "x", query)).toBe("ok:x");
 
-    // SAFETY: `submitFormWithUpdates` only calls `submit` and its `.updates()`,
-    // both of which `resolving` provides.
-    const submit = (() => resolving(true, updatesCalls)) as never;
-    expect(await Effect.runPromise(submitFormWithUpdates(submit, query))).toBeUndefined();
-    expect(await Effect.runPromise(submitForm(() => resolving(true)))).toBeUndefined();
+      // SAFETY: `submitFormWithUpdates` only calls `submit` and its `.updates()`,
+      // both of which `resolving` provides.
+      const submit = (() => resolving(true, updatesCalls)) as never;
+      expect(yield* submitFormWithUpdates(submit, query)).toBeUndefined();
+      expect(yield* submitForm(() => resolving(true))).toBeUndefined();
 
-    expect(updatesCalls).toEqual([[query], [query]]);
-  });
+      expect(updatesCalls).toEqual([[query], [query]]);
+    }),
+  );
 });
 
 describe("Remote call helpers: a rejected call fails on the error channel", () => {
@@ -95,73 +101,91 @@ describe("Remote call helpers: a rejected call fails on the error channel", () =
   // (or its `.updates()`), both of which `rejecting` provides.
   const reject = (() => rejecting(boom)) as never;
 
-  it("callQuery (no input and with input)", async () => {
-    await expectFailsWith(callQuery(reject), boom);
-    await expectFailsWith(callQuery(reject, "input"), boom);
-  });
+  it.effect("callQuery (no input and with input)", () =>
+    Effect.gen(function* () {
+      yield* expectFailsWith(callQuery(reject), boom);
+      yield* expectFailsWith(callQuery(reject, "input"), boom);
+    }),
+  );
 
-  it("callCommand (no input and with input)", async () => {
-    await expectFailsWith(callCommand(reject), boom);
-    await expectFailsWith(callCommand(reject, "input"), boom);
-  });
+  it.effect("callCommand (no input and with input)", () =>
+    Effect.gen(function* () {
+      yield* expectFailsWith(callCommand(reject), boom);
+      yield* expectFailsWith(callCommand(reject, "input"), boom);
+    }),
+  );
 
-  it("callCommandWithUpdates", async () => {
-    // SAFETY: the query is only forwarded to `.updates()`, which rejects.
-    await expectFailsWith(callCommandWithUpdates(reject, "input", {} as never), boom);
-  });
+  it.effect("callCommandWithUpdates", () =>
+    Effect.gen(function* () {
+      // SAFETY: the query is only forwarded to `.updates()`, which rejects.
+      yield* expectFailsWith(callCommandWithUpdates(reject, "input", {} as never), boom);
+    }),
+  );
 
-  it("callPrerender (no input and with input)", async () => {
-    await expectFailsWith(callPrerender(reject), boom);
-    await expectFailsWith(callPrerender(reject, "input"), boom);
-  });
+  it.effect("callPrerender (no input and with input)", () =>
+    Effect.gen(function* () {
+      yield* expectFailsWith(callPrerender(reject), boom);
+      yield* expectFailsWith(callPrerender(reject, "input"), boom);
+    }),
+  );
 
-  it("submitForm and submitFormWithUpdates", async () => {
-    await expectFailsWith(submitForm(reject), boom);
-    // SAFETY: the query is only forwarded to `.updates()`, which rejects.
-    await expectFailsWith(submitFormWithUpdates(reject, {} as never), boom);
-  });
+  it.effect("submitForm and submitFormWithUpdates", () =>
+    Effect.gen(function* () {
+      yield* expectFailsWith(submitForm(reject), boom);
+      // SAFETY: the query is only forwarded to `.updates()`, which rejects.
+      yield* expectFailsWith(submitFormWithUpdates(reject, {} as never), boom);
+    }),
+  );
 
-  it("keeps a non-Error rejection reason as-is", async () => {
-    const reason = { status: 404, body: { message: "Not found" } };
-    // SAFETY: `callQuery` only calls the function and awaits the rejection.
-    await expectFailsWith(callQuery((() => rejecting(reason)) as never), reason);
-  });
+  it.effect("keeps a non-Error rejection reason as-is", () =>
+    Effect.gen(function* () {
+      const reason = { status: 404, body: { message: "Not found" } };
+      // SAFETY: `callQuery` only calls the function and awaits the rejection.
+      yield* expectFailsWith(callQuery((() => rejecting(reason)) as never), reason);
+    }),
+  );
 
-  it("maps a synchronous throw from the remote function onto the error channel", async () => {
+  it.effect("maps a synchronous throw from the remote function onto the error channel", () => {
     // SAFETY: the function throws before any remote-function member is read.
     const throws = (() => {
       throw boom;
     }) as never;
-    await expectFailsWith(callQuery(throws), boom);
-    await expectFailsWith(callCommand(throws, "input"), boom);
-    await expectFailsWith(submitForm(throws), boom);
+    return Effect.gen(function* () {
+      yield* expectFailsWith(callQuery(throws), boom);
+      yield* expectFailsWith(callCommand(throws, "input"), boom);
+      yield* expectFailsWith(submitForm(throws), boom);
+    });
   });
 
-  it("reaches an Effect.catch handler", async () => {
-    const recovered = await Effect.runPromise(
-      callQuery(reject).pipe(Effect.catchIf(P.isError, (error) => Effect.succeed(error))),
-    );
-    expect(recovered).toBe(boom);
-  });
+  it.effect("reaches an Effect.catch handler", () =>
+    Effect.gen(function* () {
+      const recovered = yield* callQuery(reject).pipe(
+        Effect.catchIf(P.isError, (error) => Effect.succeed(error)),
+      );
+      expect(recovered).toBe(boom);
+    }),
+  );
 });
 
 describe("liveQueryStream", () => {
-  it("consumes a RemoteLiveQuery (AsyncIterable) as a Stream", async () => {
-    // SAFETY: `liveQueryStream` only iterates the live query, which this
-    // async iterable supports.
-    const live = {
-      async *[Symbol.asyncIterator]() {
-        yield 1;
-        yield 2;
-        yield 3;
-      },
-    } as never;
+  it.effect("consumes a RemoteLiveQuery (AsyncIterable) as a Stream", () =>
+    Effect.gen(function* () {
+      // SAFETY: `liveQueryStream` only iterates the live query, which this
+      // async iterable supports.
+      const live = {
+        async *[Symbol.asyncIterator]() {
+          yield 1;
+          yield 2;
+          yield 3;
+        },
+      } as never;
 
-    const values = await Effect.runPromise(Stream.runCollect(liveQueryStream<number>(live)));
-    expect(values).toEqual([1, 2, 3]);
-  });
+      const values = yield* Stream.runCollect(liveQueryStream<number>(live));
+      expect(values).toEqual([1, 2, 3]);
+    }),
+  );
 
-  it("surfaces iteration errors on the Stream's error channel", async () => {
+  it.effect("surfaces iteration errors on the Stream's error channel", () => {
     const boom = new Error("boom");
     // SAFETY: `liveQueryStream` only iterates the live query, which this
     // async iterable supports.
@@ -172,7 +196,9 @@ describe("liveQueryStream", () => {
       },
     } as never;
 
-    const exit = await Effect.runPromise(Effect.exit(Stream.runCollect(liveQueryStream(live))));
-    expect(exit._tag).toBe("Failure");
+    return Effect.gen(function* () {
+      const exit = yield* Effect.exit(Stream.runCollect(liveQueryStream(live)));
+      expect(exit._tag).toBe("Failure");
+    });
   });
 });

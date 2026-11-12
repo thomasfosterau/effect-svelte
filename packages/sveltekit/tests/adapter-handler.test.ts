@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 import type { Server, ServerInitOptions } from "@sveltejs/kit";
 import * as HttpBody from "effect/http/HttpBody";
 import * as HttpClient from "effect/http/HttpClient";
@@ -89,136 +90,152 @@ const testClient = (options?: Partial<SvelteKitHandlerOptions>) =>
     return yield* HttpClient.HttpClient;
   });
 
-const run = <A, E>(effect: Effect.Effect<A, E>): Promise<A> => Effect.runPromise(effect);
-
 const withTestServer = <A, E>(
   effect: Effect.Effect<A, E, HttpClient.HttpClient | HttpServer.HttpServer>,
   options?: Partial<SvelteKitHandlerOptions>,
-): Promise<A> =>
-  run(
-    Effect.gen(function* () {
-      const client = yield* testClient(options);
-      return yield* Effect.provideService(effect, HttpClient.HttpClient, client);
-    }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest)),
-  );
+) =>
+  Effect.gen(function* () {
+    const client = yield* testClient(options);
+    return yield* Effect.provideService(effect, HttpClient.HttpClient, client);
+  }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
 
 describe("makeHandler", () => {
-  it("initialises the SvelteKit server with the provided env", async () => {
-    await withTestServer(Effect.void);
-    expect(lastInitOptions?.env).toEqual({ FROM_TEST: "yes" });
-  });
+  it.live("initialises the SvelteKit server with the provided env", () =>
+    Effect.gen(function* () {
+      yield* withTestServer(Effect.void);
+      expect(lastInitOptions?.env).toEqual({ FROM_TEST: "yes" });
+    }),
+  );
 
-  it("serves static client assets", async () => {
-    const { status, text } = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/favicon.png");
-        return { status: response.status, text: yield* response.text };
-      }),
-    );
-    expect(status).toBe(200);
-    expect(text).toBe("fake-favicon");
-  });
+  it.live("serves static client assets", () =>
+    Effect.gen(function* () {
+      const { status, text } = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/favicon.png");
+          return { status: response.status, text: yield* response.text };
+        }),
+      );
+      expect(status).toBe(200);
+      expect(text).toBe("fake-favicon");
+    }),
+  );
 
-  it("serves immutable assets with long-lived cache headers", async () => {
-    const headers = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/_app/immutable/chunks/app.js");
-        expect(response.status).toBe(200);
-        return response.headers;
-      }),
-    );
-    expect(headers["cache-control"]).toBe("public, max-age=31536000, immutable");
-  });
+  it.live("serves immutable assets with long-lived cache headers", () =>
+    Effect.gen(function* () {
+      const headers = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/_app/immutable/chunks/app.js");
+          expect(response.status).toBe(200);
+          return response.headers;
+        }),
+      );
+      expect(headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    }),
+  );
 
-  it("does not set immutable cache headers on regular assets", async () => {
-    const headers = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/favicon.png");
-        return response.headers;
-      }),
-    );
-    expect(headers["cache-control"]).toBeUndefined();
-  });
+  it.live("does not set immutable cache headers on regular assets", () =>
+    Effect.gen(function* () {
+      const headers = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/favicon.png");
+          return response.headers;
+        }),
+      );
+      expect(headers["cache-control"]).toBeUndefined();
+    }),
+  );
 
-  it("serves prerendered pages", async () => {
-    const text = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/about");
-        expect(response.status).toBe(200);
-        return yield* response.text;
-      }),
-    );
-    expect(text).toBe("<html>about</html>");
-  });
+  it.live("serves prerendered pages", () =>
+    Effect.gen(function* () {
+      const text = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/about");
+          expect(response.status).toBe(200);
+          return yield* response.text;
+        }),
+      );
+      expect(text).toBe("<html>about</html>");
+    }),
+  );
 
-  it("serves the prerendered root page", async () => {
-    const text = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/");
-        return yield* response.text;
-      }),
-    );
-    expect(text).toBe("<html>home</html>");
-  });
+  it.live("serves the prerendered root page", () =>
+    Effect.gen(function* () {
+      const text = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/");
+          return yield* response.text;
+        }),
+      );
+      expect(text).toBe("<html>home</html>");
+    }),
+  );
 
-  it("serves prerendered directory-style pages", async () => {
-    const text = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/blog/");
-        return yield* response.text;
-      }),
-    );
-    expect(text).toBe("<html>blog</html>");
-  });
+  it.live("serves prerendered directory-style pages", () =>
+    Effect.gen(function* () {
+      const text = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/blog/");
+          return yield* response.text;
+        }),
+      );
+      expect(text).toBe("<html>blog</html>");
+    }),
+  );
 
-  it("falls back to SSR for non-prerendered routes", async () => {
-    const body = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/dynamic/route?q=1");
-        expect(response.status).toBe(200);
-        expect(response.headers["x-ssr"]).toBe("1");
-        return yield* decodeEchoedRequest(yield* response.json);
-      }),
-    );
-    expect(body.url).toMatch(/\/dynamic\/route\?q=1$/);
-    expect(body.method).toBe("GET");
-  });
+  it.live("falls back to SSR for non-prerendered routes", () =>
+    Effect.gen(function* () {
+      const body = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/dynamic/route?q=1");
+          expect(response.status).toBe(200);
+          expect(response.headers["x-ssr"]).toBe("1");
+          return yield* decodeEchoedRequest(yield* response.json);
+        }),
+      );
+      expect(body.url).toMatch(/\/dynamic\/route\?q=1$/);
+      expect(body.method).toBe("GET");
+    }),
+  );
 
-  it("forwards request bodies to SSR", async () => {
-    const body = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.post("/api/things", {
-          body: HttpBody.text("hello from the test"),
-        });
-        return yield* decodeEchoedRequest(yield* response.json);
-      }),
-    );
-    expect(body.body).toBe("hello from the test");
-    expect(body.method).toBe("POST");
-  });
+  it.live("forwards request bodies to SSR", () =>
+    Effect.gen(function* () {
+      const body = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.post("/api/things", {
+            body: HttpBody.text("hello from the test"),
+          });
+          return yield* decodeEchoedRequest(yield* response.json);
+        }),
+      );
+      expect(body.body).toBe("hello from the test");
+      expect(body.method).toBe("POST");
+    }),
+  );
 
-  it("provides the client address to SSR", async () => {
-    const body = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/whoami");
-        return yield* decodeEchoedRequest(yield* response.json);
-      }),
-    );
-    expect(body.clientAddress).toMatch(/127\.0\.0\.1|::1|::ffff/);
-  });
+  it.live("provides the client address to SSR", () =>
+    Effect.gen(function* () {
+      const body = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          const response = yield* client.get("/whoami");
+          return yield* decodeEchoedRequest(yield* response.json);
+        }),
+      );
+      expect(body.clientAddress).toMatch(/127\.0\.0\.1|::1|::ffff/);
+    }),
+  );
 
-  it("respects the ORIGIN configuration for SSR request URLs", async () => {
-    const body = await run(
-      Effect.gen(function* () {
+  it.live("respects the ORIGIN configuration for SSR request URLs", () =>
+    Effect.gen(function* () {
+      const body = yield* Effect.gen(function* () {
         const client = yield* testClient();
         const response = yield* client.get("/some/page");
         return yield* decodeEchoedRequest(yield* response.json);
@@ -229,22 +246,24 @@ describe("makeHandler", () => {
           ConfigProvider.ConfigProvider,
           ConfigProvider.fromEnv({ env: { ORIGIN: "https://example.com" } }),
         ),
-      ),
-    );
-    expect(body.url).toBe("https://example.com/some/page");
-  });
+      );
+      expect(body.url).toBe("https://example.com/some/page");
+    }),
+  );
 
-  it("does not allow path traversal outside the client directory", async () => {
-    const response = await withTestServer(
-      Effect.gen(function* () {
-        const client = yield* HttpClient.HttpClient;
-        // URL-encoded `../../server/asset.txt`; a normalising client would
-        // collapse the path, so encode the dots to hit the server raw.
-        return yield* client.get("/%2e%2e/%2e%2e/server/asset.txt");
-      }),
-    );
-    // Must not return the file contents: it falls through to SSR (which echoes
-    // JSON) rather than serving the file outside of client/.
-    expect(response.headers["x-ssr"]).toBe("1");
-  });
+  it.live("does not allow path traversal outside the client directory", () =>
+    Effect.gen(function* () {
+      const response = yield* withTestServer(
+        Effect.gen(function* () {
+          const client = yield* HttpClient.HttpClient;
+          // URL-encoded `../../server/asset.txt`; a normalising client would
+          // collapse the path, so encode the dots to hit the server raw.
+          return yield* client.get("/%2e%2e/%2e%2e/server/asset.txt");
+        }),
+      );
+      // Must not return the file contents: it falls through to SSR (which echoes
+      // JSON) rather than serving the file outside of client/.
+      expect(response.headers["x-ssr"]).toBe("1");
+    }),
+  );
 });

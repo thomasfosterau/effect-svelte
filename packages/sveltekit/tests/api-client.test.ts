@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 import * as Effect from "effect/Effect";
 import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
@@ -14,47 +15,47 @@ const api = HttpApi.make("app").add(
 );
 
 describe("apiClient", () => {
-  it("builds a typed client that encodes the request and decodes the response", async () => {
-    const seen: Array<string> = [];
-    const fakeFetch: typeof globalThis.fetch = (input) => {
-      seen.push(P.isString(input) ? input : input instanceof URL ? input.href : input.url);
-      return Promise.resolve(
-        Response.json(
-          { id: "1", name: "Ada" },
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        ),
-      );
-    };
+  it.effect("builds a typed client that encodes the request and decodes the response", () =>
+    Effect.gen(function* () {
+      const seen: Array<string> = [];
+      const fakeFetch: typeof globalThis.fetch = (input) => {
+        seen.push(P.isString(input) ? input : input instanceof URL ? input.href : input.url);
+        return Promise.resolve(
+          Response.json(
+            { id: "1", name: "Ada" },
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          ),
+        );
+      };
 
-    const user = await Effect.runPromise(
-      Effect.gen(function* () {
+      const user = yield* Effect.gen(function* () {
         const client = yield* apiClient(api, { baseUrl: "http://localhost/api", fetch: fakeFetch });
         return yield* client.users.get({ params: { id: "1" } });
-      }),
-    );
+      });
 
-    expect(user).toEqual({ id: "1", name: "Ada" });
-    // The request was sent to the configured base URL + endpoint path.
-    expect(seen[0]).toBe("http://localhost/api/users/1");
-  });
+      expect(user).toEqual({ id: "1", name: "Ada" });
+      // The request was sent to the configured base URL + endpoint path.
+      expect(seen[0]).toBe("http://localhost/api/users/1");
+    }),
+  );
 
-  it("surfaces a decode failure when the response does not match the schema", async () => {
-    const fakeFetch: typeof globalThis.fetch = () =>
-      Promise.resolve(
-        Response.json(
-          { id: 1 },
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        ),
-      );
+  it.effect("surfaces a decode failure when the response does not match the schema", () =>
+    Effect.gen(function* () {
+      const fakeFetch: typeof globalThis.fetch = () =>
+        Promise.resolve(
+          Response.json(
+            { id: 1 },
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          ),
+        );
 
-    const exit = await Effect.runPromise(
-      Effect.exit(
+      const exit = yield* Effect.exit(
         Effect.gen(function* () {
           const client = yield* apiClient(api, {
             baseUrl: "http://localhost/api",
@@ -62,9 +63,9 @@ describe("apiClient", () => {
           });
           return yield* client.users.get({ params: { id: "1" } });
         }),
-      ),
-    );
+      );
 
-    expect(exit._tag).toBe("Failure");
-  });
+      expect(exit._tag).toBe("Failure");
+    }),
+  );
 });
