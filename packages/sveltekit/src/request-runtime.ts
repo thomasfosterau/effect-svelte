@@ -56,7 +56,7 @@ import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as R from "effect/Record";
 import * as Result from "effect/Result";
-import type { SvelteRouteParams } from "./internal/route-params.js";
+import type { SvelteRouteId, SvelteRouteParams } from "./internal/route-params.js";
 import { runPromiseExit } from "./internal/run.js";
 import { SvelteKit } from "./kit.js";
 
@@ -153,10 +153,10 @@ export const RequestRuntime = {
    * model).
    */
   fromLayer: <R, E>(layer: Layer.Layer<R, E>): RequestRuntimeProvider<R, E> => {
-    let runners: RequestRuntimeRunners<R> | undefined;
-    return {
-      run: () => (runners ??= runnersFromManagedRuntime(ManagedRuntime.make(layer))),
-    };
+    // `ManagedRuntime.make` only allocates the runtime: the layer itself is
+    // built by the first effect run on it, then shared.
+    const runners = runnersFromManagedRuntime(ManagedRuntime.make(layer));
+    return { run: () => runners };
   },
 
   /**
@@ -243,21 +243,21 @@ export interface RuntimeAdapter<R> {
     Params extends SvelteRouteParams = SvelteRouteParams,
     ParentData extends Record<string, any> = any,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, R>,
   ) => ServerLoad<Params, ParentData, OutputData, RouteId>;
   readonly action: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, R>,
   ) => Action<Params, OutputData, RouteId>;
   readonly actions: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     map: Record<
       string,
@@ -266,7 +266,7 @@ export interface RuntimeAdapter<R> {
   ) => Actions<Params, OutputData, RouteId>;
   readonly endpoint: <
     Params extends SvelteRouteParams = SvelteRouteParams,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown, R>,
     options?: AdapterEndpointOptions,
@@ -309,7 +309,7 @@ export const makeRuntimeAdapter = <R>(
    */
   const settleEndpoint = (
     exit: Exit.Exit<Response, unknown>,
-    options: AdapterEndpointOptions | undefined,
+    options?: AdapterEndpointOptions,
   ): Effect.Effect<Response, unknown> =>
     Exit.match(exit, {
       onSuccess: (response) => Effect.succeed(response),

@@ -192,6 +192,55 @@ describe("Errors.toSvelteKit", () => {
     expect(() => rethrowing(Cause.die(defect))).toThrow(defect);
   });
 
+  it("falls back to 500 / 303 / '/' when the error has no status or location field", () => {
+    const untyped = Errors.toSvelteKit({ Bare: "status", Away: "redirect" });
+
+    const bare = thrownBy(untyped, Cause.fail({ _tag: "Bare" }));
+    assert(isHttpError(bare, 500), "expected a 500 for a 'status' entry without a status");
+    expect(bare.body.message).toBe("Bare");
+
+    const nonNumeric = thrownBy(untyped, Cause.fail({ _tag: "Bare", status: "409" }));
+    assert(isHttpError(nonNumeric, 500), "expected a 500 for a non-numeric status");
+
+    const away = thrownBy(untyped, Cause.fail({ _tag: "Away" }));
+    assert(isRedirect(away), "expected a redirect");
+    expect(away.status).toBe(303);
+    expect(away.location).toBe("/");
+  });
+
+  it("reads a redirect target from `to`, else `location`, and only a string or URL", () => {
+    const untyped = Errors.toSvelteKit({ Away: "redirect" });
+    const locationOf = <E extends Errors.Tagged>(failure: E) => {
+      const thrown = thrownBy(untyped, Cause.fail(failure));
+      assert(isRedirect(thrown), "expected a redirect");
+      return thrown.location;
+    };
+
+    expect(locationOf({ _tag: "Away", to: "/a", location: "/b" })).toBe("/a");
+    expect(locationOf({ _tag: "Away", location: "/b" })).toBe("/b");
+    // A nullish `to` is absent, so `location` is read.
+    expect(locationOf({ _tag: "Away", to: null, location: "/b" })).toBe("/b");
+    expect(locationOf({ _tag: "Away", to: undefined, location: "/b" })).toBe("/b");
+    // A `URL` is a target too: it reaches SvelteKit's `redirect()`, which
+    // refuses an absolute URL it was not told is external.
+    const external = thrownBy(
+      untyped,
+      Cause.fail({ _tag: "Away", location: new URL("http://localhost/c") }),
+    );
+    expect(isRedirect(external)).toBe(false);
+    expect(external).toBeInstanceOf(Error);
+    // A `to` of another type is not a target, and `location` is not consulted.
+    expect(locationOf({ _tag: "Away", to: 42, location: "/b" })).toBe("/");
+  });
+
+  it("treats a catalogue key set to undefined as absent", () => {
+    // A JavaScript caller's catalogue: the types reject `{ NotFound: undefined }`.
+    const catalogue: Record<string, Errors.CatalogueEntry<Errors.Tagged>> = {};
+    Object.defineProperty(catalogue, "NotFound", { value: undefined, enumerable: true });
+    const sparse = Errors.toSvelteKit(catalogue);
+    expect(() => sparse(Cause.fail({ _tag: "NotFound" }))).toThrow(EffectCauseError);
+  });
+
   it("ignores inherited keys and non-tagged values", () => {
     const untyped = Errors.toSvelteKit({ NotFound: 404 });
     expect(() => untyped(Cause.fail({ _tag: "toString" }))).toThrow(EffectCauseError);
