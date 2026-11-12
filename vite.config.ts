@@ -76,7 +76,7 @@ export default defineConfig({
       // parent to move to the outermost scope it could live in. Here that
       // means pulling test helpers out of the `describe` / `it` that owns them,
       // the type-level probes in `tests/client/forms.test.ts` away from the
-      // type assertions they sit beside, no-op placeholders for a `let` that is reassigned,
+      // expected-error directives they sit beside, no-op placeholders for a `let` that is reassigned,
       // and an EventSource listener out of the step that registers it
       // (`src/realtime.ts`): the scoping is deliberate at every site.
       "unicorn/consistent-function-scoping": "off",
@@ -118,21 +118,6 @@ export default defineConfig({
       ],
     },
     overrides: [
-      // Build-time hooks: the `effectKit()` Vite plugin (`src/vite.ts`) and
-      // the adapter's `adapt(builder)` (`src/adapter/index.ts`) are called by
-      // Vite and SvelteKit's builder in bare Node, with no Effect runtime or
-      // platform layer in scope, and write the build's output files through
-      // the paths the builder hands them. `JSON.stringify` there emits a JS
-      // string literal into generated source; it is not a data boundary.
-      {
-        files: ["packages/sveltekit/src/vite.ts", "packages/sveltekit/src/adapter/index.ts"],
-        rules: {
-          "effect/avoid-node-imports": "off",
-          "effect/avoid-sync-fs": "off",
-          "effect/use-filesystem-service": "off",
-          "effect/avoid-direct-json": "off",
-        },
-      },
       // The runtime edge. These packages are a runtime boundary: Svelte
       // (constructors, `$effect` teardowns) and SvelteKit (loads, actions,
       // endpoints, hooks, `use:enhance` and navigation callbacks) call in
@@ -248,17 +233,22 @@ export default defineConfig({
         files: ["packages/sveltekit/src/adapter/serve.ts"],
         rules: { "effect/use-http-client-service": "off" },
       },
-      // The adapter test's mock `Builder.generateServerInstance` must write
-      // synchronously: SvelteKit's contract for it returns `void`, and the
-      // test pins that `server.js` survives `adapt`'s earlier `rmSync(out)`.
-      // An Effect `FileSystem` write could land after that and hide an
-      // ordering bug. Every other file operation there uses `FileSystem`.
+      // Tests.
       {
-        files: ["packages/sveltekit/tests/adapter.test.ts"],
+        files: ["**/tests/**"],
         rules: {
-          "effect/use-filesystem-service": "off",
-          "effect/avoid-sync-fs": "off",
+          // The expect-error directives in the suites ARE the type-level
+          // assertions (a call that must fail to compile); deleting one deletes
+          // the test.
+          "effect/avoid-ts-ignore": "off",
         },
+      },
+      // The `Forms.enhance` type-level tests assert at compile time: each body
+      // is calls under expect-error directives (or calls that must compile),
+      // checked by `vp run check`, with nothing to assert at runtime.
+      {
+        files: ["packages/sveltekit/tests/client/forms.test.ts"],
+        rules: { "vitest/expect-expect": "off" },
       },
     ],
     // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the

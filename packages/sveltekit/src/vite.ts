@@ -34,6 +34,7 @@ import * as Arr from "effect/Array";
 import * as Option from "effect/Option";
 import * as R from "effect/Record";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import { MagicString } from "magic-string";
 import type { Plugin } from "vite";
 
@@ -91,6 +92,9 @@ const wrapperByKind: Record<EffectKitFileKind, Record<string, string>> = {
     reroute: "wrapReroute",
   },
 };
+
+/** A string as a double-quoted JavaScript string literal, for generated source. */
+const jsLiteral = Schema.encodeSync(Schema.fromJsonString(Schema.String));
 
 /** The file-name pattern of each kind, most specific first. */
 const kindPatterns: ReadonlyArray<readonly [RegExp, EffectKitFileKind]> = [
@@ -334,9 +338,9 @@ export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
         : options.clientRuntime;
 
       const imports =
-        `\nimport { ${wrapperImports.join(", ")} } from ${JSON.stringify(INTERNAL_IMPORT)};\n` +
+        `\nimport { ${wrapperImports.join(", ")} } from ${jsLiteral(INTERNAL_IMPORT)};\n` +
         (runtimeSpecifier
-          ? `import * as ${RUNTIME_IDENT} from ${JSON.stringify(runtimeSpecifier)};\n`
+          ? `import * as ${RUNTIME_IDENT} from ${jsLiteral(runtimeSpecifier)};\n`
           : "");
       const runtimeArg = runtimeSpecifier ? `, ${RUNTIME_IDENT}` : "";
       const exports = found
