@@ -1,5 +1,190 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.10.0
+
+### Minor Changes
+
+- 75d4395: **Breaking (build time):** `effectAdapter()`'s `adapt` hook now writes the
+  build with Effect's `FileSystem` service instead of `node:fs` (#213), on
+  Node's file system from `@effect/platform-node`. The files it writes and the
+  code it generates are unchanged.
+  
+  - `@thomasfosterau/effect-sveltekit/adapter` now imports
+    `@effect/platform-node` (still an optional peer), so it must be installed to
+    build with the adapter. The `"node"` target already needed it to run the
+    server; a `target: "fetch"` app that had not installed it must add it
+    (`pnpm add -D @effect/platform-node`, on the same version as `effect`).
+  - A file operation that fails rejects `adapt`'s promise with Effect's
+    `PlatformError` rather than Node's `fs` error. What SvelteKit's builder
+    throws, or `builder.compress` rejects with, still rejects with that value.
+- 3309f22: Type assertions are gone from the package (`effect/casting-awareness` and `typescript/no-unsafe-type-assertion` are now lint errors), and the signatures they papered over say what the functions accept. Runtime behaviour is unchanged except where noted. What a consumer may have to change:
+  
+  - **A layer, runtime or `provide` that used to be optional for any `R` is now required when the effect requires services.** `Endpoint.fromHttpEffect`, `Endpoint.fromStream` and the `…/testing` runners (`runServerLoad`, `runAction`, `runEndpoint`, `runRemote`) are overloads: without `layer` / `provide` they take an effect or stream that requires nothing, and with one they take what it provides. A call that left the layer out for an effect with requirements compiled before and died with "Service not found" when it ran; it is now a type error: pass the `layer` (or `provide`). Options typed with an optional `layer` (`TestRunOptions<R>` held in a variable, say) must be narrowed before the call.
+  - **`makeServerRuntime()` / `makeUniversalRuntime()` with no layer return a runtime of no services.** They are overloads too: `makeServerRuntime<Db>()` (a type argument and no layer) no longer compiles, and neither does passing a `Layer | undefined`: call it with the layer, or with none.
+  - **`runRemote` returns `RunHelpers<R>`**, whose `run` / `runForm` take an effect that requires at most the services `R` of the layer it was given (`RunHelpers` alone is `RunHelpers<never>`); they used to accept any requirements.
+  - **An Effect `Schema` validator must need no decoding services.** The remote helpers (`query`, `form`, `command`, `prerender`, `query.batch`, `query.live`) take `S extends Schema.Decoder<unknown>` where they took `Schema.Top`, and the `decode*` request helpers take `Schema.Decoder<O>` where they took `Schema.Schema<O>`: `Schema.toStandardSchemaV1`, which converts them, never supported a schema whose decoding requires services.
+  - **`ParseIssue.path` is typed as the Standard Schema `Issue`'s `path`**, so it may be present and `undefined`, as a validator may report it.
+  - **`TestRequestEvent()` is a complete `RequestEvent`**: `isRemoteRequest` is `false`, `event.tracing` holds no-op spans (tracing off), and `cookies.parse` throws the new `TestCookiesParseError` (its in-memory cookies have no `Set-Cookie` parser). Those members used to be missing.
+  - **`Realtime.WebSocketConstructor` and `Realtime.EventSourceConstructor` construct the subset of the socket the streams use** (the new `WebSocketLike` and `EventSourceLike`; `EventSourceMessage` is the event a source's listeners get), so a polyfill or a test double no longer has to be the whole DOM class. The platform classes still fit.
+  - **`effectKit()` returns an `EffectKitPlugin`** (a Vite `Plugin` whose `transform` is a plain `(code, id)` function, callable without a plugin context) and **`effectAdapter()` an `EffectAdapter`** (a SvelteKit `Adapter` whose `adapt` asks only for the `AdaptBuilder` members of the builder and returns a promise). Both are still assignable where Vite and SvelteKit expect a `Plugin` / `Adapter`.
+  - `Endpoint.fromStream` with a `Layer` in `provide` builds the layer when the connection's stream is first pulled (it was built when the stream was set up); it is still built once per connection and released when the stream ends.
+  - `…/internal/auto` (the Vite plugin's generated code calls it): a user export's Effect is typed by what SvelteKit's own signature for that export resolves to, and `RuntimeModule` holds any `ServerRuntime` / `UniversalRuntime` without `any`.
+- 516f4c6: `Forms.applyAction` and `Forms.deserialize` now have exactly the type parameters of the `$app/forms` functions they wrap: `Success` and `Failure` no longer default to `Record<string, unknown>`.
+  
+  - `Forms.deserialize<Success>(body)` with one type argument no longer compiles: pass both (`Forms.deserialize<Success, Failure>(body)`) or neither.
+  - `Forms.deserialize(body)` with no type arguments, where nothing else fixes the result type, now succeeds with `ActionResult<Record<string, unknown> | undefined, Record<string, unknown> | undefined>`, as `$app/forms`' `deserialize` returns. `data` was already optional on a `success` / `failure` result, so reading it is unchanged.
+  - `Forms.applyAction(result)` infers both from `result` as before.
+  
+  `Forms.enhance` is unchanged for callers; its parameter type now names the handlers present with a `Pick` of the handlers type instead of a record of `unknown`.
+- a6f668b: **Breaking:** the client state, navigation and forms surface
+  (`@thomasfosterau/effect-sveltekit/client`) models absence as `Option`
+  (`effect/Option`) instead of `null` / `undefined` (#213). Each changed export,
+  and the one-line migration:
+  
+  - `State.PageSnapshot` (what `State.page()`, `State.CurrentPage`'s `get` and
+    `changes` produce): `route.id` was `string | null` and is now
+    `Option.Option<string>` (`None` when no route is matched); `error` was
+    `App.Error | null` and is now `Option.Option<App.Error>` (`None` when the
+    page has not failed); `shallow` was `{ params, route, url } | null` and is
+    now an `Option` of that object (`None` when no shallow navigation has
+    occurred). Replace `page.route.id ?? fallback` with
+    `Option.getOrElse(page.route.id, () => fallback)`, and `if (page.error)` with
+    `if (Option.isSome(page.error))`, reading `page.error.value`.
+    `Option.getOrNull(page.error)` gives the old value. `url`, `params`,
+    `status`, `data`, `state` and `form` are unchanged.
+  - `State.NavigatingSnapshot` (inside the `Option` that `State.navigating()`
+    emits): `from` and `to` were `NavigationTarget | null` and are now
+    `Option.Option<NavigationTarget>` (`None` where SvelteKit's is `null`);
+    `delta` was `number | null` and is now `Option.Option<number>` (`Some` for a
+    back / forward `popstate` navigation, `None` for every other type). Replace
+    `nav.to?.url.pathname` with `Option.map(nav.to, (to) => to.url.pathname)`,
+    and `nav.delta ?? 0` with `Option.getOrElse(nav.delta, () => 0)`. `type`,
+    `willUnload` and `complete` are unchanged, and a `NavigationTarget` is still
+    SvelteKit's own object.
+  - An `Option` is always truthy, so a template check such as `{#if nav.from}` or
+    `{#if page.error}` no longer tests for a value: write
+    `{#if Option.isSome(nav.from)}{nav.from.value.url.pathname}{/if}`.
+  - `Forms.EnhanceHandlers` (`onSubmit`, `onResult`, `onError`) and
+    `Forms.EnhanceOptions` (`runtime`) are declared `readonly x?: T` rather than
+    `x?: T | undefined`, and `Forms.EnhanceOptionsArgs<never>` is
+    `[options?: EnhanceOptions]`. With `exactOptionalPropertyTypes` on,
+    `Forms.enhance({ onResult: undefined })`,
+    `Forms.enhance(handlers, { runtime: undefined })` and
+    `Forms.enhance(handlers, undefined)` are now type errors: omit the key or the
+    argument instead (to forward an optional handler, spread an object whose key
+    is optional rather than passing a possibly-`undefined` value). Runtime
+    behaviour is unchanged: a plain JavaScript caller that passes `undefined`
+    still gets the behaviour of an absent handler.
+  
+  Not changed: the events of `Navigation.beforeNavigate()`, `afterNavigate()` and
+  `onNavigate()` are SvelteKit's own navigation objects and keep its `null`s, and
+  `Forms.applyAction` / `Forms.deserialize` accept the same `Success` / `Failure`
+  types as before (their constraints are now read off `$app/forms`' `applyAction`
+  instead of being restated).
+- e7bc49c: **Breaking (types only):** the adapter handler, the `$env` config helpers and
+  the `effectKit()` auto-wrappers no longer spell `T | undefined` / `T | null`
+  by hand (#213). Runtime behaviour is unchanged. Each changed export, and the
+  one-line migration:
+  
+  - `SvelteKitNeutralHandlerOptions.env` and `.envPrefix` (the options of
+    `makeHandlerWith`, `./adapter/handler`) are declared `readonly env?: …` /
+    `readonly envPrefix?: string` rather than `?: … | undefined`. With
+    `exactOptionalPropertyTypes` on, passing an explicit `undefined`
+    (`makeHandlerWith({ …, envPrefix: undefined })`) is now a type error: omit
+    the key instead. An omitted `env` is still an empty map and an omitted
+    `envPrefix` still no prefix.
+  - The environment map the adapter and the config helpers take
+    (`SvelteKitHandlerOptions.env`, `SvelteKitNeutralHandlerOptions.env`,
+    `sveltekitConfigProvider`, `sveltekitConfig`, `readConfig`) is typed as
+    SvelteKit's own `ServerInitOptions["env"]` instead of a restated
+    `Record<string, string | undefined>`. It is the same shape today, so
+    `process.env`, the `$env/*` modules and a Workers `env` are accepted as
+    before: nothing to change.
+  - `@thomasfosterau/effect-sveltekit/internal/auto` (called only by the code
+    `effectKit()` generates): `wrapLoad`, `wrapServerLoad`, `wrapAction`,
+    `wrapActions`, `wrapHandle`, `wrapHandleFetch`, `wrapHandleError`,
+    `wrapEndpoint`, `wrapReroute` and `wrapInit` are now overloaded instead of
+    generic over `T extends undefined | …`: given an Effect or a function they
+    return the SvelteKit export, and given `undefined` they return `undefined`.
+    Generated code is unaffected. A hand-written call that passes a value typed
+    `X | undefined` no longer matches either overload: branch on `undefined`
+    first, or use the explicit wrappers (`serverLoad`, `actions`, `handle`, …).
+- c61f4d5: **Breaking:** the server, request and testing APIs model absence as `Option`
+  (`effect/Option`) instead of `null` / `undefined`, and no longer restate
+  SvelteKit's nullable types by hand (#213). Each changed export, and the
+  one-line migration:
+  
+  - `ServerRuntime.requestRuntime(event)` (`makeServerRuntime(...).requestRuntime`)
+    returned `RequestRuntime<R> | undefined` and now returns
+    `Option.Option<RequestRuntime<R>>`: `Some` inside a request that went through
+    this runtime's `handle`, `None` otherwise. Replace `rt?.runPromise(effect)`
+    with `if (Option.isSome(rt)) await rt.value.runPromise(effect)`, or
+    `Option.getOrUndefined(runtime.requestRuntime(event))` for the old value (an
+    `Option` is always truthy, so `if (rt)` no longer tests for a runtime).
+  - `Endpoint.fromStream`'s per-element callbacks (`FromStreamOptions.event` as a
+    function, and `FromStreamOptions.id`) returned `string | undefined` and now
+    return `Option.Option<string>`: `Some(value)` sends the SSE field, `None`
+    omits it for that element. Replace `id: (v) => v.id` with
+    `id: (v) => Option.some(v.id)`, and a callback that returned `undefined` with
+    one returning `Option.none()` (`Option.fromUndefinedOr(v.kind)` converts an
+    optional field). A static `event: "name"` is unchanged.
+  - `KitTranslatorCase` (the cases of `SvelteKit.makeTranslator`) was
+    `(error) => undefined | void` and is now `(error) => void`: a case throws to
+    handle the error or returns to pass, and its result was always ignored.
+    Existing cases compile unchanged.
+  - Options are declared `readonly x?: T` rather than `x?: T | undefined`:
+    `ToSvelteKitOptions.fallback` and the `message` of a `{ status, message }`
+    `CatalogueEntry` (`Errors.toSvelteKit`). With `exactOptionalPropertyTypes` on,
+    passing an explicit `undefined` (`{ fallback: undefined }`) is now a type
+    error: omit the key instead. Runtime behaviour is unchanged.
+  - The `RouteId` type parameter of `serverLoad`, `action`, `actions`, `endpoint`
+    (standalone, on `ServerRuntime` and on `RuntimeAdapter`) and of `load` /
+    `UniversalRuntime.load` was constrained to a hand-written `string | null` and
+    is now constrained to SvelteKit's own `RequestEvent["route"]["id"]`; `load`'s
+    `InputData` is constrained to SvelteKit's `LoadEvent["data"]`. Inferred calls
+    and `./$types` annotations are unchanged. In an app with generated route
+    types, an explicit `RouteId` type argument must be one of the app's route ids
+    (or SvelteKit's "no route" value), exactly as `RequestEvent<Params, RouteId>`
+    already required.
+  - `TestRequestEventOptions.body` (`…/testing`) is typed as `fetch`'s own
+    `RequestInit["body"]` instead of a restated `BodyInit | null`: the same
+    values, plus the explicit `undefined` that `RequestInit` itself admits.
+  - `prerender(handler, options)` (the form without a schema) now throws a
+    `RemoteFunctionUsageError` when its second argument is a function, which its
+    types already rejected.
+- b3c25e7: `RemoteFunction.requested` now has the signature of the `$app/server` function it passes through (`typeof requested`), in place of `<Result = unknown>(...args: unknown[]) => Result`: the result is typed from the query, as SvelteKit types it, and is no longer chosen by the caller.
+  
+  - `RemoteFunction.requested<MyResult>(getPost, 5)` with a result type argument no longer compiles: drop the type argument (`RemoteFunction.requested(getPost, 5)`), and the entries are typed from `getPost`.
+  - A call with no type argument, which used to return `unknown`, now returns SvelteKit's `RemoteQueryRequestedResult` (or `RemoteLiveQueryRequestedResult` for a `query.live`), so code that narrowed or asserted the `unknown` can lose the assertion.
+  - The arguments are checked as SvelteKit checks them: a `query` (or `query.live`) function and a `limit`.
+  
+  Runtime behaviour is unchanged: the call goes to SvelteKit's `requested`, and still throws a `RemoteFunctionUsageError` on a SvelteKit version without it.
+- eee9295: The error-translator contract is split, so it says what a translator can do (#273). A translator stands where a wrapper would otherwise throw, so it only throws: `KitErrorTranslator` is still `(cause) => never`. SvelteKit has no thrown form of `fail()`, so only a form action's translator may return one, and only the action wrappers accept it and carry the `ActionFailure` in their result type (which is what types the route's `ActionData`). What a consumer may have to change:
+  
+  - **A translator shared by loads and actions that returns `fail()` must be split.** Keep the throwing cases in `translateError`, and move the `fail()` cases to an action translator passed as the new `translateActionError` option: `Errors.toSvelteKit<AppError, ActionFailure<Data>>({ Invalid: (e) => fail(422, …) }, { fallback: translateError })`, `SvelteKit.makeActionTranslator<Data>(cases, translateError)`, or a hand-written `(cause) => ActionFailure<Data>` that returns `fail()` or calls the shared translator. A translator that never returns needs no change and still serves both.
+  - **`KitErrorTranslator<Returned = never>`** takes what the translator may return; `KitErrorTranslator` alone is unchanged. **`KitActionErrorTranslator<Data>`** (new) is `KitErrorTranslator<ActionFailure<Data>>`. `ErrorTranslator` is unchanged (throw-only).
+  - **`SvelteKit.translate` no longer returns `fail()` for a `KitActionFailure`**: it throws it as an `EffectCauseError` (a 500), like any other failure it does not know. The action wrappers return it instead (below), so `yield* SvelteKit.fail(…)` in an action behaves as before; in a load, a hook, an endpoint or a remote function it used to hand SvelteKit an `ActionFailure` as the result and is now a 500.
+  - **`action` / `actions` (standalone, on `makeRuntimeAdapter` and on `makeServerRuntime`) take a fourth type parameter, the Effect's error type, and return `Action<Params, OutputData | ActionFailureOf<E> | Returned, RouteId>`**: a `SvelteKit.fail(status, data)` failure in the Effect's error type is returned as `fail(status, data)` and typed, as is what `translateActionError` returns. An action whose error type has no `KitActionFailure` keeps its result type. Only a failure in the error channel is returned: a `KitActionFailure` that was thrown (a defect) now goes to the translator, and is a 500 by default. A call that passes the three type arguments explicitly declares no failure (`E` is `unknown`).
+  - **`RuntimeAdapterOptions<Returned>`, `ServerRuntimeOptions<Returned>`** gain `translateActionError?: KitErrorTranslator<Returned>` (default: `translateError`), and **`RuntimeAdapter<R, Returned>`, `ServerRuntime<R, E, Returned>`, `makeRuntimeAdapter`, `makeServerRuntime`** the type parameter that carries it (default `never`).
+  - **`SvelteKit.makeActionTranslator<Data>(cases, fallback?)`** (new) builds an action translator from cases that may return `fail()`; `Data` is given explicitly. **`KitTranslatorCase<Returned = never>`** takes what a case may return; `SvelteKit.makeTranslator` is unchanged (throw-only: what a case returns is still ignored).
+  - **`SvelteKit.failuresReturned(effect)`** (new) is what the action wrappers apply: the Effect's `KitActionFailure` failures become its result. **`ActionFailureOf<E>`** (new) is that result's type, and **`KitActionFailure#actionFailure`** (new) the `ActionFailure` for one failure.
+  - **`Errors.toSvelteKit<E, Returned = never>`, `Errors.Catalogue<E, Returned>`, `Errors.CatalogueEntry<E, Returned>`, `Errors.ToSvelteKitOptions<Returned>`**: a function entry returns `Returned`, so it may return `fail()` only in a catalogue whose second type argument names the `ActionFailure`; that catalogue's translator is an action translator, and its `fallback` may be one.
+  - **`…/testing`: `runAction` takes `TestActionOptions<R, Returned>`** (`TestRunOptions` plus `translateActionError`) and resolves with `A | ActionFailureOf<E> | Returned`. `runServerLoad`, `runEndpoint` and `runRemote` still take a throw-only `translateError`.
+  - **`…/internal/auto`: `wrapAction` / `wrapActions` run an exported Effect through the server runtime's `action`**, so the runtime's `translateActionError` applies and the Effect gets the `action <route id>` span the explicit wrapper has; `RuntimeModule` holds a `ServerRuntime` with any action translator.
+
+### Patch Changes
+
+- 2c2e4e6: The wrappers the `effectKit()` plugin generates calls to (`@thomasfosterau/effect-sveltekit/internal/auto`: `wrapLoad`, `wrapServerLoad`, `wrapAction`, `wrapActions`, `wrapHandle`, `wrapHandleFetch`, `wrapHandleError`, `wrapEndpoint`, `wrapReroute`, `wrapInit`) now type the function form of an export as returning an Effect or what SvelteKit's own signature for that export returns (a `Response` for `handle`, a pathname for `reroute`, and so on) rather than `unknown`. Nothing changes at runtime or for the code the plugin generates; a hand-written call that passes a function returning anything else no longer type-checks.
+- 80d72d0: `Forms.enhance`'s inferred requirements parameters (`RSubmit`, `RResult`, `RError`) now show their default as `unknown` in hovers and `.d.ts` rather than through an internal alias for it. Nothing changes for callers.
+- 2590694: The standalone `endpoint` wrapper logs an unrecognised failure (`Endpoint error: …`) as part of the request's own Effect, so the line goes through the runtime's `Console` rather than a second, nested run; `redirect()` / `error()` are still not logged. The adapter's `toWebHandler` builds the app together with its layer through `HttpEffect.toWebHandlerLayerWith`, still once and on the first request. `Navigation.onNavigate`'s documentation no longer names `Effect.runPromise` as the default runner: the default runs the Effect with no services, as before.
+- 35bd461: README shortened to what the package is, install, one example, the entry-point table and links; the reference moved to the repository's `docs/` pages, which the README links to with absolute URLs. TSDoc additions: `RuntimeContext.get` names the `RuntimeNotFoundError` it throws; `ServerRuntime.handle` describes the per-request runtime it creates; `Forms.enhance` says `onError` runs on the same runtime and must not fail; `Endpoint.fromApi` says when its layer is built and disposed; `effectAdapter` states the production server's Node `>=22.19` requirement; and the `makeHandlerWith` example passes `toWebHandler` its layer.
+- 1bfbeda: `KitTranslatorCase` (the cases of `SvelteKit.makeTranslator`) and `FormErrorMapper` (the `formError` option of the remote form wrappers) now type their `error` argument as `ReturnType<typeof Cause.squash>`, and their documentation says what that is: the squashed failure of the handler's `Cause` (its typed failure, a defect or an interruption error). The type is still `unknown`, so existing cases and mappers compile unchanged.
+- Updated dependencies [b3070a6]
+- Updated dependencies [3ec51a1]
+- Updated dependencies [76c8c86]
+- Updated dependencies [35bd461]
+  - @thomasfosterau/effect-svelte@0.7.0
+
 ## 0.9.2
 
 ### Patch Changes
