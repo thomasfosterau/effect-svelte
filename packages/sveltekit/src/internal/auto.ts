@@ -28,12 +28,8 @@ import * as Exit from "effect/Exit";
 import * as Predicate from "effect/Predicate";
 import * as Rec from "effect/Record";
 import * as Result from "effect/Result";
-import {
-  makeServerRuntime,
-  makeUniversalRuntime,
-  type ServerRuntime,
-  type UniversalRuntime,
-} from "../app-runtime.js";
+import { type ServerRuntime, type UniversalRuntime } from "../app-runtime.js";
+import * as AppRuntime from "../app-runtime.js";
 import { causeToThrowable } from "./error.js";
 
 type AnyEffect = Effect.Effect<unknown, unknown>;
@@ -76,14 +72,14 @@ const isServerRuntime = (runtime: AnyRuntime): runtime is ServerRuntime<any, any
 const serverRuntimeOf = (mod?: RuntimeModule): ServerRuntime<any, any> => {
   const runtime = runtimeOfModule(mod);
   if (runtime !== undefined && isServerRuntime(runtime)) return runtime;
-  return (defaultServerRuntime ??= makeServerRuntime<any, any>());
+  return (defaultServerRuntime ??= AppRuntime.makeServerRuntime<any, any>());
 };
 
 /** The universal runtime for a module, falling back to the shared default. */
 const universalRuntimeOf = (mod?: RuntimeModule): UniversalRuntime<any, any> => {
   const runtime = runtimeOfModule(mod);
   if (runtime !== undefined && !isServerRuntime(runtime)) return runtime;
-  return (defaultUniversalRuntime ??= makeUniversalRuntime<any, any>());
+  return (defaultUniversalRuntime ??= AppRuntime.makeUniversalRuntime<any, any>());
 };
 
 /** Run an effect without any request context (e.g. `init` hooks). */
