@@ -123,16 +123,11 @@ export type ErrorNotInferred = any;
 export type IsErrorNotInferred<Errors> = 0 extends 1 & Errors ? true : false;
 
 /**
- * The default of a handler's requirements (`RSubmit` / `RResult` / `RError`)
- * while TypeScript has not inferred them: `unknown`, which every handler's
- * requirements are assignable to (see {@link ErrorNotInferred} for why), and
- * which {@link RequiredServices} counts as none.
- */
-export type ServicesNotInferred = unknown;
-
-/**
- * The services a handler requires: `R`, or none while it is not inferred
- * ({@link ServicesNotInferred}), as for an absent handler.
+ * The services a handler requires: `R`, or none while it is not inferred, as
+ * for an absent handler. The default of a handler's requirements (`RSubmit` /
+ * `RResult` / `RError` of {@link makeSubmitFunction}) while TypeScript has not
+ * inferred them is `unknown`, which every handler's requirements are
+ * assignable to (see {@link ErrorNotInferred} for why).
  *
  * Since `unknown` must count as none, so does every requirements type that
  * `unknown` is assignable to: an effect typed as requiring `any` or `unknown`
@@ -219,14 +214,14 @@ export type EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E> = P
  *
  * When a call does not type-check, TypeScript may report it against its first
  * inference pass, which skips handlers whose parameters are not annotated. The
- * defaults of the handler parameters ({@link ErrorNotInferred},
- * {@link ServicesNotInferred}) accept any handler, so a missing or wrong
+ * defaults of the handler parameters ({@link ErrorNotInferred} for the
+ * errors, `unknown` for the requirements) accept any handler, so a missing or wrong
  * runtime is reported on the call or on the runtime, never on a handler.
  */
 export const makeSubmitFunction = <
-  RSubmit = ServicesNotInferred,
-  RResult = ServicesNotInferred,
-  RError = ServicesNotInferred,
+  RSubmit = unknown,
+  RResult = unknown,
+  RError = unknown,
   ESubmit = ErrorNotInferred,
   EResult = ErrorNotInferred,
   Keys extends EnhanceHandlerKey = never,

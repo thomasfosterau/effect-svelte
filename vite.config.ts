@@ -259,13 +259,6 @@ export default defineConfig({
           "effect/avoid-sync-fs": "off",
         },
       },
-      // `unknown` where it is the honest type (#185): in `enhance`'s
-      // type-level inference helpers it is the not-yet-inferred default every
-      // handler's requirements are assignable to.
-      {
-        files: ["packages/sveltekit/src/internal/enhance.ts"],
-        rules: { "effect/no-unknown-type-aliases": "off" },
-      },
       // Tests.
       {
         files: ["**/tests/**"],
