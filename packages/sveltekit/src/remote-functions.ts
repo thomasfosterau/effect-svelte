@@ -28,8 +28,9 @@ import {
   type EffectVoidHandler,
   isBareHandler,
   toStandardValidator,
-  type Validator,
+  type ValidatorOf,
 } from "./internal/remote-validators.js";
+import { asUncheckedOverload } from "./internal/unchecked.js";
 import * as RemoteRun from "./internal/remote-run.js";
 import {
   defaultTranslate,
@@ -44,17 +45,17 @@ export type { FormErrorMapper } from "./internal/remote-run.js";
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
 
 /** The default helpers: a fresh SvelteKit per-request runtime, passthrough translation. */
-const defaultHelpers: RunHelpers = RemoteRun.makeRunHelpers(() => {
+const defaultHelpers: RunHelpers<SvelteKitEffectEnv> = RemoteRun.makeRunHelpers(() => {
   const event = AppServer.getRequestEvent();
   return { runExit: (effect) => SvelteKitRuntime.forRequest(event).runPromiseExit(effect) };
 }, defaultTranslate);
 
 /** Build helpers from a {@link RequestRuntimeProvider}, translator, and form-error mapper. */
-const helpersFromProvider = (
-  provider: RequestRuntimeProvider<any, any>,
+const helpersFromProvider = <R>(
+  provider: RequestRuntimeProvider<R, any>,
   translate: ErrorTranslator,
   formError?: FormErrorMapper,
-): RunHelpers =>
+): RunHelpers<R> =>
   RemoteRun.makeRunHelpers(
     () => {
       const event = AppServer.getRequestEvent();
@@ -94,15 +95,13 @@ interface PrerenderOptions<In> {
 }
 
 /**
- * Normalise a validator for kit's `$app/server` helpers, typed as the
- * `"unchecked"` overload so one call site serves every validator kind.
+ * Normalise a validator for kit's `$app/server` helpers (a bare Effect
+ * `Schema` is wrapped as a Standard Schema), typed as the `"unchecked"`
+ * overload so one call site serves every validator kind (see
+ * `asUncheckedOverload`).
  */
-// SAFETY: `toStandardValidator` returns either the `"unchecked"` marker or a
-// Standard Schema (a bare Effect `Schema` is wrapped); kit accepts both at
-// runtime, and the `"unchecked"` typing only selects the overload whose handler
-// input is the generic `In` the public overloads already fixed.
-const toKitValidator = (validator: Validator): "unchecked" =>
-  toStandardValidator(validator) as "unchecked";
+const toKitValidator = <In>(validator: ValidatorOf<In>): "unchecked" =>
+  asUncheckedOverload(toStandardValidator(validator));
 
 /** The public shape of the `query` helper, parameterised by its handler env. */
 export interface QueryFn<Env> {
@@ -115,18 +114,18 @@ export interface QueryFn<Env> {
     schema: Sch,
     fn: (arg: StandardSchemaV1.InferOutput<Sch>) => Effect.Effect<Output, unknown, Env>,
   ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     schema: S,
     fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQuery = <Env>(run: Runner): QueryFn<Env> => {
+const makeQuery = <Env>(run: Runner<Env>): QueryFn<Env> => {
   const impl = <In, Out>(
-    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env>,
   ) => {
-    if (isBareHandler<Out, Env>(arg1)) {
+    if (isBareHandler(arg1)) {
       const handler = arg1;
       return AppServer.query(() => run(handler()));
     }
@@ -161,15 +160,15 @@ export interface QueryBatchFn<Env> {
       Env
     >,
   ): RemoteQueryFunction<StandardSchemaV1.InferInput<Sch>, Output>;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     schema: S,
     fn: (args: S["Type"][]) => Effect.Effect<(arg: S["Type"], idx: number) => Output, unknown, Env>,
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> => {
+const makeQueryBatch = <Env>(run: Runner<Env>): QueryBatchFn<Env> => {
   const impl = <In, Out>(
-    validate: Validator,
+    validate: ValidatorOf<In>,
     fn: (args: In[]) => Effect.Effect<(arg: In, idx: number) => Out, unknown, Env>,
   ) => AppServer.query.batch(toKitValidator(validate), (args: In[]) => run(fn(args)));
   // Every `QueryBatchFn` overload is (validator, batch handler), which
@@ -205,25 +204,23 @@ export interface QueryLiveFn<Env> {
     Output,
     StandardSchemaV1.InferOutput<Sch>
   >;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     schema: S,
     fn: (arg: S["Type"]) => Effect.Effect<AsyncIterable<Output>, unknown, Env>,
   ): RemoteLiveQueryFunction<S["Encoded"], Output, S["Type"]>;
 }
 
-const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
+const makeQueryLive = <Env>(run: Runner<Env>): QueryLiveFn<Env> => {
   const impl = <In, Out>(
-    validate: Validator,
+    validate: ValidatorOf<In>,
     fn: (arg: In) => Effect.Effect<AsyncIterable<Out>, unknown, Env>,
   ) => {
     const live = getQueryLive();
     return live(toKitValidator(validate), (arg: In) => run(fn(arg)));
   };
-  // SAFETY: every `QueryLiveFn` overload is (validator, handler), which `impl`
-  // forwards unchanged to kit's `query.live`, so each overload returns exactly
-  // what the matching kit overload returns; `impl`'s single generic signature
-  // cannot name the validated-input type parameter each overload fixes.
-  return impl as QueryLiveFn<Env>;
+  // Every `QueryLiveFn` overload is (validator, handler), which `impl`
+  // forwards unchanged to kit's `query.live`.
+  return impl;
 };
 
 /** The public shape of the `form` helper, parameterised by its handler env. */
@@ -243,7 +240,7 @@ export interface FormFn<Env> {
       issue: InvalidField<StandardSchemaV1.InferInput<Sch> & RemoteFormInput>,
     ) => Effect.Effect<Output, unknown, Env>,
   ): RemoteForm<StandardSchemaV1.InferInput<Sch> & RemoteFormInput, Output>;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     validate: S,
     fn: (
       data: S["Type"],
@@ -252,12 +249,12 @@ export interface FormFn<Env> {
   ): RemoteForm<S["Encoded"] & RemoteFormInput, Output>;
 }
 
-const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> => {
+const makeForm = <Env>(helpers: RunHelpers<Env>): FormFn<Env> => {
   const impl = <In extends RemoteFormInput, Out>(
-    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: (data: In, issue: InvalidField<In>) => Effect.Effect<Out, unknown, Env>,
   ) => {
-    if (isBareHandler<Out, Env>(arg1)) {
+    if (isBareHandler(arg1)) {
       const handler = arg1;
       return AppServer.form(() => helpers.run(handler()));
     }
@@ -289,18 +286,18 @@ export interface CommandFn<Env> {
     validate: Sch,
     fn: (arg: StandardSchemaV1.InferOutput<Sch>) => Effect.Effect<Output, unknown, Env>,
   ): RemoteCommand<StandardSchemaV1.InferInput<Sch>, Output>;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     validate: S,
     fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
   ): RemoteCommand<S["Encoded"], Output>;
 }
 
-const makeCommand = <Env>(run: Runner): CommandFn<Env> => {
+const makeCommand = <Env>(run: Runner<Env>): CommandFn<Env> => {
   const impl = <In, Out>(
-    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env>,
   ) => {
-    if (isBareHandler<Out, Env>(arg1)) {
+    if (isBareHandler(arg1)) {
       const handler = arg1;
       return AppServer.command(() => run(handler()));
     }
@@ -346,7 +343,7 @@ export interface PrerenderFn<Env> {
       dynamic?: boolean;
     },
   ): RemotePrerenderFunction<StandardSchemaV1.InferInput<Sch>, Output>;
-  <S extends Schema.Top, Output>(
+  <S extends Schema.Decoder<unknown>, Output>(
     schema: S,
     fn: (arg: S["Type"]) => Effect.Effect<Output, unknown, Env>,
     options?: {
@@ -356,13 +353,13 @@ export interface PrerenderFn<Env> {
   ): RemotePrerenderFunction<S["Encoded"], Output>;
 }
 
-const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
+const makePrerender = <Env>(run: Runner<Env>): PrerenderFn<Env> => {
   const impl = <In, Out>(
-    arg1: Validator | EffectVoidHandler<Out, Env>,
+    arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env> | PrerenderOptions<void>,
     arg3?: PrerenderOptions<In>,
   ) => {
-    if (isBareHandler<Out, Env>(arg1)) {
+    if (isBareHandler(arg1)) {
       const handler = arg1;
       // In the bare-handler overload the second argument is the (optional)
       // options object, never a handler.
@@ -408,7 +405,7 @@ export type QueryNamespace<Env> = QueryFn<Env> & {
   live: QueryLiveFn<Env>;
 };
 
-const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
+const makeQueryNamespace = <Env>(run: Runner<Env>): QueryNamespace<Env> =>
   Object.assign(makeQuery<Env>(run), {
     batch: makeQueryBatch<Env>(run),
     live: makeQueryLive<Env>(run),

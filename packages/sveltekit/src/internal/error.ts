@@ -49,17 +49,17 @@ export type KitErrorBody = string | (Omit<App.Error, "status"> & { readonly stat
 
 /**
  * `error()` with the message and the extra `App.Error` properties as separate
- * arguments. Kit's typed overloads only admit a third argument once the app
- * augments `App.Error`, which this library cannot see.
+ * arguments. Kit computes the type of its third parameter from the app's
+ * augmentation of `App.Error`, which this library is compiled without; this
+ * states it as {@link KitErrorBody} carries the properties. At runtime
+ * `error()` spreads whatever properties object it is given into the
+ * `HttpError` body.
  */
-// SAFETY: at runtime `error(status, message, properties)` accepts any
-// properties object (it spreads it into the `HttpError` body); only its typed
-// overload withholds the third argument until the app augments `App.Error`.
-const kitErrorWith = kitError as (
+const kitErrorWith: (
   status: number,
   message?: string,
   properties?: Omit<Exclude<KitErrorBody, string>, "message">,
-) => never;
+) => never = kitError;
 
 /**
  * Throw SvelteKit's `error()` for a string or `App.Error`-shaped body, without
@@ -72,7 +72,7 @@ const kitErrorWith = kitError as (
  * `App.Error` type) is dropped in favour of that default.
  */
 export const throwKitError = (status: number, body?: KitErrorBody): never => {
-  if (body === undefined || P.isString(body)) return kitErrorWith(status, body);
+  if (body === undefined || P.isString(body)) return kitError(status, body);
   const { message, ...properties } = body;
   return kitErrorWith(status, P.isString(message) ? message : undefined, properties);
 };

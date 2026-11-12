@@ -299,64 +299,79 @@ export interface EffectKitPluginOptions {
 }
 
 /**
+ * The plugin's `transform` hook: the rewritten module `code` (with its source
+ * map) for the SvelteKit file `id`, or `null` to leave the module alone.
+ */
+const transformModule = (options: EffectKitPluginOptions, code: string, id: string) => {
+  const { include } = options;
+  const fileKind = getFileKind(id);
+  if (Option.isNone(fileKind)) return null;
+  const kind = fileKind.value;
+  if (include && !Arr.contains(include, kind)) return null;
+
+  const wrappers = wrapperByKind[kind];
+
+  const masked = maskCommentsAndStrings(code);
+  const found = findExports(masked, (name) => R.has(wrappers, name));
+  if (Arr.isReadonlyArrayEmpty(found)) return null;
+
+  const s = new MagicString(code);
+
+  Arr.forEach(found, (match) => {
+    s.overwrite(match.start, match.end, match.replacement);
+  });
+
+  const wrapperImports = Arr.dedupe(
+    Arr.filterMap(found, (m) => Result.fromOption(R.get(wrappers, m.name), () => m.name)),
+  );
+
+  // Server-only files get the server runtime module; universal/client
+  // files get the client runtime module (it must be browser-safe).
+  const runtimeSpecifier = Arr.contains(serverKinds, kind)
+    ? options.serverRuntime
+    : options.clientRuntime;
+
+  const imports =
+    `\nimport { ${wrapperImports.join(", ")} } from ${jsLiteral(INTERNAL_IMPORT)};\n` +
+    (runtimeSpecifier ? `import * as ${RUNTIME_IDENT} from ${jsLiteral(runtimeSpecifier)};\n` : "");
+  const runtimeArg = runtimeSpecifier ? `, ${RUNTIME_IDENT}` : "";
+  const exports = found
+    .map(
+      (m) => `export const ${m.name} = ${wrappers[m.name]}(${ORIG_PREFIX}${m.name}${runtimeArg});`,
+    )
+    .join("\n");
+
+  s.append(`\n${imports}${exports}\n`);
+
+  return {
+    code: s.toString(),
+    map: s.generateMap({ hires: "boundary", source: id }),
+  };
+};
+
+/**
+ * The plugin {@link effectKit} returns: a Vite `Plugin` whose `transform` hook
+ * is a plain function of the module's code and id. It reads no plugin context
+ * (`this`), so it can be called on its own.
+ */
+export interface EffectKitPlugin extends Plugin {
+  /**
+   * The rewritten module (`code` and its source `map`) for a SvelteKit file
+   * with wrappable exports, or `null` to leave the module alone.
+   */
+  readonly transform: (code: string, id: string) => ReturnType<typeof transformModule>;
+}
+
+/**
  * Vite plugin that rewrites SvelteKit route exports so that Effects, or
  * functions returning Effects, are accepted wherever SvelteKit expects a
  * function-shaped export.
  */
-export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
-  const { include } = options;
-
+export function effectKit(options: EffectKitPluginOptions = {}): EffectKitPlugin {
   return {
     name: "effect-kit",
     enforce: "pre",
-    transform(code, id) {
-      const fileKind = getFileKind(id);
-      if (Option.isNone(fileKind)) return null;
-      const kind = fileKind.value;
-      if (include && !Arr.contains(include, kind)) return null;
-
-      const wrappers = wrapperByKind[kind];
-
-      const masked = maskCommentsAndStrings(code);
-      const found = findExports(masked, (name) => R.has(wrappers, name));
-      if (Arr.isReadonlyArrayEmpty(found)) return null;
-
-      const s = new MagicString(code);
-
-      Arr.forEach(found, (match) => {
-        s.overwrite(match.start, match.end, match.replacement);
-      });
-
-      const wrapperImports = Arr.dedupe(
-        Arr.filterMap(found, (m) => Result.fromOption(R.get(wrappers, m.name), () => m.name)),
-      );
-
-      // Server-only files get the server runtime module; universal/client
-      // files get the client runtime module (it must be browser-safe).
-      const runtimeSpecifier = Arr.contains(serverKinds, kind)
-        ? options.serverRuntime
-        : options.clientRuntime;
-
-      const imports =
-        `\nimport { ${wrapperImports.join(", ")} } from ${jsLiteral(INTERNAL_IMPORT)};\n` +
-        (runtimeSpecifier
-          ? `import * as ${RUNTIME_IDENT} from ${jsLiteral(runtimeSpecifier)};\n`
-          : "");
-      const runtimeArg = runtimeSpecifier ? `, ${RUNTIME_IDENT}` : "";
-      const exports = found
-        .map(
-          (m) =>
-            `export const ${m.name} = ${wrappers[m.name]}(${ORIG_PREFIX}${m.name}${runtimeArg});`,
-        )
-        .join("\n");
-
-      s.append(`\n${imports}${exports}\n`);
-
-      return {
-        code: s.toString(),
-        map: s.generateMap({ hires: "boundary", source: id }),
-      };
-    },
+    transform: (code, id) => transformModule(options, code, id),
   };
 }
 

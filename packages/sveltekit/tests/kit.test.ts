@@ -14,7 +14,6 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
 import { KitActionFailure, KitError, KitRedirect, SvelteKit } from "../src/kit.js";
-import type { KitErrorBody } from "../src/internal/error.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 import { mockEvent } from "./fixtures/request-event.js";
 
@@ -35,12 +34,13 @@ interface UntypedBody {
 }
 
 /**
- * A body an untyped (JavaScript) caller could pass, outside `KitErrorBody`:
- * the translator must still produce Kit's `HttpError` for it.
+ * A `KitError` carrying a body an untyped (JavaScript) caller could pass,
+ * outside `KitErrorBody` (no `message`, or a non-string one): the translator
+ * must still produce Kit's `HttpError` for it. The body is assigned over the
+ * instance's own, as plain JavaScript would leave it.
  */
-// SAFETY: deliberately outside the type, to pin the runtime handling of a body
-// TypeScript would reject (no `message`, or a non-string one).
-const untypedBody = (body: UntypedBody): KitErrorBody => body as KitErrorBody;
+const untypedKitError = (status: number, body: UntypedBody): KitError =>
+  Object.assign(new KitError(status), { body });
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
 
@@ -344,13 +344,13 @@ describe("SvelteKit.translate KitError bodies", () => {
   });
 
   it("keeps the KitError status over a status field in the body, and defaults the message", () => {
-    const thrown = translated(new KitError(422, untypedBody({ status: 400, code: "INVALID" })));
+    const thrown = translated(untypedKitError(422, { status: 400, code: "INVALID" }));
     expect(thrown.status).toBe(422);
     expect(thrown.body).toEqual({ status: 422, message: "Error: 422", code: "INVALID" });
   });
 
   it("drops a non-string message field in favour of Kit's default message", () => {
-    expect(translated(new KitError(500, untypedBody({ message: 42, code: "X" }))).body).toEqual({
+    expect(translated(untypedKitError(500, { message: 42, code: "X" })).body).toEqual({
       status: 500,
       message: "Error: 500",
       code: "X",

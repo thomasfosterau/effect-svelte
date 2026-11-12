@@ -8,13 +8,9 @@ const TransformedModule = Schema.NullOr(Schema.Struct({ code: Schema.String }));
 
 /** Runs the plugin's `transform` hook on `code` (as module `id`), or `null` if it is left alone. */
 function runTransform(code: string, id: string, options?: EffectKitPluginOptions) {
-  const plugin = effectKit(options);
-  const transform = plugin.transform;
+  const { transform } = effectKit(options);
   assert(P.isFunction(transform), "expected transform function");
-  // SAFETY: `effectKit`'s transform hook never reads its plugin context
-  // (`this`), so an empty object stands in for it.
-  const context = {} as ThisParameterType<typeof transform>;
-  return Schema.decodeUnknownSync(TransformedModule)(transform.call(context, code, id));
+  return Schema.decodeUnknownSync(TransformedModule)(transform(code, id));
 }
 
 /** Like {@link runTransform}, asserting the hook rewrote the module. */

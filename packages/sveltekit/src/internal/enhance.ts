@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Option from "effect/Option";
 import { runPromise } from "./run.js";
+import { assumeProvided, onErrorOf } from "./unchecked.js";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */
 export type SubmitInput = Parameters<SubmitFunction>[0];
@@ -171,17 +172,19 @@ export interface OnErrorMustAccept<R, Errors> {
 }
 
 /**
- * Run an `Effect<A, E, R>` on the given runtime (or the default when `None`).
- * The caller vouches that the runtime provides `R`, or that `R` is `never`
- * when there is none.
+ * Run a handler's Effect on the given runtime (or the default when `None`).
+ *
+ * The runtime meets the Effect's requirements, which only
+ * {@link makeSubmitFunction}'s signature can check: its
+ * {@link EnhanceOptionsArgs} makes the runtime optional only when the handlers
+ * require no services, and otherwise requires one that provides them all.
+ * That is a conditional type on the signature's type parameters, which
+ * TypeScript does not resolve inside the function, hence `assumeProvided`.
  */
 const runPromiseWith =
   (runtime: Option.Option<EnhanceRuntime<never>>) =>
-  <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
-    // SAFETY: `EnhanceOptionsArgs<R>` makes the runtime optional only when the
-    // handlers require no services (`R` is `never`), and otherwise requires
-    // one that provides `R`, so the runtime meets the effect's requirements.
-    const provided = effect as Effect.Effect<A, E>;
+  <A, E>(effect: Effect.Effect<A, E, unknown>): Promise<A> => {
+    const provided = assumeProvided(effect);
     return Option.match(runtime, {
       onNone: () => runPromise(provided),
       onSome: (given) =>
@@ -247,25 +250,23 @@ export const makeSubmitFunction = <
     >
   >
 ): SubmitFunction => {
-  type R = RequiredServices<RSubmit> | RequiredServices<RResult> | RequiredServices<RError>;
   // `None` when the options, or their runtime, were left out.
   const run = runPromiseWith(Option.fromUndefinedOr(rest[0]?.runtime));
-  // SAFETY: each handler requires a part of `R`, which the runtime provides in
-  // full, and `E` is the union of the errors of the handlers present, so
-  // `onError` accepts whatever either handler fails with (`ESubmit | EResult`,
-  // the default of `EnhanceHandlers`' last parameter).
-  const phases = handlers as EnhanceHandlers<R, ESubmit, EResult>;
   // Each handler is called as a method of the handlers object (`this` is
-  // `handlers`), as 0.5.0 called `onSubmit`. `onError` is read once, here.
+  // `handlers`), as 0.5.0 called `onSubmit`. `onError` is read once, here. It
+  // accepts whatever either handler fails with: `E` is the union of the errors
+  // of the handlers present, or an annotation `OnErrorAccepts` checked against
+  // them. Both are conditional types on this signature's type parameters,
+  // which TypeScript does not resolve in here, hence `onErrorOf`.
   const handleError = Option.map(
-    Option.fromUndefinedOr(phases.onError),
+    Option.fromUndefinedOr(onErrorOf(handlers)),
     (onError) => (error: ESubmit | EResult) => onError.call(handlers, error),
   );
   return async (input) => {
     // `onSubmit` and `onResult` are read on each submission, so a handler
     // replaced on the handlers object after `enhance()` is the one that runs.
     // `onResult` is read once `onSubmit` has run, so `onSubmit` may set it.
-    const submit = phases.onSubmit?.(input);
+    const submit = handlers.onSubmit?.(input);
     if (submit !== undefined) {
       await run(
         Option.match(handleError, {
@@ -279,7 +280,7 @@ export const makeSubmitFunction = <
         }),
       );
     }
-    const { onResult } = phases;
+    const { onResult } = handlers;
     // Returning `undefined` lets SvelteKit apply its default result behaviour.
     if (!onResult) return undefined;
     return (resultOptions) => {

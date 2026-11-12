@@ -21,6 +21,37 @@ function fromRemotePromise<A>(thunk: () => PromiseLike<A>): Effect.Effect<A, unk
 }
 
 /**
+ * A remote function as `call*` calls it: SvelteKit's own parameter (optional
+ * exactly when `Input` admits `undefined`) and a promise of the output.
+ */
+type RemoteCall<Input, Output> = (
+  arg: undefined extends Input ? Input | void : Input,
+) => PromiseLike<Output>;
+
+/**
+ * The two ways a `call*` function is called, as its overloads spell them: with
+ * a remote function that takes no input, or with one and its input.
+ */
+type RemoteCallArgs<NoInput, WithInput, Input> =
+  | readonly [remote: NoInput]
+  | readonly [remote: WithInput, input: Input];
+
+/**
+ * Calls a remote function, with its input when one was passed, as an Effect
+ * that fails with the call's rejection reason.
+ */
+function callRemote<Input, Output>(
+  ...args: RemoteCallArgs<RemoteCall<void, Output>, RemoteCall<Input, Output>, Input>
+): Effect.Effect<Output, unknown> {
+  if (args.length === 1) {
+    const [remote] = args;
+    return fromRemotePromise(() => remote(undefined));
+  }
+  const [remote, input] = args;
+  return fromRemotePromise(() => remote(input));
+}
+
+/**
  * Calls a SvelteKit remote `query` as an Effect that succeeds with its output.
  *
  * Fails with the remote call's rejection reason, typed `unknown` and passed
@@ -45,12 +76,13 @@ export function callQuery<Input, Output>(
   input: Input,
 ): Effect.Effect<Output, unknown>;
 export function callQuery<Input, Output>(
-  query: RemoteQueryFunction<Input, Output>,
-  input?: Input,
+  ...args: RemoteCallArgs<
+    RemoteQueryFunction<void, Output>,
+    RemoteQueryFunction<Input, Output>,
+    Input
+  >
 ): Effect.Effect<Output, unknown> {
-  // SAFETY: `input` is only absent in the no-input overload, which fixes
-  // `Input` to `void`, so `query(undefined)` is the call that overload means.
-  return fromRemotePromise(() => query(input as Input));
+  return callRemote(...args);
 }
 
 /**
@@ -79,12 +111,9 @@ export function callCommand<Input, Output>(
   input: Input,
 ): Effect.Effect<Output, unknown>;
 export function callCommand<Input, Output>(
-  command: RemoteCommand<Input, Output>,
-  input?: Input,
+  ...args: RemoteCallArgs<RemoteCommand<void, Output>, RemoteCommand<Input, Output>, Input>
 ): Effect.Effect<Output, unknown> {
-  // SAFETY: `input` is only absent in the no-input overload, which fixes
-  // `Input` to `void`, so `command(undefined)` is the call that overload means.
-  return fromRemotePromise(() => command(input as Input));
+  return callRemote(...args);
 }
 
 /**
@@ -134,12 +163,13 @@ export function callPrerender<Input, Output>(
   input: Input,
 ): Effect.Effect<Output, unknown>;
 export function callPrerender<Input, Output>(
-  prerender: RemotePrerenderFunction<Input, Output>,
-  input?: Input,
+  ...args: RemoteCallArgs<
+    RemotePrerenderFunction<void, Output>,
+    RemotePrerenderFunction<Input, Output>,
+    Input
+  >
 ): Effect.Effect<Output, unknown> {
-  // SAFETY: `input` is only absent in the no-input overload, which fixes
-  // `Input` to `void`, so `prerender(undefined)` is the call that overload means.
-  return fromRemotePromise(() => prerender(input as Input));
+  return callRemote(...args);
 }
 
 /**

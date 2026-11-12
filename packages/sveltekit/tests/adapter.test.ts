@@ -7,7 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
-import { type BuildOptions, writeBuild } from "../src/adapter/build.js";
+import { type AdaptBuilder, type BuildOptions, writeBuild } from "../src/adapter/build.js";
 import { effectAdapter } from "../src/adapter/index.js";
 import { ForeignError } from "./fixtures/foreign-error.js";
 
@@ -15,21 +15,6 @@ interface BuilderCall {
   readonly method: string;
   readonly args: ReadonlyArray<unknown>;
 }
-
-/** The members of SvelteKit's `Builder` that `effectAdapter`'s `adapt` reads. */
-type AdaptBuilder = Pick<
-  Builder,
-  | "log"
-  | "writeClient"
-  | "writePrerendered"
-  | "writeServer"
-  | "compress"
-  | "getAppPath"
-  | "generateServerInstance"
-> & {
-  readonly config: { readonly paths: { readonly base: Builder["config"]["paths"]["base"] } };
-  readonly prerendered: Pick<Builder["prerendered"], "paths">;
-};
 
 /**
  * A minimal mock of SvelteKit's Builder that records calls and writes nothing.
@@ -39,7 +24,7 @@ const mockBuilder = (
   calls: BuilderCall[],
   base: Builder["config"]["paths"]["base"] = "",
   compressed: () => ReturnType<Builder["compress"]> = () => Promise.resolve([]),
-): Builder => {
+): AdaptBuilder => {
   const record =
     <R>(method: string, result: R) =>
     (...args: Array<string>): R => {
@@ -51,7 +36,7 @@ const mockBuilder = (
     calls.push({ method: "log.prettyError", args: [error, caller] });
   };
 
-  const builder: AdaptBuilder = {
+  return {
     log: Object.assign(record("log", undefined), {
       minor: record("log.minor", undefined),
       info: record("log.info", undefined),
@@ -75,9 +60,6 @@ const mockBuilder = (
       calls.push({ method: "generateServerInstance", args: [dest, opts] });
     },
   };
-  // SAFETY: `effectAdapter`'s `adapt` reads only the `AdaptBuilder` members of
-  // the builder (see `src/adapter/index.ts`), so the rest are never touched.
-  return builder as Builder;
 };
 
 /**
@@ -94,8 +76,8 @@ const withOutDir = <A, E>(
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 
 /** Runs the adapter's `adapt` against `builder`; a rejection fails the effect. */
-const adapt = (adapter: ReturnType<typeof effectAdapter>, builder: Builder) =>
-  Effect.tryPromise(() => Promise.resolve(adapter.adapt(builder)));
+const adapt = (adapter: ReturnType<typeof effectAdapter>, builder: AdaptBuilder) =>
+  Effect.tryPromise(() => adapter.adapt(builder));
 
 /**
  * A `FileSystem` that performs nothing and records `remove`, `makeDirectory`

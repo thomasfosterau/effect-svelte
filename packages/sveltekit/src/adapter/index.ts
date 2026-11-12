@@ -36,7 +36,9 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import type { Adapter } from "@sveltejs/kit";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { writeBuild } from "./build.js";
+import { type AdaptBuilder, writeBuild } from "./build.js";
+
+export type { AdaptBuilder } from "./build.js";
 
 /** Options for {@link effectAdapter}. */
 export interface EffectAdapterOptions {
@@ -75,6 +77,19 @@ export interface EffectAdapterOptions {
 }
 
 /**
+ * The adapter {@link effectAdapter} returns: a SvelteKit `Adapter` whose
+ * `adapt` hook asks only for the {@link AdaptBuilder} members of the builder
+ * and always returns a promise.
+ */
+export interface EffectAdapter extends Adapter {
+  /**
+   * Writes the production build. The promise rejects with the `PlatformError`
+   * of a file operation that failed, or with whatever the builder threw.
+   */
+  readonly adapt: (builder: AdaptBuilder) => Promise<void>;
+}
+
+/**
  * Creates the Effect SvelteKit adapter.
  *
  * Its `adapt` hook writes the build with Effect's `FileSystem` service on
@@ -86,13 +101,13 @@ export interface EffectAdapterOptions {
  * The production server needs Node `>=22.19`: `@effect/platform-node` pulls
  * in `undici`, which requires it, although this package declares `>=22.17`.
  */
-export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
+export function effectAdapter(options: EffectAdapterOptions = {}): EffectAdapter {
   const { out = "build", precompress = true, envPrefix = "", target = "node" } = options;
 
   return {
     name: "@thomasfosterau/effect-sveltekit/adapter",
 
-    adapt(builder) {
+    adapt: (builder) => {
       // The build hook is a runtime boundary: SvelteKit calls it as a Promise
       // API, so the build runs on a runtime this call owns.
       const runtime = ManagedRuntime.make(NodeFileSystem.layer);

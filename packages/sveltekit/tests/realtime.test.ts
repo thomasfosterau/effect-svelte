@@ -28,24 +28,25 @@ const awaitSocket = (attempts = 200): Effect.Effect<FakeSocket> =>
  * read, which a test's fake event carries.
  */
 interface FakeEvent {
-  readonly type?: string;
-  readonly data?: string;
-  readonly lastEventId?: string;
-  readonly wasClean?: boolean;
-  readonly code?: number;
-  readonly reason?: string;
+  readonly type: string;
+  readonly data: string;
+  readonly lastEventId: string;
+  readonly wasClean: boolean;
+  readonly code: number;
+  readonly reason: string;
 }
 
 /** A minimal, drivable fake of the DOM `WebSocket` / `EventSource` surface. */
 class FakeSocket {
   static instances: Array<FakeSocket> = [];
   readyState = 1;
-  binaryType = "blob";
+  binaryType: BinaryType = "blob";
   private listeners: Record<string, Array<(e: FakeEvent) => void>> = {};
 
   constructor(
     readonly url: string,
-    readonly protocols?: string | ReadonlyArray<string>,
+    /** A `WebSocket`'s protocols, or an `EventSource`'s init dictionary. */
+    readonly init?: string | ReadonlyArray<string> | { readonly withCredentials?: boolean },
   ) {
     FakeSocket.instances.push(this);
   }
@@ -61,36 +62,42 @@ class FakeSocket {
     this.readyState = 3;
   }
 
-  emit(type: string, event: FakeEvent): void {
+  /** Dispatches a `type` event carrying `fields`; the fields a test leaves out are empty. */
+  emit(type: string, fields: Partial<FakeEvent>): void {
+    const event: FakeEvent = {
+      type,
+      data: "",
+      lastEventId: "",
+      wasClean: false,
+      code: 0,
+      reason: "",
+      ...fields,
+    };
     Arr.forEach(this.listeners[type] ?? [], (fn) => fn(event));
   }
 }
 
-// SAFETY: `fromWebSocket` touches only `binaryType`, `addEventListener`,
-// `readyState` and `close` on the socket, all of which `FakeSocket` implements,
-// and reads only the `FakeEvent` fields of the events it dispatches.
-const FakeWebSocket: Realtime.WebSocketConstructor = FakeSocket as never;
+const FakeWebSocket: Realtime.WebSocketConstructor = FakeSocket;
 
-// SAFETY: `fromEventSource` touches only `addEventListener`, `readyState` and
-// `close` on the source, all of which `FakeSocket` implements, and reads only
-// the `FakeEvent` fields of the events it dispatches.
-const FakeEventSource: Realtime.EventSourceConstructor = FakeSocket as never;
+const FakeEventSource: Realtime.EventSourceConstructor = FakeSocket;
 
 /** A constructor that throws as `new WebSocket(url)` / `new EventSource(url)` do for an invalid URL. */
 const invalidUrl = new SyntaxError("The URL 'x' is invalid.");
-class ThrowingSocket {
+class ThrowingSocket implements Realtime.WebSocketLike, Realtime.EventSourceLike {
   static attempts = 0;
+  binaryType: BinaryType = "blob";
+  readonly readyState = 3;
   constructor() {
     ThrowingSocket.attempts++;
     throw invalidUrl;
   }
+  addEventListener(): void {}
+  close(): void {}
 }
 
-// SAFETY: the constructor always throws, so no instance is ever used as a socket.
-const ThrowingWebSocket: Realtime.WebSocketConstructor = ThrowingSocket as never;
+const ThrowingWebSocket: Realtime.WebSocketConstructor = ThrowingSocket;
 
-// SAFETY: the constructor always throws, so no instance is ever used as a source.
-const ThrowingEventSource: Realtime.EventSourceConstructor = ThrowingSocket as never;
+const ThrowingEventSource: Realtime.EventSourceConstructor = ThrowingSocket;
 
 /**
  * Run a stream that is expected to fail and return its typed error, asserting

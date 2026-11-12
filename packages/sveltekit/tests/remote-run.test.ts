@@ -6,17 +6,8 @@ import { ForeignError } from "./fixtures/foreign-error.js";
 /** The `issue` helper a remote form handler receives. */
 type FormIssue = Parameters<FormErrorMapper>[1]["issue"];
 
-/**
- * Runs `effect` with no services. `ExitResolver` types its requirements as
- * `any`; every effect these tests run requires nothing.
- */
-const runExitBare = <A>(effect: Effect.Effect<A, unknown, any>) =>
-  // SAFETY: every effect passed in these tests (`Effect.succeed` / `Effect.fail`)
-  // has no requirements, so providing none is sound.
-  Effect.runPromiseExit(effect as Effect.Effect<A, unknown>);
-
-/** A resolver that runs effects with no services and no teardown. */
-const bareResolver = () => ({ runExit: runExitBare });
+/** A resolver that runs effects that require no services, with no teardown. */
+const bareResolver = () => ({ runExit: Effect.runPromiseExit });
 
 class ValidationFailure {
   readonly _tag = "ValidationFailure";
@@ -81,7 +72,7 @@ describe("makeRunHelpers", () => {
   it("runs teardown after settling", async () => {
     const order: string[] = [];
     const resolver = () => ({
-      runExit: runExitBare,
+      runExit: Effect.runPromiseExit,
       dispose: () => order.push("dispose"),
     });
     const { run } = makeRunHelpers(resolver, () => {

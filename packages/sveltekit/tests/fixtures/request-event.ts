@@ -6,17 +6,7 @@
  */
 
 import type { Cookies, LoadEvent, RequestEvent, ServerLoadEvent } from "@sveltejs/kit";
-
-/** The OpenTelemetry span type SvelteKit puts on `event.tracing`. */
-type Span = RequestEvent["tracing"]["root"];
-
-// SAFETY: no wrapper in `src/` reads `event.cookies` until an effect calls a
-// cookie method, and a test that calls one passes its own `cookies`.
-const cookies = {} as Cookies;
-
-// SAFETY: nothing in `src/` reads `event.tracing`, so the span's methods are
-// never called.
-const span = {} as Span;
+import { TestRequestEvent } from "../../src/testing.js";
 
 /** Options for {@link mockEvent}. */
 export interface MockEventOptions {
@@ -24,7 +14,7 @@ export interface MockEventOptions {
   readonly url?: string;
   /** The event's `locals` (default a fresh empty object). */
   readonly locals?: App.Locals;
-  /** The event's `cookies` (default a stub whose methods must not be called). */
+  /** The event's `cookies` (default an empty in-memory store). */
   readonly cookies?: Cookies;
   /** The event's `setHeaders` (default a no-op). */
   readonly setHeaders?: RequestEvent["setHeaders"];
@@ -35,22 +25,14 @@ export interface MockEventOptions {
  * the global `fetch`, empty `params` and no route id. Never fails.
  */
 export const mockEvent = (options: MockEventOptions = {}): ServerLoadEvent => {
-  const url = options.url ?? "http://localhost/";
+  // The package's own test event supplies the members no test here sets: the
+  // in-memory cookies and the no-op tracing spans among them.
+  const event = TestRequestEvent({ url: options.url ?? "http://localhost/" });
   return {
-    request: new Request(url),
-    fetch,
-    cookies: options.cookies ?? cookies,
-    getClientAddress: () => "127.0.0.1",
+    ...event,
+    cookies: options.cookies ?? event.cookies,
     locals: options.locals ?? {},
-    params: {},
-    platform: undefined,
-    route: { id: null },
-    setHeaders: options.setHeaders ?? (() => undefined),
-    url: new URL(url),
-    isDataRequest: false,
-    isSubRequest: false,
-    isRemoteRequest: false,
-    tracing: { enabled: false, root: span, current: span },
+    setHeaders: options.setHeaders ?? event.setHeaders,
     parent: () => Promise.resolve({}),
     depends: () => undefined,
     untrack: (fn) => fn(),
@@ -83,5 +65,5 @@ export const mockLoadEvent = (): LoadEvent => ({
   parent: () => Promise.resolve({}),
   depends: () => undefined,
   untrack: (fn) => fn(),
-  tracing: { enabled: false, root: span, current: span },
+  tracing: TestRequestEvent().tracing,
 });

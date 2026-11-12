@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { assert, describe, expect, it, onTestFinished } from "vite-plus/test";
 import type { SubmitFunction } from "$app/forms";
 import * as Context from "effect/Context";
@@ -12,9 +13,8 @@ import {
   type SubmitInput,
 } from "../src/internal/enhance.js";
 
-// SAFETY: no handler under test reads `formElement`, and the Node test project
-// has no DOM to build a real `<form>` from.
-const formElement = {} as HTMLFormElement;
+/** The `<form>` the submissions come from (this file runs under happy-dom for it). */
+const formElement = document.createElement("form");
 
 /** A minimal SubmitFunction input; only what a handler touches is populated. */
 const submitInput = (over: Partial<SubmitInput> = {}): SubmitInput => ({

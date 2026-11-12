@@ -39,28 +39,34 @@ import * as AppRuntime from "../app-runtime.js";
 import { causeToThrowable } from "./error.js";
 import { lazy } from "./lazy.js";
 import { runPromiseExit } from "./run.js";
-
-type AnyEffect = Effect.Effect<unknown, unknown>;
+import { assumeProvided } from "./unchecked.js";
 
 /**
- * An Effect a user function returns. Its requirements are open: whatever the
- * configured runtime does not provide surfaces as a missing-service defect
- * when it runs.
+ * The Effect form of a user export. It succeeds with `A`, what SvelteKit's own
+ * signature for that export resolves to (SvelteKit validates the value where
+ * it validates a plain export's), and its requirements are open: the
+ * generated code passes whatever the user wrote.
  */
-type ReturnedEffect = Effect.Effect<unknown, unknown, unknown>;
+type UserEffect<A> = Effect.Effect<A, unknown, unknown>;
 
 /**
  * The function form of a user export: called with the hook / load argument, it
- * returns an Effect to run or `Plain`, what SvelteKit's own signature for that
- * export returns, to pass through. `Effect.isEffect` tells the two apart at
- * runtime.
+ * returns an Effect to run (which succeeds with what `Plain` resolves to) or
+ * `Plain`, what SvelteKit's own signature for that export returns, to pass
+ * through. `Effect.isEffect` tells the two apart at runtime.
  */
-type UserFn<Arg, Plain> = (arg: Arg) => ReturnedEffect | Plain;
+type UserFn<Arg, Plain> = (arg: Arg) => UserEffect<Awaited<Plain>> | Plain;
 
 /** The argument-less function form of a user `init` export (see {@link UserFn}). */
-type UserThunk = () => ReturnedEffect | void | Promise<void>;
+type UserThunk = () => UserEffect<void> | void | Promise<void>;
 
-type AnyRuntime = ServerRuntime<any, any> | UniversalRuntime<any, any>;
+/** Any server runtime: whatever its layer provides and fails with. */
+type AnyServerRuntime = ServerRuntime<never, unknown>;
+
+/** Any universal runtime: whatever its layer provides and fails with. */
+type AnyUniversalRuntime = UniversalRuntime<never, unknown>;
+
+type AnyRuntime = AnyServerRuntime | AnyUniversalRuntime;
 
 /**
  * Module shape accepted for the plugin's `serverRuntime` / `clientRuntime`
@@ -73,27 +79,27 @@ export interface RuntimeModule {
 
 // Default runtimes (no application layer), created lazily and shared across
 // all requests in the process.
-const defaultServerRuntime = lazy(() => AppRuntime.makeServerRuntime<any, any>());
-const defaultUniversalRuntime = lazy(() => AppRuntime.makeUniversalRuntime<any, any>());
+const defaultServerRuntime = lazy(() => AppRuntime.makeServerRuntime());
+const defaultUniversalRuntime = lazy(() => AppRuntime.makeUniversalRuntime());
 
 /** The runtime a runtime module exports; `None` without a module or an export. */
 const runtimeOfModule = (mod?: RuntimeModule): Option.Option<AnyRuntime> =>
   Option.fromUndefinedOr(mod?.runtime ?? mod?.default);
 
 /** Distinguish a ServerRuntime from a UniversalRuntime structurally. */
-const isServerRuntime = (runtime: AnyRuntime): runtime is ServerRuntime<any, any> =>
+const isServerRuntime = (runtime: AnyRuntime): runtime is AnyServerRuntime =>
   "serverLoad" in runtime;
 
 /** The other half of {@link isServerRuntime}. */
-const isUniversalRuntime = (runtime: AnyRuntime): runtime is UniversalRuntime<any, any> =>
+const isUniversalRuntime = (runtime: AnyRuntime): runtime is AnyUniversalRuntime =>
   !isServerRuntime(runtime);
 
 /** The server runtime for a module, falling back to the shared default. */
-const serverRuntimeOf = (mod?: RuntimeModule): ServerRuntime<any, any> =>
+const serverRuntimeOf = (mod?: RuntimeModule): AnyServerRuntime =>
   runtimeOfModule(mod).pipe(Option.filter(isServerRuntime), Option.getOrElse(defaultServerRuntime));
 
 /** The universal runtime for a module, falling back to the shared default. */
-const universalRuntimeOf = (mod?: RuntimeModule): UniversalRuntime<any, any> =>
+const universalRuntimeOf = (mod?: RuntimeModule): AnyUniversalRuntime =>
   runtimeOfModule(mod).pipe(
     Option.filter(isUniversalRuntime),
     Option.getOrElse(defaultUniversalRuntime),
@@ -103,8 +109,8 @@ const universalRuntimeOf = (mod?: RuntimeModule): UniversalRuntime<any, any> =>
  * Run an effect without any request context (e.g. `init` hooks): on `runtime`,
  * or on Effect's default runtime when there is none.
  */
-async function runBare<A, E>(
-  effect: Effect.Effect<A, E>,
+async function runBare<A>(
+  effect: Effect.Effect<A, unknown>,
   runtime: Option.Option<AnyRuntime>,
 ): Promise<A> {
   const exit = await Option.match(runtime, {
@@ -121,27 +127,28 @@ async function runBare<A, E>(
 }
 
 /**
- * Detect an Effect returned by (or exported as) a user hook. Its requirements
- * are typed `never`: the user's export may only need what the runtime provides,
- * and anything else surfaces as a missing-service defect when it runs.
+ * Whether what a user export returned is an Effect to run rather than `Plain`,
+ * the value SvelteKit's own signature returns: `Effect.isEffect`, which is
+ * what tells the two members of that union apart.
  */
-const isUserEffect = (value: unknown): value is AnyEffect => Effect.isEffect(value);
+const isUserEffect = <Plain>(
+  value: UserEffect<Awaited<Plain>> | Plain,
+): value is UserEffect<Awaited<Plain>> => Effect.isEffect(value);
 
 /**
  * A user export the plugin wraps: an Effect, or a function of `Arg` returning
  * an Effect or `Plain`.
  */
-type UserExport<Arg, Plain> = AnyEffect | UserFn<Arg, Plain>;
+type UserExport<Arg, Plain> = UserEffect<Awaited<Plain>> | UserFn<Arg, Plain>;
 
 /** A user export's Effect form as is, or the result of calling its function form with `arg`. */
-const resolveExport = <Arg, Plain>(value: UserExport<Arg, Plain>, arg: Arg) =>
-  Effect.isEffect(value) ? value : value(arg);
+const resolveExport = <Arg, Plain>(
+  value: UserExport<Arg, Plain>,
+  arg: Arg,
+): UserEffect<Awaited<Plain>> | Plain => (Effect.isEffect(value) ? value : value(arg));
 
 /** A user export called with a load / request event (see {@link UserExport}). */
 type LoadLikeInput<Plain> = UserExport<any, Plain>;
-
-/** The page data a universal `load` resolves to. */
-type LoadData = Awaited<ReturnType<Load>>;
 
 /**
  * Wraps a value intended to be a SvelteKit universal `load` export.
@@ -156,15 +163,11 @@ export function wrapLoad(value?: LoadLikeInput<ReturnType<Load>>, runtimeMod?: R
       const result = resolveExport(present, event);
       // A non-Effect result is the user's own `load` return value, passed
       // through unchanged.
-      if (!Effect.isEffect(result)) return result;
+      if (!isUserEffect(result)) return result;
 
       // Reuse the universal runtime's load wrapper so client/server detection
       // and per-request services stay in one place.
-      // SAFETY: the effect is the user's `load`; its value is the page data,
-      // which SvelteKit itself validates when the load resolves.
-      return universalRuntimeOf(runtimeMod).load(() => result as Effect.Effect<LoadData, unknown>)(
-        event,
-      );
+      return universalRuntimeOf(runtimeMod).load(() => assumeProvided(result))(event);
     }),
     Option.getOrUndefined,
   );
@@ -179,11 +182,9 @@ const serverEventHandler =
   <Plain>(value: LoadLikeInput<Plain>, runtimeMod?: RuntimeModule) =>
   async (event: RequestEvent): Promise<Awaited<Plain>> => {
     const result = resolveExport(value, event);
-    if (!Effect.isEffect(result)) return await result;
+    if (!isUserEffect(result)) return await result;
 
-    // SAFETY: the effect is the user's export; its value is what SvelteKit's
-    // own signature for that export resolves to, which SvelteKit validates.
-    return serverRuntimeOf(runtimeMod).runPromise(event, result) as Promise<Awaited<Plain>>;
+    return serverRuntimeOf(runtimeMod).runPromise(event, assumeProvided(result));
   };
 
 /**
@@ -270,15 +271,11 @@ export function wrapHandle(
       const result = resolveExport(present, input);
       // A non-Effect result is the user's own `handle` return value (a
       // `Response` or a promise of one), passed through unchanged.
-      if (!Effect.isEffect(result)) return result;
+      if (!isUserEffect(result)) return result;
 
       // Route through `handle` so the per-request runtime is installed on
       // `event.locals` for the rest of the request, like the explicit wrapper.
-      // SAFETY: the effect is the user's `handle`, which resolves to the
-      // `Response`.
-      return serverRuntimeOf(runtimeMod).handle(() => result as Effect.Effect<Response, unknown>)(
-        input,
-      );
+      return serverRuntimeOf(runtimeMod).handle(() => assumeProvided(result))(input);
     }),
     Option.getOrUndefined,
   );
@@ -304,11 +301,9 @@ export function wrapHandleFetch(
       const result = resolveExport(present, args);
       // A non-Effect result is the user's own `handleFetch` return value (a
       // `Response` or a promise of one), passed through unchanged.
-      if (!Effect.isEffect(result)) return result;
+      if (!isUserEffect(result)) return result;
 
-      // SAFETY: the effect is the user's `handleFetch`, which resolves to the
-      // `Response`.
-      return serverRuntimeOf(runtimeMod).runPromise(args.event, result) as Promise<Response>;
+      return serverRuntimeOf(runtimeMod).runPromise(args.event, assumeProvided(result));
     }),
     Option.getOrUndefined,
   );
@@ -334,23 +329,18 @@ export function wrapHandleError(
   return Option.fromUndefinedOr(value).pipe(
     Option.map((present): AnyHandleError => async (args: HandleErrorInput) => {
       const result = resolveExport(present, args);
-      if (!isUserEffect(result)) {
-        // SAFETY: a non-Effect result is the user's own `handleError` return
-        // value, passed through unchanged.
-        return result as HandleErrorOutput;
-      }
+      // A non-Effect result is the user's own `handleError` return value,
+      // passed through unchanged.
+      if (!isUserEffect(result)) return result;
 
       // Server errors carry a RequestEvent; client errors carry a NavigationEvent.
       const event = args.event;
       if (event !== undefined && "request" in event) {
-        // SAFETY: the effect is the user's `handleError`, which resolves to
-        // its `App.Error` (or nothing).
-        return serverRuntimeOf(runtimeMod).runPromise(event, result) as HandleErrorOutput;
+        return serverRuntimeOf(runtimeMod).runPromise(event, assumeProvided(result));
       }
 
       // Client-side: run on the bare app runtime (no request services).
-      // SAFETY: as above.
-      return runBare(result, runtimeOfModule(runtimeMod)) as HandleErrorOutput;
+      return runBare(assumeProvided(result), runtimeOfModule(runtimeMod));
     }),
     Option.getOrUndefined,
   );
@@ -406,11 +396,9 @@ export function wrapReroute(
       const result = resolveExport(present, event);
       // A non-Effect result is the user's own `reroute` return value (a
       // pathname, a promise of one, or nothing), passed through unchanged.
-      if (!Effect.isEffect(result)) return result;
+      if (!isUserEffect(result)) return result;
 
-      // SAFETY: the effect is the user's `reroute`, which resolves to the
-      // pathname (or nothing).
-      return universalRuntimeOf(runtimeMod).runPromise(event.fetch, result) as ReturnType<Reroute>;
+      return universalRuntimeOf(runtimeMod).runPromise(event.fetch, assumeProvided(result));
     }),
     Option.getOrUndefined,
   );
@@ -425,17 +413,17 @@ type Init = () => Promise<void>;
  * application runtime's services (if configured) are. An export that holds
  * `undefined` stays `undefined`.
  */
-export function wrapInit(value: AnyEffect | UserThunk, runtimeMod?: RuntimeModule): Init;
+export function wrapInit(value: UserEffect<void> | UserThunk, runtimeMod?: RuntimeModule): Init;
 export function wrapInit(value: undefined, runtimeMod?: RuntimeModule): undefined;
-export function wrapInit(value?: AnyEffect | UserThunk, runtimeMod?: RuntimeModule) {
+export function wrapInit(value?: UserEffect<void> | UserThunk, runtimeMod?: RuntimeModule) {
   return Option.fromUndefinedOr(value).pipe(
     Option.map((present): Init => async () => {
       const result = Effect.isEffect(present) ? present : present();
-      if (!isUserEffect(result)) {
+      if (!isUserEffect<void | Promise<void>>(result)) {
         await result;
         return;
       }
-      await runBare(result, runtimeOfModule(runtimeMod));
+      await runBare(assumeProvided(result), runtimeOfModule(runtimeMod));
     }),
     Option.getOrUndefined,
   );

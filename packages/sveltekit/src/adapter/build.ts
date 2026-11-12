@@ -13,6 +13,24 @@ import * as Schema from "effect/Schema";
 
 const PACKAGE = "@thomasfosterau/effect-sveltekit";
 
+/**
+ * The members of SvelteKit's `Builder` the build step reads: what
+ * `effectAdapter().adapt` needs of the builder SvelteKit passes it.
+ */
+export type AdaptBuilder = Pick<
+  Builder,
+  | "log"
+  | "writeClient"
+  | "writePrerendered"
+  | "writeServer"
+  | "compress"
+  | "getAppPath"
+  | "generateServerInstance"
+> & {
+  readonly config: { readonly paths: { readonly base: Builder["config"]["paths"]["base"] } };
+  readonly prerendered: Pick<Builder["prerendered"], "paths">;
+};
+
 /** The resolved options of one adapter build: `EffectAdapterOptions`, defaults applied. */
 export interface BuildOptions {
   /** The directory the production build is written to. */
@@ -118,7 +136,7 @@ export default {
  * defect.
  */
 export const writeBuild = (
-  builder: Builder,
+  builder: AdaptBuilder,
   options: BuildOptions,
 ): Effect.Effect<void, PlatformError.PlatformError, FileSystem.FileSystem> =>
   Effect.gen(function* () {

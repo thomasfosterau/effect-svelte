@@ -159,17 +159,24 @@ describe("Forms.deserialize", () => {
   });
 });
 
+/** The form a submission comes from: its action URL, its data and the `<form>` element. */
+const submission = () => ({
+  action: new URL("http://localhost/?/default"),
+  formData: new FormData(),
+  formElement: document.createElement("form"),
+});
+
 /** A `SubmitFunction` input whose `cancel()` is recorded in `cancelled`. */
 const submitInput = () => {
   let cancelled = false;
-  // SAFETY: `Forms.enhance`'s submit phase only calls `cancel()` on its input
-  // (the handlers these tests run read nothing else), so the other fields of
-  // a `SubmitInput` are never touched.
-  const input = {
+  const input: SubmitInput = {
+    ...submission(),
+    controller: new AbortController(),
+    submitter: null,
     cancel: () => {
       cancelled = true;
     },
-  } as SubmitInput;
+  };
   return { input, cancelled: () => cancelled };
 };
 
@@ -186,9 +193,7 @@ const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promis
     updates++;
     return Promise.resolve();
   };
-  // SAFETY: `Forms.enhance`'s result phase reads only `result` and `update`
-  // from SvelteKit's callback options; the rest are never touched.
-  await callback({ result, update } as Parameters<typeof callback>[0]);
+  await callback({ ...submission(), result, update });
   return updates;
 };
 

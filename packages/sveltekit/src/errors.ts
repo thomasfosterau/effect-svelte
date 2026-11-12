@@ -58,6 +58,7 @@ import * as P from "effect/Predicate";
 import * as R from "effect/Record";
 import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
+import { catalogueEntries } from "./internal/unchecked.js";
 
 /** Any value carrying a string `_tag` — `Schema.TaggedError`, `Data.TaggedError`, … */
 export interface Tagged {
@@ -221,11 +222,9 @@ export const toSvelteKit = <E extends Tagged = Tagged>(
   catalogue: Catalogue<E>,
   options: ToSvelteKitOptions = {},
 ): KitErrorTranslator => {
-  // SAFETY: every key of a `Catalogue<E>` is one of `E`'s tags and its entry is
-  // a `CatalogueEntry` of the matching member, which `apply` only ever calls
-  // with an error of that tag; the lookup below goes through `R.get` (own keys
-  // only), so an absent key reads `None`.
-  const entries = catalogue as Readonly<Record<string, CatalogueEntry<Tagged>>>;
+  // The lookup below goes through `R.get` (own keys only), so an absent key
+  // reads `None`.
+  const entries = catalogueEntries(catalogue);
   const fallback = options.fallback ?? SvelteKit.translate;
   return (cause) => {
     const squashed = Cause.squash(cause);

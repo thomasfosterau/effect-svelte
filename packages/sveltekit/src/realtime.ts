@@ -13,6 +13,7 @@ import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
+import * as P from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { failQueueOnSetupError } from "./internal/stream-callback.js";
@@ -43,11 +44,28 @@ export class EventSourceError extends Schema.TaggedError<EventSourceError>()("Ev
   cause: Schema.optionalKey(Schema.Defect()),
 }) {}
 
+/** The fields of a server-sent event's `MessageEvent` that {@link fromEventSource} reads. */
+export type EventSourceMessage = Pick<MessageEvent<string>, "type" | "data" | "lastEventId">;
+
+/**
+ * The subset of an `EventSource` instance {@link fromEventSource} relies on.
+ * The platform `EventSource` is one; so is a polyfill or a test double with
+ * these members.
+ */
+export interface EventSourceLike {
+  /** `2` once the source has closed for good. */
+  readonly readyState: number;
+  /** Registers a listener for the `message`, `error` or a named event. */
+  addEventListener(type: string, listener: (event: EventSourceMessage) => void): void;
+  /** Closes the connection. */
+  close(): void;
+}
+
 /** The subset of the `EventSource` constructor this module relies on. */
 export type EventSourceConstructor = new (
   url: string,
   eventSourceInitDict?: { withCredentials?: boolean },
-) => EventSource;
+) => EventSourceLike;
 
 /** Options for {@link fromEventSource}. */
 export interface FromEventSourceOptions {
@@ -70,7 +88,7 @@ export interface FromEventSourceOptions {
 /** A listener that offers each event it receives to `queue` as an {@link SseMessage}. */
 const offerSseMessage =
   (queue: Queue.Queue<SseMessage, EventSourceError | Cause.Done>) =>
-  (e: MessageEvent): void => {
+  (e: EventSourceMessage): void => {
     Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
   };
 
@@ -160,11 +178,34 @@ export class WebSocketError extends Schema.TaggedError<WebSocketError>()("WebSoc
   cause: Schema.optionalKey(Schema.Defect()),
 }) {}
 
+/**
+ * The subset of a `WebSocket` instance {@link fromWebSocket} relies on. The
+ * platform `WebSocket` is one; so is a polyfill or a test double with these
+ * members.
+ */
+export interface WebSocketLike {
+  /** How binary frames are delivered; set from `options.binaryType`. */
+  binaryType: BinaryType;
+  /** `0` while connecting and `1` while open: the states in which the socket is closed on release. */
+  readonly readyState: number;
+  /** Registers the listener for incoming messages. */
+  addEventListener(type: "message", listener: (event: Pick<MessageEvent, "data">) => void): void;
+  /** Registers the listener for a connection error. */
+  addEventListener(type: "error", listener: () => void): void;
+  /** Registers the listener for the connection closing. */
+  addEventListener(
+    type: "close",
+    listener: (event: Pick<CloseEvent, "wasClean" | "code" | "reason">) => void,
+  ): void;
+  /** Closes the connection. */
+  close(): void;
+}
+
 /** The subset of the `WebSocket` constructor this module relies on. */
 export type WebSocketConstructor = new (
   url: string,
   protocols?: string | ReadonlyArray<string>,
-) => WebSocket;
+) => WebSocketLike;
 
 /** Options for {@link fromWebSocket}. */
 export interface FromWebSocketOptions {
@@ -179,6 +220,10 @@ export interface FromWebSocketOptions {
   /** Override the `WebSocket` constructor (Node polyfill, tests). */
   readonly implementation?: WebSocketConstructor;
 }
+
+/** `protocols` as the platform `WebSocket` constructor types it: a list as a mutable `string[]`. */
+const mutableProtocols = (protocols: FromWebSocketOptions["protocols"]) =>
+  P.isString(protocols) || protocols === undefined ? protocols : Arr.fromIterable(protocols);
 
 /**
  * Consume a `WebSocket` as a `Stream` of its message payloads
@@ -204,9 +249,8 @@ export const fromWebSocket = (
   url: string,
   options?: FromWebSocketOptions,
 ): Stream.Stream<string | ArrayBuffer | Blob, WebSocketError> => {
-  // SAFETY: the platform `WebSocket` constructor only reads `protocols`; it is
-  // typed as a mutable `string[]`, but a `ReadonlyArray` is equally valid input.
-  const Impl = options?.implementation ?? (globalThis.WebSocket as WebSocketConstructor);
+  // The platform constructor is read here, as `implementation` is.
+  const Platform = globalThis.WebSocket;
   return Stream.callback<string | ArrayBuffer | Blob, WebSocketError>(
     (queue) =>
       Effect.acquireRelease(
@@ -215,10 +259,13 @@ export const fromWebSocket = (
         // acquire registers no release.
         Effect.try({
           try: () => {
-            const socket = new Impl(url, options?.protocols);
+            const socket: WebSocketLike =
+              options?.implementation === undefined
+                ? new Platform(url, mutableProtocols(options?.protocols))
+                : new options.implementation(url, options.protocols);
             if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
 
-            socket.addEventListener("message", (e: MessageEvent) => {
+            socket.addEventListener("message", (e) => {
               Queue.offerUnsafe(queue, e.data);
             });
 
@@ -226,7 +273,7 @@ export const fromWebSocket = (
               Queue.failCauseUnsafe(queue, Cause.fail(new WebSocketError({ url })));
             });
 
-            socket.addEventListener("close", (e: CloseEvent) => {
+            socket.addEventListener("close", (e) => {
               if (e.wasClean) {
                 Queue.endUnsafe(queue);
               } else {
