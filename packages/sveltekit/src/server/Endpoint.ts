@@ -166,6 +166,12 @@ const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.laye
  * any application services already provided. The platform services an `HttpApi`
  * requires (`HttpPlatform`, `FileSystem`, `Path`, `Etag`) are supplied for you.
  *
+ * The layer is built once, on the first request, and shared; the returned
+ * handler's `dispose()` closes its scope. API handlers receive an Effect
+ * `HttpServerRequest` built from `event.request`. Put the endpoint on a
+ * catch-all route and assign it to `fallback` so every method and sub-path
+ * reaches it.
+ *
  * @example
  * ```ts
  * // src/routes/api/[...path]/+server.ts

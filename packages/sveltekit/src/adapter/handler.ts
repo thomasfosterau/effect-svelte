@@ -269,6 +269,7 @@ export class SvelteKitServerError extends Schema.TaggedError<SvelteKitServerErro
  *         assets: AssetSource.cloudflareAssets(env.ASSETS),
  *         read: () => { throw new Error("read() not supported on this deployment"); },
  *       }),
+ *       Layer.empty, // the asset source's services; cloudflareAssets needs none
  *     )(request),
  * };
  * ```

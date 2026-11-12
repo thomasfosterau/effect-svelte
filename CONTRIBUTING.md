@@ -70,7 +70,7 @@ If your change affects a published package, add a changeset (`pnpm changeset`) a
 1. Every gate in [AGENTS.md § Verification](AGENTS.md#verification), each with its final pass/fail in the PR body.
 2. A changeset where [AGENTS.md § Branches and pull requests](AGENTS.md#branches-and-pull-requests) requires one.
 3. `git fetch origin trunk && git rebase origin/trunk` — never merge `trunk` into your branch.
-4. Docs: the package `README.md` (the npm API reference) for any exported change; the package `AGENTS.md` for a new invariant or entry.
+4. Docs: TSDoc and the matching `docs/` page for any exported change; the package `README.md` only when install, the entry points or the example change; the package `AGENTS.md` for a new invariant or entry.
 
 ## Commit messages
 

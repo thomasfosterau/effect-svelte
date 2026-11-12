@@ -1,7 +1,17 @@
 # Cookbook
 
 Recipes that combine `@thomasfosterau/effect-svelte` / `@thomasfosterau/effect-sveltekit`
-with Effect's own APIs.
+with Effect's own APIs. The reference pages are:
+
+- [`@thomasfosterau/effect-svelte` reference](effect-svelte.md): hooks, runtimes, atoms, store interop.
+- `@thomasfosterau/effect-sveltekit`:
+  - [loads, actions, endpoints and runtimes](sveltekit-server.md);
+  - [hooks, `transport` and `ResponseHeaders`](sveltekit-hooks.md);
+  - [client navigation, state and forms](sveltekit-client.md);
+  - [remote functions](sveltekit-remote-functions.md);
+  - [the Effect deployment adapter](sveltekit-adapter.md);
+  - [the `effectKit()` Vite plugin](sveltekit-vite-plugin.md);
+  - [testing](sveltekit-testing.md).
 
 ## Consume an `Endpoint.fromApi` with a typed client (`apiClient`)
 
@@ -330,3 +340,30 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
   next run that connects. The same `toStore(() => …)` bridge turns any rune-tracked getter —
   a `$state` field, `orders.get(id)` — into a `Stream`.
 - Requires `provideRuntime()` in an ancestor, or pass `runtime`.
+
+## SvelteKit app-side patterns
+
+Two SvelteKit app patterns are recipes rather than APIs:
+
+- **Leaving an error page.** After an error page renders, client-side
+  navigation can re-run loads against a stale context; the apps force a full
+  reload instead:
+
+  ```svelte
+  <script lang="ts">
+    import { beforeNavigate } from "$app/navigation";
+    import { page } from "$app/state";
+
+    beforeNavigate((navigation) => {
+      if (page.error) {
+        navigation.cancel();
+        window.location.href = navigation.to?.url.href ?? "/";
+      }
+    });
+  </script>
+  ```
+
+- **Paraglide.** The paraglide wiring (plugin shim, compile step, the
+  `paraglide` handle and the `fillPattern` workaround) is SvelteKit/Vite-specific
+  and not Effect, so it stays an app template rather than a `./paraglide` entry
+  in `@thomasfosterau/effect-sveltekit`.

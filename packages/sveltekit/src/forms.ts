@@ -68,7 +68,8 @@ export type {
  *
  * Either handler may fail. Add an `onError` handler to handle the error
  * (typed as the union of the handlers' error types when written after them;
- * `unknown` when written before a handler with unannotated parameters): a
+ * `unknown` when written before a handler with unannotated parameters); it
+ * runs on the same runtime and must not fail itself. A
  * failed `onSubmit` also cancels the submission, and a failed `onResult` does
  * not fall back to SvelteKit's default behaviour. Without `onError`, or for a
  * defect or interruption, the promise SvelteKit awaits rejects (with the error
