@@ -102,13 +102,6 @@ export default defineConfig({
       // `useEffect`, and there is no React in this repo. Apps that call the
       // hook under this preset need the same line.
       "effect/avoid-react-hooks": "off",
-      // Its only fix contradicts the workspace's `exactOptionalPropertyTypes`
-      // convention (AGENTS.md): an optional member a caller may forward
-      // `undefined` into MUST be spelled `?: T | undefined`, which is most of
-      // its sites. The rest are published signatures that return `undefined`
-      // to Svelte templates (`{#if x}`), where an `Option` would be a breaking
-      // API change for every consumer.
-      "effect/prefer-option-over-null": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
       // The suites assert through their own helpers (`expectFailsWith`,
       // `expectFailure`, ...) as well as `expect` / `assert`.
