@@ -193,10 +193,7 @@ describe("liveQueryStream", () => {
   it.effect("surfaces iteration errors on the Stream's error channel", () => {
     const boom = new ForeignError("boom");
     const live = remoteLiveQuery<number>({
-      // eslint-disable-next-line require-yield
-      async *[Symbol.asyncIterator]() {
-        throw boom;
-      },
+      [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(boom) }),
     });
 
     return Effect.gen(function* () {
