@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { assert, describe, expect } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -17,33 +18,33 @@ import * as Store from "../src/Store.js";
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("Store.toStream", () => {
-  it("emits the store's current value on subscribe", async () => {
-    const store = writable(42);
+  it.effect("emits the store's current value on subscribe", () =>
+    Effect.gen(function* () {
+      const store = writable(42);
 
-    // The readable store contract emits the current value synchronously on
-    // subscribe, so taking one value is deterministic.
-    const values = await Effect.runPromise(
-      Stream.runCollect(Stream.take(Store.toStream(store), 1)),
-    );
-    expect(values).toEqual([42]);
-  });
+      // The readable store contract emits the current value synchronously on
+      // subscribe, so taking one value is deterministic.
+      const values = yield* Stream.runCollect(Stream.take(Store.toStream(store), 1));
+      expect(values).toEqual([42]);
+    }),
+  );
 
-  it("forwards every value pushed by the store contract", async () => {
-    // A custom readable that pushes several values synchronously on subscribe.
-    const store = {
-      subscribe(run: (value: number) => void) {
-        run(1);
-        run(2);
-        run(3);
-        return () => {};
-      },
-    };
+  it.effect("forwards every value pushed by the store contract", () =>
+    Effect.gen(function* () {
+      // A custom readable that pushes several values synchronously on subscribe.
+      const store = {
+        subscribe(run: (value: number) => void) {
+          run(1);
+          run(2);
+          run(3);
+          return () => {};
+        },
+      };
 
-    const values = await Effect.runPromise(
-      Stream.runCollect(Stream.take(Store.toStream(store), 3)),
-    );
-    expect(values).toEqual([1, 2, 3]);
-  });
+      const values = yield* Stream.runCollect(Stream.take(Store.toStream(store), 3));
+      expect(values).toEqual([1, 2, 3]);
+    }),
+  );
 
   /**
    * A `writable` wrapped to count its live subscriptions, so the tests can see
@@ -84,11 +85,11 @@ describe("Store.toStream", () => {
       return { fiber, next };
     });
 
-  it("delivers values the store pushes after the stream has started", async () => {
-    const store = countedWritable(0);
+  it.live("delivers values the store pushes after the stream has started", () =>
+    Effect.gen(function* () {
+      const store = countedWritable(0);
 
-    const values = await Effect.runPromise(
-      Effect.gen(function* () {
+      const values = yield* Effect.gen(function* () {
         const { fiber, next } = yield* forward(Store.toStream(store));
         const first = yield* next;
         store.set(1);
@@ -97,35 +98,35 @@ describe("Store.toStream", () => {
         const third = yield* next;
         yield* Fiber.interrupt(fiber);
         return [first, second, third];
-      }),
-    );
+      });
 
-    expect(values).toEqual([0, 1, 2]);
-  });
+      expect(values).toEqual([0, 1, 2]);
+    }),
+  );
 
-  it("keeps the subscription open while the stream runs and closes it on interruption", async () => {
-    const store = countedWritable(0);
+  it.live("keeps the subscription open while the stream runs and closes it on interruption", () =>
+    Effect.gen(function* () {
+      const store = countedWritable(0);
 
-    const activeWhileRunning = await Effect.runPromise(
-      Effect.gen(function* () {
+      const activeWhileRunning = yield* Effect.gen(function* () {
         const { fiber, next } = yield* forward(Store.toStream(store));
         yield* next;
         const active = store.active;
         // `Fiber.interrupt` waits for the stream's scope to close.
         yield* Fiber.interrupt(fiber);
         return active;
-      }),
-    );
+      });
 
-    expect(activeWhileRunning).toBe(1);
-    expect(store.active).toBe(0);
-  });
+      expect(activeWhileRunning).toBe(1);
+      expect(store.active).toBe(0);
+    }),
+  );
 
-  it("unsubscribes from the store when the stream ends", async () => {
-    const store = countedWritable(0);
+  it.live("unsubscribes from the store when the stream ends", () =>
+    Effect.gen(function* () {
+      const store = countedWritable(0);
 
-    const values = await Effect.runPromise(
-      Effect.gen(function* () {
+      const values = yield* Effect.gen(function* () {
         const { fiber, next } = yield* forward(Stream.take(Store.toStream(store), 2));
         const first = yield* next;
         store.set(1);
@@ -134,14 +135,14 @@ describe("Store.toStream", () => {
         // waits for its scope to close.
         yield* Fiber.join(fiber);
         return [first, second];
-      }),
-    );
+      });
 
-    expect(values).toEqual([0, 1]);
-    expect(store.active).toBe(0);
-  });
+      expect(values).toEqual([0, 1]);
+      expect(store.active).toBe(0);
+    }),
+  );
 
-  it("dies with what a throwing `subscribe` threw, instead of hanging", async () => {
+  it.live("dies with what a throwing `subscribe` threw, instead of hanging", () => {
     // A store that breaks the readable store contract by throwing on subscribe.
     const thrown = new Error("subscribe failed");
     const store = {
@@ -150,25 +151,26 @@ describe("Store.toStream", () => {
       },
     };
 
-    // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2;
-    // `failQueueOnSetupError` does it on 4.0.0 / 4.0.1, inside the `^4.0.0` peer
-    // range. The timeout only guards against a regression to a hang, so
-    // it fails the test rather than passing it.
-    const exit = await Effect.runPromise(
-      Store.toStream<number>(store).pipe(
+    return Effect.gen(function* () {
+      // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2;
+      // `failQueueOnSetupError` does it on 4.0.0 / 4.0.1, inside the `^4.0.0` peer
+      // range. The timeout only guards against a regression to a hang, so
+      // it fails the test rather than passing it.
+      const exit = yield* Store.toStream<number>(store).pipe(
         Stream.runCollect,
         Effect.timeout("2 seconds"),
         Effect.exit,
-      ),
-    );
+      );
 
-    if (Exit.isSuccess(exit)) throw new Error("expected the stream to die");
-    const [reason, ...rest] = exit.cause.reasons;
-    expect(rest).toEqual([]);
-    if (reason === undefined || !Cause.isDieReason(reason)) {
-      throw new Error(`expected a defect, got ${Cause.pretty(exit.cause)}`);
-    }
-    expect(reason.defect).toBe(thrown);
+      assert(Exit.isFailure(exit), "expected the stream to die");
+      const [reason, ...rest] = exit.cause.reasons;
+      expect(rest).toEqual([]);
+      assert(
+        reason !== undefined && Cause.isDieReason(reason),
+        `expected a defect, got ${Cause.pretty(exit.cause)}`,
+      );
+      expect(reason.defect).toBe(thrown);
+    });
   });
 });
 

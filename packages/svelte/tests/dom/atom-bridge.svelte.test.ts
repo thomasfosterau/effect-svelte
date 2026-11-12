@@ -18,7 +18,8 @@ import * as R from "effect/Record";
 import { Atom } from "effect/reactivity";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { tick } from "svelte";
-import { afterEach, assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect } from "vite-plus/test";
 import { getAtomRegistry, invalidateAtomKeys, makeAtomRegistry } from "../../src/atom.svelte.js";
 import AtomProbe from "./AtomProbe.svelte";
 import WritableAtomProbe from "./WritableAtomProbe.svelte";
@@ -50,19 +51,23 @@ describe("useAtomResult", () => {
     await expect.poll(() => text(target, "atom-state")).toBe("run-1");
   });
 
-  it("renders loading until an async atom settles", async () => {
-    // The atom settles only when the test opens the gate, so "loading" is
-    // asserted while it is certainly still pending, however slow the runner.
-    const gate = Effect.runSync(Deferred.make<void>());
-    const atom = Atom.make(Deferred.await(gate).pipe(Effect.as("late")));
-    const target = mounter.mount(AtomProbe, { select: fixed(atom) });
-    await flush();
+  it.effect("renders loading until an async atom settles", () =>
+    Effect.gen(function* () {
+      // The atom settles only when the test opens the gate, so "loading" is
+      // asserted while it is certainly still pending, however slow the runner.
+      const gate = yield* Deferred.make<void>();
+      const atom = Atom.make(Deferred.await(gate).pipe(Effect.as("late")));
+      const target = mounter.mount(AtomProbe, { select: fixed(atom) });
+      yield* Effect.tryPromise(() => flush());
 
-    expect(text(target, "atom-state")).toBe("loading");
+      expect(text(target, "atom-state")).toBe("loading");
 
-    Effect.runSync(Deferred.succeed(gate, undefined));
-    await expect.poll(() => text(target, "atom-state")).toBe("late");
-  });
+      yield* Deferred.succeed(gate, undefined);
+      yield* Effect.tryPromise(async () => {
+        await expect.poll(() => text(target, "atom-state")).toBe("late");
+      });
+    }),
+  );
 
   it("re-reads when invalidateAtomKeys invalidates the atom's keys", async () => {
     const target = mounter.mount(AtomProbe, {
