@@ -54,7 +54,7 @@ import * as Exit from "effect/Exit";
 import type * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Result from "effect/Result";
 import type { SvelteRouteParams } from "./internal/route-params.js";
 import { SvelteKit } from "./kit.js";
@@ -332,7 +332,7 @@ export const makeRuntimeAdapter = <R>(
       ),
     action,
     actions: (map) => {
-      return Rec.map(map, (fn) => action(fn));
+      return R.map(map, (fn) => action(fn));
     },
     endpoint: (fn, options) => async (event) => {
       const effect = fn(event).pipe(

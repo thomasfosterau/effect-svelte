@@ -53,7 +53,7 @@
 
 import { redirect as kitRedirect } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
@@ -118,7 +118,7 @@ export const rethrowSquashed: KitErrorTranslator = (cause) => {
 };
 
 const isTagged = (value: unknown): value is Tagged =>
-  Predicate.hasProperty(value, "_tag") && Predicate.isString(value._tag);
+  P.hasProperty(value, "_tag") && P.isString(value._tag);
 
 const isErrorStatus = (status: number | undefined): status is number =>
   status !== undefined && Number.isInteger(status) && status >= 400 && status <= 599;
@@ -131,8 +131,8 @@ const isRedirectStatus = (
 /** The error's own non-empty `message` field, else its `_tag`. */
 const defaultBody = (error: Tagged): string =>
   Object.hasOwn(error, "message") &&
-  Predicate.hasProperty(error, "message") &&
-  Predicate.isString(error.message) &&
+  P.hasProperty(error, "message") &&
+  P.isString(error.message) &&
   error.message !== ""
     ? error.message
     : error._tag;
@@ -141,20 +141,18 @@ const throwError = (status: number, body: string | App.Error): never => throwKit
 
 /** The error's numeric `status` field, if it has one. */
 const statusField = (error: Tagged): number | undefined =>
-  Predicate.hasProperty(error, "status") && Predicate.isNumber(error.status)
-    ? error.status
-    : undefined;
+  P.hasProperty(error, "status") && P.isNumber(error.status) ? error.status : undefined;
 
 /** The error's redirect target: its `to` field, else its `location`, if a string or `URL`. */
 const locationField = (error: Tagged): string | URL | undefined => {
-  const to = Predicate.hasProperty(error, "to") ? error.to : undefined;
-  const location = to ?? (Predicate.hasProperty(error, "location") ? error.location : undefined);
-  return Predicate.isString(location) || location instanceof URL ? location : undefined;
+  const to = P.hasProperty(error, "to") ? error.to : undefined;
+  const location = to ?? (P.hasProperty(error, "location") ? error.location : undefined);
+  return P.isString(location) || location instanceof URL ? location : undefined;
 };
 
 const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
-  if (Predicate.isNumber(entry)) return throwError(entry, defaultBody(error));
-  if (Predicate.isFunction(entry)) return entry(error);
+  if (P.isNumber(entry)) return throwError(entry, defaultBody(error));
+  if (P.isFunction(entry)) return entry(error);
   const status = statusField(error);
   if (entry === "status") {
     return throwError(isErrorStatus(status) ? status : 500, defaultBody(error));

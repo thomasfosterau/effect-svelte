@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
@@ -15,7 +15,7 @@ import { makeResult } from "./internal/result.svelte.js";
  */
 const isUpdater = <A>(
   updater: A | ((previous: A | undefined) => A),
-): updater is (previous: A | undefined) => A => Predicate.isFunction(updater);
+): updater is (previous: A | undefined) => A => P.isFunction(updater);
 
 /** Options for {@link useEffect}. */
 export interface UseEffectOptions<R = never> {

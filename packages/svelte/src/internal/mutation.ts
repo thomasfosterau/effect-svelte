@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import { Reactivity } from "effect/reactivity";
 import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
 import type { ResultState } from "./result.svelte.js";
@@ -88,7 +88,7 @@ export function makeMutation<A, E, I, C, R>(
         if (Exit.isSuccess(exit)) {
           state.settle(exit);
           callbacks.onSuccess?.(exit.value, input, context);
-          const keys = Predicate.isFunction(callbacks.invalidates)
+          const keys = P.isFunction(callbacks.invalidates)
             ? callbacks.invalidates(input)
             : callbacks.invalidates;
           if (keys !== undefined) {

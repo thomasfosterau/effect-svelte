@@ -6,7 +6,7 @@ import {
   type Redirect,
 } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 
 /**
  * Custom error type that preserves the original Effect Cause.
@@ -72,7 +72,7 @@ const kitErrorWith = kitError as (
  * `App.Error` type) is dropped in favour of that default.
  */
 export const throwKitError = (status: number, body?: KitErrorBody): never => {
-  if (body === undefined || Predicate.isString(body)) return kitErrorWith(status, body);
+  if (body === undefined || P.isString(body)) return kitErrorWith(status, body);
   const { message, ...properties } = body;
-  return kitErrorWith(status, Predicate.isString(message) ? message : undefined, properties);
+  return kitErrorWith(status, P.isString(message) ? message : undefined, properties);
 };

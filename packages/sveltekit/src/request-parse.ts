@@ -31,7 +31,7 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 import { SvelteKitRequestEvent } from "./runtime.js";
 import { toStandardValidator } from "./internal/remote-validators.js";
@@ -124,7 +124,7 @@ const collectFields = (
   keys: Iterable<string>,
   getAll: (key: string) => Array<string>,
 ): Record<string, string | Array<string>> =>
-  Rec.fromIterableWith(keys, (key) => [key, fieldValue(getAll(key))]);
+  R.fromIterableWith(keys, (key) => [key, fieldValue(getAll(key))]);
 
 // ---------------------------------------------------------------------------
 // Public API

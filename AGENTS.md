@@ -22,7 +22,7 @@ Package-local invariants and terms live in each package's `CLAUDE.md` (`packages
 
 ## Conventions
 
-- **Effect-first.** Domain failures are tagged errors; work that can fail returns `Effect`; pure total functions stay plain functions. Import Effect modules by path (`import * as Effect from "effect/Effect"`), never from the `effect` barrel (`effect/no-barrel-imports`).
+- **Effect-first.** Domain failures are tagged errors; work that can fail returns `Effect`; pure total functions stay plain functions. Import Effect modules by path (`import * as Effect from "effect/Effect"`), never from the `effect` barrel (`effect/no-barrel-imports`). Six helper modules take the lint rule's short alias: `Arr` (`effect/Array`), `P` (`effect/Predicate`), `R` (`effect/Record`), `Str` (`effect/String`), `Eq` (`effect/Equal`), `Bool` (`effect/Boolean`) (`effect/prefer-namespace-imports`).
 - **Relative imports use the `.js` extension** (`./runtime.js`), not `.ts`.
 - **`exactOptionalPropertyTypes` is on**: an optional option a caller may forward `undefined` to is declared `?: T | undefined`.
 - **Tests import from `vite-plus/test`**, never `vitest`. In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects. In `packages/sveltekit`, tests that need runes or `$app/*` stand-ins on the client go in `tests/client/` (happy-dom plus the Svelte plugin), everything else in `tests/` (Node); `packages/sveltekit/vite.config.ts` defines the two projects.

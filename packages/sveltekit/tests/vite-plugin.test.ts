@@ -1,5 +1,5 @@
 import { assert, describe, expect, it } from "vite-plus/test";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { effectKit, type EffectKitPluginOptions } from "../src/vite.js";
 
@@ -10,7 +10,7 @@ const TransformedModule = Schema.NullOr(Schema.Struct({ code: Schema.String }));
 function runTransform(code: string, id: string, options?: EffectKitPluginOptions) {
   const plugin = effectKit(options);
   const transform = plugin.transform;
-  if (!Predicate.isFunction(transform)) throw new Error("expected transform function");
+  if (!P.isFunction(transform)) throw new Error("expected transform function");
   // SAFETY: `effectKit`'s transform hook never reads its plugin context
   // (`this`), so an empty object stands in for it.
   const context = {} as ThisParameterType<typeof transform>;
