@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as P from "effect/Predicate";
 import {
+  TestCookiesParseError,
   TestRequestEvent,
   runServerLoad,
   runAction,
@@ -87,6 +88,21 @@ describe("TestRequestEvent", () => {
     const event = TestRequestEvent({ fetch: mockFetch });
     const res = await event.fetch("http://example.com");
     expect(await res.text()).toBe("mocked");
+  });
+
+  it("cookies: parse throws a TestCookiesParseError", () => {
+    const event = TestRequestEvent();
+    expect(() => event.cookies.parse("session=tok; Path=/")).toThrow(TestCookiesParseError);
+  });
+
+  it("is a complete RequestEvent: tracing off and not a remote request", () => {
+    const event = TestRequestEvent();
+    expect(event.isRemoteRequest).toBe(false);
+    expect(event.tracing.enabled).toBe(false);
+    expect(event.tracing.root).toBe(event.tracing.current);
+    expect(event.tracing.root.isRecording()).toBe(false);
+    expect(event.tracing.root.setAttribute("key", "value")).toBe(event.tracing.root);
+    expect(event.tracing.root.spanContext()).toEqual({ traceId: "", spanId: "", traceFlags: 0 });
   });
 
   it("getClientAddress returns 127.0.0.1", () => {

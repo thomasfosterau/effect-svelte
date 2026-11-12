@@ -28,12 +28,44 @@ export function resetFormsStubs(): void {
 
 export const applyAction: ApplyAction = (result) => formsStubs.applyAction(result);
 
-const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
+/** The data of a successful or failed action: a record, or absent. */
+const ActionData = Schema.optionalKey(Schema.Record(Schema.String, Schema.Unknown));
 
+/** The serialised `ActionResult` shapes, as `$app/forms` types them. */
+const SerialisedActionResult = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("success"),
+    status: Schema.Number,
+    data: ActionData,
+    location: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("failure"),
+    status: Schema.Number,
+    data: ActionData,
+    location: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("redirect"),
+    status: Schema.Number,
+    location: Schema.String,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("error"),
+    status: Schema.optionalKey(Schema.Number),
+    error: Schema.Struct({ message: Schema.String, status: Schema.Number }),
+    location: Schema.optionalKey(Schema.String),
+  }),
+]);
+
+const decodeActionResult = Schema.decodeUnknownSync(Schema.fromJsonString(SerialisedActionResult));
+
+/**
+ * Parses a JSON body as an `ActionResult`. Unlike Kit's own `deserialize`,
+ * which trusts the body, it throws for JSON of any other shape.
+ */
 export function deserialize(result: string): ActionResult {
-  // SAFETY: like Kit's own `deserialize`, this stand-in trusts the body to be a
-  // serialised `ActionResult` and does not validate its shape.
-  return decodeJson(result) as ActionResult;
+  return decodeActionResult(result);
 }
 
 export function enhance(): void {}

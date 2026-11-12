@@ -69,8 +69,11 @@ export {
   fromWebSocket,
   type SseMessage,
   type EventSourceConstructor,
+  type EventSourceLike,
+  type EventSourceMessage,
   type FromEventSourceOptions,
   type WebSocketConstructor,
+  type WebSocketLike,
   type FromWebSocketOptions,
 } from "./realtime.js";
 

@@ -45,17 +45,17 @@ export type { FormErrorMapper } from "./internal/remote-run.js";
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
 
 /** The default helpers: a fresh SvelteKit per-request runtime, passthrough translation. */
-const defaultHelpers: RunHelpers = RemoteRun.makeRunHelpers(() => {
+const defaultHelpers: RunHelpers<SvelteKitEffectEnv> = RemoteRun.makeRunHelpers(() => {
   const event = AppServer.getRequestEvent();
   return { runExit: (effect) => SvelteKitRuntime.forRequest(event).runPromiseExit(effect) };
 }, defaultTranslate);
 
 /** Build helpers from a {@link RequestRuntimeProvider}, translator, and form-error mapper. */
-const helpersFromProvider = (
-  provider: RequestRuntimeProvider<any, any>,
+const helpersFromProvider = <R>(
+  provider: RequestRuntimeProvider<R, any>,
   translate: ErrorTranslator,
   formError?: FormErrorMapper,
-): RunHelpers =>
+): RunHelpers<R> =>
   RemoteRun.makeRunHelpers(
     () => {
       const event = AppServer.getRequestEvent();
@@ -120,7 +120,7 @@ export interface QueryFn<Env> {
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQuery = <Env>(run: Runner): QueryFn<Env> => {
+const makeQuery = <Env>(run: Runner<Env>): QueryFn<Env> => {
   const impl = <In, Out>(
     arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env>,
@@ -166,7 +166,7 @@ export interface QueryBatchFn<Env> {
   ): RemoteQueryFunction<S["Encoded"], Output>;
 }
 
-const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> => {
+const makeQueryBatch = <Env>(run: Runner<Env>): QueryBatchFn<Env> => {
   const impl = <In, Out>(
     validate: ValidatorOf<In>,
     fn: (args: In[]) => Effect.Effect<(arg: In, idx: number) => Out, unknown, Env>,
@@ -210,7 +210,7 @@ export interface QueryLiveFn<Env> {
   ): RemoteLiveQueryFunction<S["Encoded"], Output, S["Type"]>;
 }
 
-const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
+const makeQueryLive = <Env>(run: Runner<Env>): QueryLiveFn<Env> => {
   const impl = <In, Out>(
     validate: ValidatorOf<In>,
     fn: (arg: In) => Effect.Effect<AsyncIterable<Out>, unknown, Env>,
@@ -218,10 +218,8 @@ const makeQueryLive = <Env>(run: Runner): QueryLiveFn<Env> => {
     const live = getQueryLive();
     return live(toKitValidator(validate), (arg: In) => run(fn(arg)));
   };
-  // SAFETY: every `QueryLiveFn` overload is (validator, handler), which `impl`
-  // forwards unchanged to kit's `query.live`, so each overload returns exactly
-  // what the matching kit overload returns; `impl`'s single generic signature
-  // cannot name the validated-input type parameter each overload fixes.
+  // Every `QueryLiveFn` overload is (validator, handler), which `impl`
+  // forwards unchanged to kit's `query.live`.
   return impl;
 };
 
@@ -251,7 +249,7 @@ export interface FormFn<Env> {
   ): RemoteForm<S["Encoded"] & RemoteFormInput, Output>;
 }
 
-const makeForm = <Env>(helpers: RunHelpers): FormFn<Env> => {
+const makeForm = <Env>(helpers: RunHelpers<Env>): FormFn<Env> => {
   const impl = <In extends RemoteFormInput, Out>(
     arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: (data: In, issue: InvalidField<In>) => Effect.Effect<Out, unknown, Env>,
@@ -294,7 +292,7 @@ export interface CommandFn<Env> {
   ): RemoteCommand<S["Encoded"], Output>;
 }
 
-const makeCommand = <Env>(run: Runner): CommandFn<Env> => {
+const makeCommand = <Env>(run: Runner<Env>): CommandFn<Env> => {
   const impl = <In, Out>(
     arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env>,
@@ -355,7 +353,7 @@ export interface PrerenderFn<Env> {
   ): RemotePrerenderFunction<S["Encoded"], Output>;
 }
 
-const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
+const makePrerender = <Env>(run: Runner<Env>): PrerenderFn<Env> => {
   const impl = <In, Out>(
     arg1: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
     arg2?: EffectHandler<In, Out, Env> | PrerenderOptions<void>,
@@ -407,7 +405,7 @@ export type QueryNamespace<Env> = QueryFn<Env> & {
   live: QueryLiveFn<Env>;
 };
 
-const makeQueryNamespace = <Env>(run: Runner): QueryNamespace<Env> =>
+const makeQueryNamespace = <Env>(run: Runner<Env>): QueryNamespace<Env> =>
   Object.assign(makeQuery<Env>(run), {
     batch: makeQueryBatch<Env>(run),
     live: makeQueryLive<Env>(run),

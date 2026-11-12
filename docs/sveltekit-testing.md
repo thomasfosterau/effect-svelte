@@ -33,7 +33,7 @@ const event = TestRequestEvent({
 | `platform` | none                  | `event.platform`                                                                 |
 | `fetch`    | `globalThis.fetch`    | `event.fetch`; pass a function to intercept or stub the handler's network calls  |
 
-The event is deliberately partial: it has no `tracing` or `isRemoteRequest`, its cookies have no `parse`, `route.id` is `null`, `setHeaders` does nothing and `getClientAddress()` returns `"127.0.0.1"`.
+The event is a complete `RequestEvent` with test values: tracing is off (`event.tracing` holds no-op spans), `isRemoteRequest` is `false`, `route.id` is `null`, `setHeaders` does nothing and `getClientAddress()` returns `"127.0.0.1"`. Its in-memory cookies have no `Set-Cookie` parser: `cookies.parse` throws a `TestCookiesParseError`.
 
 ## Loads, actions and endpoints
 

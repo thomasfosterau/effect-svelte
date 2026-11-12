@@ -502,7 +502,7 @@ const remoteHelpersOn = <R>(
   event: RequestEvent,
   provider: RequestRuntimeProvider<R>,
   opts?: Pick<RunRemoteOptions<R>, "translateError" | "formError">,
-): RunHelpers =>
+): RunHelpers<R> =>
   RemoteRun.makeRunHelpers(
     () => ({ runExit: (effect) => provider.run(event).runPromiseExit(effect) }),
     opts?.translateError ?? SvelteKit.translate,
@@ -534,8 +534,24 @@ const remoteHelpersOn = <R>(
  * expect(items).toEqual([]);
  * ```
  */
-export const runRemote = <R = never>(event: RequestEvent, opts?: RunRemoteOptions<R>): RunHelpers =>
+export function runRemote<R>(
+  event: RequestEvent,
+  opts: RunRemoteOptions<R> & { readonly layer: Layer.Layer<R> },
+): RunHelpers<R>;
+/**
+ * Build a `{ run, runForm }` helper pair for remote-function Effect handlers
+ * that require no services, with no layer.
+ */
+export function runRemote(
+  event: RequestEvent,
+  opts?: RunRemoteOptions<never> & { readonly layer?: never },
+): RunHelpers;
+export function runRemote<R>(
+  event: RequestEvent,
+  opts?: RunRemoteOptions<R>,
+): RunHelpers<R> | RunHelpers {
   // Without a layer the handlers run on an empty one.
-  opts?.layer === undefined
+  return opts?.layer === undefined
     ? remoteHelpersOn(event, RequestRuntime.fromLayer(Layer.empty), opts)
     : remoteHelpersOn(event, RequestRuntime.fromLayer(opts.layer), opts);
+}

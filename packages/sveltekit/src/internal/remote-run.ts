@@ -28,24 +28,33 @@ export type FormErrorMapper = (
   ctx: { readonly issue: InvalidField<any>; readonly data: unknown },
 ) => never;
 
-/** Runs a remote handler's effect and settles it (value or thrown via translator). */
-export type Runner = <A>(effect: Effect.Effect<A, unknown, any>) => Promise<A>;
+/**
+ * Runs a remote handler's effect, which may require the services `Env` of the
+ * request runtime, and settles it (value or thrown via translator).
+ */
+export type Runner<Env = never> = <A>(effect: Effect.Effect<A, unknown, Env>) => Promise<A>;
 
 /** Like {@link Runner}, but with the form's `issue` / `data` for error interop. */
-export type FormRunner = <A>(
-  effect: Effect.Effect<A, unknown, any>,
+export type FormRunner<Env = never> = <A>(
+  effect: Effect.Effect<A, unknown, Env>,
   ctx: { readonly issue: InvalidField<any>; readonly data: unknown },
 ) => Promise<A>;
 
-/** Runners that execute a remote-function handler's Effect on a request runtime, as `runRemote` returns them. */
-export interface RunHelpers {
-  readonly run: Runner;
-  readonly runForm: FormRunner;
+/**
+ * Runners that execute a remote-function handler's Effect on a request runtime
+ * that provides the services `Env`, as `runRemote` returns them.
+ */
+export interface RunHelpers<Env = never> {
+  readonly run: Runner<Env>;
+  readonly runForm: FormRunner<Env>;
 }
 
-/** How to obtain an `Exit` for the current request, plus optional teardown. */
-export type ExitResolver = () => {
-  readonly runExit: <A>(effect: Effect.Effect<A, unknown, any>) => Promise<Exit.Exit<A, unknown>>;
+/**
+ * How to obtain an `Exit` for the current request, on a runtime that provides
+ * the services `Env`, plus optional teardown.
+ */
+export type ExitResolver<Env = never> = () => {
+  readonly runExit: <A>(effect: Effect.Effect<A, unknown, Env>) => Promise<Exit.Exit<A, unknown>>;
   readonly dispose?: () => void;
 };
 
@@ -58,18 +67,18 @@ const settleThenDispose = <A>(settle: () => A, dispose?: () => void): Promise<A>
   new Promise<A>((resolve) => resolve(settle())).finally(() => dispose?.());
 
 /** Build the `run` / `runForm` helpers from an exit resolver and a translator. */
-export const makeRunHelpers = (
-  resolve: ExitResolver,
+export const makeRunHelpers = <Env>(
+  resolve: ExitResolver<Env>,
   translate: ErrorTranslator,
   formError?: FormErrorMapper,
-): RunHelpers => {
-  const run: Runner = (effect) => {
+): RunHelpers<Env> => {
+  const run: Runner<Env> = (effect) => {
     const { runExit, dispose } = resolve();
     return runExit(effect).then((exit) =>
       settleThenDispose(() => (Exit.isSuccess(exit) ? exit.value : translate(exit.cause)), dispose),
     );
   };
-  const runForm: FormRunner = (effect, ctx) => {
+  const runForm: FormRunner<Env> = (effect, ctx) => {
     const { runExit, dispose } = resolve();
     return runExit(effect).then((exit) =>
       settleThenDispose(() => {
