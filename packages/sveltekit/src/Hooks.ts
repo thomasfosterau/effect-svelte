@@ -18,7 +18,7 @@
  * );
  *
  * export const transport = Hooks.transport({
- *   Option: Schema.Option(Schema.Number),
+ *   Option: Hooks.optionTransporter,
  *   Date: Schema.Date,
  * });
  * ```
@@ -60,12 +60,14 @@ export function reroute(
  * assembles a whole `transport` object from a record of entries, `transporter`
  * builds a single round-tripping entry from a `Schema.Codec`, and
  * `markerTransporter` builds a deliberately-lossy entry for a non-POJO wrapper
- * whose contents should not round-trip. See {@link transport} for details.
+ * whose contents should not round-trip, and `optionTransporter` is the ready
+ * entry for any `Option`. See {@link transport} for details.
  */
 export {
   transport,
   transporter,
   markerTransporter,
+  optionTransporter,
   type MarkerTransporterOptions,
   type TransportEntry,
 } from "./transport.js";

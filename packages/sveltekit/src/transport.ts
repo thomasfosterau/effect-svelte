@@ -26,6 +26,8 @@
  */
 
 import type { Transport, Transporter } from "@sveltejs/kit/hooks";
+import * as Arr from "effect/Array";
+import * as Option from "effect/Option";
 import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 
@@ -91,6 +93,37 @@ export interface MarkerTransporterOptions<T> {
    */
   readonly marker?: unknown;
 }
+
+/**
+ * The {@link Transporter} for any `Option` (`effect/Option`), whatever its
+ * `Some` holds: register it once as
+ * `transport({ Option: optionTransporter })`.
+ *
+ * It encodes the structure only — `Some(value)` as `[value]`, `None` as `[]` —
+ * and leaves the value to SvelteKit's serialiser (devalue), which walks what
+ * `encode` returns with the whole `transport` again. So a `Some` may hold
+ * anything SvelteKit can already send (a `Date`, a `Map`, a `Set`, a `BigInt`,
+ * a `URL`, `undefined`, `null`), another `Option`, or any other registered
+ * transport type, and `Some(undefined)` and `Some(null)` stay distinct from
+ * `None`.
+ *
+ * Prefer it to a schema entry such as
+ * `Schema.toCodecJson(Schema.Option(Schema.Unknown))`: a JSON codec encodes
+ * the value itself, and throws while the page is being serialised (a 500 at
+ * run time, with nothing in the types to warn of it) when a `Some` holds a
+ * value that is not JSON, such as a `Date` or a nested `Option`. Use a
+ * {@link transporter} schema entry only for an `Option` whose value needs
+ * a schema's own encoding.
+ *
+ * `encode` claims only real `Option`s (`Option.isOption`), not look-alike
+ * objects such as `{ _tag: "None" }`. Neither function fails; a value inside
+ * the `Some` that SvelteKit cannot serialise is rejected by SvelteKit, as it
+ * would be outside an `Option`.
+ */
+export const optionTransporter: Transporter<Option.Option<unknown>, ReadonlyArray<unknown>> = {
+  encode: (value) => Option.isOption(value) && (Option.isSome(value) ? [value.value] : []),
+  decode: Arr.head,
+};
 
 /** An entry accepted by {@link transport}: an Effect schema or a ready Transporter. */
 export type TransportEntry = Schema.Codec<any, any> | Transporter;
