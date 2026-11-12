@@ -10,7 +10,7 @@ import { markerTransporter, transport, transporter } from "../src/transport.js";
 
 /** Narrow away the `false` branch of an `encode` result (asserting it matched). */
 const encoded = <U>(value: false | U): U => {
-  if (value === false) throw new Error("expected the transporter to encode the value");
+  assert(value !== false, "expected the transporter to encode the value");
   return value;
 };
 

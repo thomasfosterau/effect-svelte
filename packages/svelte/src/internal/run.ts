@@ -32,6 +32,20 @@ export const runSync =
     Context.isContext(runtime) ? Effect.runSyncWith(runtime)(effect) : runtime.runSync(effect);
 
 /**
+ * Runs an Effect that needs no services and cannot suspend, where no runtime
+ * is in reach: a Svelte `$effect` teardown. Throws if the
+ * Effect fails or reaches an asynchronous boundary, so it is only for work
+ * that is synchronous by construction, such as closing a scope whose
+ * finalizers are synchronous.
+ *
+ * This module is the package's runtime edge: Svelte calls in from non-Effect
+ * code, and the runners here are the only place an Effect is run with no
+ * caller-supplied runtime (the `effect/effect-run-in-body` lint rule is off
+ * for this file alone).
+ */
+export const runSyncDefault = <A, E>(effect: Effect.Effect<A, E>): A => Effect.runSync(effect);
+
+/**
  * Interrupts a fiber in the background without waiting for it to finish.
  *
  * Interruption must not be run with `runSync` because interrupting a fiber

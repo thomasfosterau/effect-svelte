@@ -76,8 +76,12 @@ const normaliseBufferSize = (bufferSize: number | undefined): number => {
  */
 export class SignalEmitter<A> {
   private source: Stream.Stream<A>;
-  /** Delivers each value to every connected run. Never shut down: it lives as long as the emitter. */
-  private pubsub: PubSub.PubSub<A>;
+  /**
+   * Delivers each value to every connected run. Allocated by the first run to
+   * connect (inside that run's Effect, so the constructor runs nothing), then
+   * never shut down: it lives as long as the emitter.
+   */
+  private pubsub: PubSub.PubSub<A> | undefined;
   /** Values emitted while no run is connected, oldest first. */
   private buffer: Array<A> = [];
   private bufferSize: number;
@@ -86,10 +90,8 @@ export class SignalEmitter<A> {
 
   constructor(options: SignalEmitterOptions = {}) {
     this.bufferSize = normaliseBufferSize(options.bufferSize);
-    // `PubSub.unbounded` is pure allocation (an `Effect.sync`), so this
-    // cannot suspend and needs no runtime.
-    this.pubsub = Effect.runSync(PubSub.unbounded<A>());
-    // Subscribe first, then count this run as connected and take the buffer in
+    // Subscribe first (the first run allocates the `PubSub`; the `??=` in
+    // `map` keeps whichever was stored first, so every run shares one), then count this run as connected and take the buffer in
     // one synchronous step. A value emitted in between is buffered (no run was
     // counted yet) and taken with the rest; every later value is published to
     // the subscription. So nothing is lost, duplicated or reordered. Both are
@@ -97,7 +99,10 @@ export class SignalEmitter<A> {
     // then on values are buffered for the next run.
     this.source = Stream.unwrap(
       Effect.gen({ self: this }, function* () {
-        const subscription = yield* PubSub.subscribe(this.pubsub);
+        const pubsub =
+          this.pubsub ??
+          (yield* Effect.map(PubSub.unbounded<A>(), (fresh) => (this.pubsub ??= fresh)));
+        const subscription = yield* PubSub.subscribe(pubsub);
         const buffered = yield* Effect.acquireRelease(
           Effect.sync(() => {
             this.connected += 1;
@@ -120,7 +125,8 @@ export class SignalEmitter<A> {
    * Synchronous, and needs no runtime.
    */
   emit(value: A): void {
-    if (this.connected > 0) {
+    // A connected run has allocated the `PubSub`.
+    if (this.connected > 0 && this.pubsub !== undefined) {
       PubSub.publishUnsafe(this.pubsub, value);
       return;
     }

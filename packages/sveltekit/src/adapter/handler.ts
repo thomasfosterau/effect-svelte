@@ -334,18 +334,16 @@ export const toWebHandler = <RAssets, E>(
   app: Effect.Effect<SvelteKitHttpApp<RAssets>>,
   layer: Layer.Layer<RAssets, E>,
 ): ((request: Request) => Promise<Response>) => {
-  // Build the app (server.init) and the per-request web handler once, lazily on
-  // the first request, then dispatch each request through it.
-  let built: Promise<(request: Request) => Promise<Response>> | undefined;
-  const build = (): Promise<(request: Request) => Promise<Response>> =>
-    (built ??= Effect.runPromise(app).then(
-      (inner) =>
-        // SAFETY: `layer` provides `RAssets`, and the web handler provides the
-        // `HttpServerRequest`, so the handler needs no per-request context; the
-        // conditional type only stays unresolved while `RAssets` is generic.
-        HttpEffect.toWebHandlerLayer(inner, layer).handler as (
-          request: Request,
-        ) => Promise<Response>,
-    ));
-  return async (request) => (await build())(request);
+  // Build the layer, the app (server.init) and the per-request web handler
+  // once, lazily on the first request, then dispatch each request through it.
+  // `toWebHandlerLayerWith` runs `toHandler` once, when it builds the layer.
+  let handler: ((request: Request) => Promise<Response>) | undefined;
+  const build = (): ((request: Request) => Promise<Response>) =>
+    // SAFETY: `layer` provides `RAssets`, and the web handler provides the
+    // `HttpServerRequest`, so the handler needs no per-request context; the
+    // conditional type only stays unresolved while `RAssets` is generic.
+    HttpEffect.toWebHandlerLayerWith(layer, { toHandler: () => app }).handler as (
+      request: Request,
+    ) => Promise<Response>;
+  return async (request) => (handler ??= build())(request);
 };

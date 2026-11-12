@@ -1,4 +1,5 @@
-import { assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { assert, describe, expect } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -17,6 +18,7 @@ import {
   snapshotPage,
   watchedStream,
 } from "../src/internal/app-state.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 const makePage = (pathname: string): ReadonlyPage => ({
   url: new URL(`https://example.com${pathname}`),
@@ -51,27 +53,29 @@ describe("snapshotPage", () => {
 });
 
 describe("pageSnapshotStream", () => {
-  it("emits the current page immediately, then after each navigation", async () => {
-    let current = makePage("/a");
-    let fire!: () => void;
+  it.effect("emits the current page immediately, then after each navigation", () =>
+    Effect.gen(function* () {
+      let current = makePage("/a");
+      let fire!: () => void;
 
-    const stream = pageSnapshotStream<ReadonlyPage>(
-      (callback) => {
-        fire = callback;
-      },
-      () => current,
-    );
+      const stream = pageSnapshotStream<ReadonlyPage>(
+        (callback) => {
+          fire = callback;
+        },
+        () => current,
+      );
 
-    // Simulate two navigations, mutating the "page" between them.
-    current = makePage("/b");
-    fire();
-    current = makePage("/c");
-    fire();
+      // Simulate two navigations, mutating the "page" between them.
+      current = makePage("/b");
+      fire();
+      current = makePage("/c");
+      fire();
 
-    // Initial snapshot (/a) + one per navigation (/b, /c).
-    const snaps = await Effect.runPromise(Stream.runCollect(Stream.take(stream, 3)));
-    expect(snaps.map((s) => s.url.pathname)).toEqual(["/a", "/b", "/c"]);
-  });
+      // Initial snapshot (/a) + one per navigation (/b, /c).
+      const snaps = yield* Stream.runCollect(Stream.take(stream, 3));
+      expect(snaps.map((s) => s.url.pathname)).toEqual(["/a", "/b", "/c"]);
+    }),
+  );
 
   it("registers the afterNavigate callback eagerly", () => {
     let registered = false;
@@ -116,11 +120,11 @@ const makeFakeWatch = () => {
 };
 
 describe("watchedStream", () => {
-  it("emits the current value, then each re-read, and disposes the watcher on end", async () => {
-    const fake = makeFakeWatch();
-    let n = 0;
-    const result = await Effect.runPromise(
-      Effect.gen(function* () {
+  it.effect("emits the current value, then each re-read, and disposes the watcher on end", () =>
+    Effect.gen(function* () {
+      const fake = makeFakeWatch();
+      let n = 0;
+      const result = yield* Effect.gen(function* () {
         const values: Array<number> = [];
         yield* watchedStream(fake.watch, () => n).pipe(
           Stream.take(3),
@@ -134,12 +138,12 @@ describe("watchedStream", () => {
           ),
         );
         return values;
-      }),
-    );
-    expect(result).toEqual([0, 1, 2]);
-    expect(fake.live).toBe(0);
-    expect(fake.disposed).toBe(1);
-  });
+      });
+      expect(result).toEqual([0, 1, 2]);
+      expect(fake.live).toBe(0);
+      expect(fake.disposed).toBe(1);
+    }),
+  );
 
   it("is cold: nothing is watched until the stream runs", () => {
     const fake = makeFakeWatch();
@@ -147,31 +151,32 @@ describe("watchedStream", () => {
     expect(fake.live).toBe(0);
   });
 
-  it("dies with what a throwing `watch` threw, instead of hanging", async () => {
-    const thrown = new Error("watch failed");
+  it.live("dies with what a throwing `watch` threw, instead of hanging", () => {
+    const thrown = new ForeignError("watch failed");
     const throwingWatch: Watch = () => {
       throw thrown;
     };
 
-    // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2;
-    // `failQueueOnSetupError` does it on 4.0.0 / 4.0.1, inside the `^4.0.0` peer
-    // range. The timeout only guards against a regression to a hang, so
-    // it fails the test rather than passing it.
-    const exit = await Effect.runPromise(
-      watchedStream(throwingWatch, () => 1).pipe(
+    return Effect.gen(function* () {
+      // `Stream.callback` forwards a failed setup to the stream from effect 4.0.2;
+      // `failQueueOnSetupError` does it on 4.0.0 / 4.0.1, inside the `^4.0.0` peer
+      // range. The timeout only guards against a regression to a hang, so
+      // it fails the test rather than passing it.
+      const exit = yield* watchedStream(throwingWatch, () => 1).pipe(
         Stream.runCollect,
         Effect.timeout("2 seconds"),
         Effect.exit,
-      ),
-    );
+      );
 
-    if (Exit.isSuccess(exit)) throw new Error("expected the stream to die");
-    const [reason, ...rest] = exit.cause.reasons;
-    expect(rest).toEqual([]);
-    if (reason === undefined || !Cause.isDieReason(reason)) {
-      throw new Error(`expected a defect, got ${Cause.pretty(exit.cause)}`);
-    }
-    expect(reason.defect).toBe(thrown);
+      assert(Exit.isFailure(exit), "expected the stream to die");
+      const [reason, ...rest] = exit.cause.reasons;
+      expect(rest).toEqual([]);
+      assert(
+        reason !== undefined && Cause.isDieReason(reason),
+        `expected a defect, got ${Cause.pretty(exit.cause)}`,
+      );
+      expect(reason.defect).toBe(thrown);
+    });
   });
 });
 
@@ -228,54 +233,57 @@ describe("snapshotNavigating", () => {
 });
 
 describe("checkForUpdateWith", () => {
-  it("succeeds with the check's result", async () => {
-    await expect(Effect.runPromise(checkForUpdateWith(() => Promise.resolve(true)))).resolves.toBe(
-      true,
-    );
-  });
+  it.effect("succeeds with the check's result", () =>
+    Effect.gen(function* () {
+      expect(yield* checkForUpdateWith(() => Promise.resolve(true))).toBe(true);
+    }),
+  );
 
-  it("fails with UpdateCheckError when the check rejects", async () => {
-    const boom = new Error("no window");
-    const exit = await Effect.runPromiseExit(checkForUpdateWith(() => Promise.reject(boom)));
-    expect(exit).toEqual(Exit.fail(new UpdateCheckError({ cause: boom })));
-  });
+  it.effect("fails with UpdateCheckError when the check rejects", () =>
+    Effect.gen(function* () {
+      const boom = new ForeignError("no window");
+      const exit = yield* Effect.exit(checkForUpdateWith(() => Promise.reject(boom)));
+      expect(exit).toEqual(Exit.fail(new UpdateCheckError({ cause: boom })));
+    }),
+  );
 
-  it("fails with UpdateCheckError when the check throws synchronously", async () => {
-    const boom = new Error("window is not defined");
-    const error = await Effect.runPromise(
-      Effect.flip(
-        checkForUpdateWith(() => {
-          throw boom;
-        }),
-      ),
-    );
-    expect(error).toBeInstanceOf(UpdateCheckError);
-    expect(error.cause).toBe(boom);
+  it.effect("fails with UpdateCheckError when the check throws synchronously", () => {
+    const boom = new ForeignError("window is not defined");
+    const check = (): Promise<boolean> => {
+      throw boom;
+    };
+    return Effect.gen(function* () {
+      const error = yield* Effect.flip(checkForUpdateWith(check));
+      expect(error).toBeInstanceOf(UpdateCheckError);
+      expect(error.cause).toBe(boom);
+    });
   });
 });
 
 describe("makeCurrentPage", () => {
-  it("get snapshots the page at the time it runs", async () => {
-    let current = makePage("/a");
-    const service = makeCurrentPage(() => current, makeFakeWatch().watch);
-    expect((await Effect.runPromise(service.get)).url.pathname).toBe("/a");
-    current = makePage("/b");
-    expect((await Effect.runPromise(service.get)).url.pathname).toBe("/b");
-  });
+  it.effect("get snapshots the page at the time it runs", () =>
+    Effect.gen(function* () {
+      let current = makePage("/a");
+      const service = makeCurrentPage(() => current, makeFakeWatch().watch);
+      expect((yield* service.get).url.pathname).toBe("/a");
+      current = makePage("/b");
+      expect((yield* service.get).url.pathname).toBe("/b");
+    }),
+  );
 
-  it("changes streams snapshots as the watcher reports changes", async () => {
-    const fake = makeFakeWatch();
-    const pages = ["/a", "/b", "/c"];
-    let i = 0;
-    // Clamp: the tap after the last taken value still triggers one re-read.
-    const pageAt = (n: number): string => {
-      const page = pages[Math.min(n, 2)];
-      assert(page !== undefined, "expected a page path");
-      return page;
-    };
-    const service = makeCurrentPage(() => makePage(pageAt(i)), fake.watch);
-    const seen = await Effect.runPromise(
-      service.changes.pipe(
+  it.effect("changes streams snapshots as the watcher reports changes", () =>
+    Effect.gen(function* () {
+      const fake = makeFakeWatch();
+      const pages = ["/a", "/b", "/c"];
+      let i = 0;
+      // Clamp: the tap after the last taken value still triggers one re-read.
+      const pageAt = (n: number): string => {
+        const page = pages[Math.min(n, 2)];
+        assert(page !== undefined, "expected a page path");
+        return page;
+      };
+      const service = makeCurrentPage(() => makePage(pageAt(i)), fake.watch);
+      const seen = yield* service.changes.pipe(
         Stream.take(3),
         Stream.tap(() =>
           Effect.sync(() => {
@@ -285,8 +293,8 @@ describe("makeCurrentPage", () => {
         ),
         Stream.map((page) => page.url.pathname),
         Stream.runCollect,
-      ),
-    );
-    expect(seen).toEqual(["/a", "/b", "/c"]);
-  });
+      );
+      expect(seen).toEqual(["/a", "/b", "/c"]);
+    }),
+  );
 });

@@ -12,6 +12,7 @@ import {
   runRemote,
 } from "../src/testing.js";
 import { SvelteKit } from "../src/kit.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 // ─── TestRequestEvent ─────────────────────────────────────────────────────────
 
@@ -324,11 +325,11 @@ describe("runRemote", () => {
     const { runForm } = runRemote(event, {
       formError: (err, _ctx) => {
         capturedError = err;
-        throw new Error("form invalid");
+        throw new ForeignError("form invalid");
       },
     });
     await expect(
-      runForm(Effect.fail(new Error("validation failed")), { issue: {}, data: {} }),
+      runForm(Effect.fail(new ForeignError("validation failed")), { issue: {}, data: {} }),
     ).rejects.toThrow("form invalid");
     assert.instanceOf(capturedError, Error);
     expect(capturedError.message).toBe("validation failed");

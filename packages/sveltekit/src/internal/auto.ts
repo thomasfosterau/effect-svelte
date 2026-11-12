@@ -31,6 +31,7 @@ import * as Result from "effect/Result";
 import { type ServerRuntime, type UniversalRuntime } from "../app-runtime.js";
 import * as AppRuntime from "../app-runtime.js";
 import { causeToThrowable } from "./error.js";
+import { runPromiseExit } from "./run.js";
 
 type AnyEffect = Effect.Effect<unknown, unknown>;
 
@@ -86,7 +87,7 @@ const universalRuntimeOf = (mod?: RuntimeModule): UniversalRuntime<any, any> => 
 async function runBare<A, E>(effect: Effect.Effect<A, E>, runtime?: AnyRuntime): Promise<A> {
   const exit = runtime
     ? await runtime.runtime.runPromiseExit(effect)
-    : await Effect.runPromiseExit(effect);
+    : await runPromiseExit(effect);
 
   return Exit.match(exit, {
     onFailure: (cause) => {

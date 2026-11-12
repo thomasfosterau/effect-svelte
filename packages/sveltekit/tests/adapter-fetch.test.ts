@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { Server, ServerInitOptions } from "@sveltejs/kit";
 import * as Layer from "effect/Layer";
 import { AssetSource, makeHandlerWith, toWebHandler } from "../src/adapter/handler.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /** Fake SvelteKit Server: echoes SSR request details, marks them with x-ssr. */
 class FakeServer implements Server {
@@ -33,7 +34,7 @@ const makeFetch = () =>
       env: { FROM_TEST: "yes" },
       assets: AssetSource.cloudflareAssets(fakeAssets),
       read: () => {
-        throw new Error("read() not supported in this test");
+        throw new ForeignError("read() not supported in this test");
       },
     }),
     Layer.empty,
@@ -78,7 +79,7 @@ describe("toWebHandler with AssetSource.cloudflareAssets", () => {
               : new Response(null, { status: 404 }),
         }),
         read: () => {
-          throw new Error("read() not supported");
+          throw new ForeignError("read() not supported");
         },
       }),
       Layer.empty,

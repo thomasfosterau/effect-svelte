@@ -10,7 +10,7 @@ const TransformedModule = Schema.NullOr(Schema.Struct({ code: Schema.String }));
 function runTransform(code: string, id: string, options?: EffectKitPluginOptions) {
   const plugin = effectKit(options);
   const transform = plugin.transform;
-  if (!P.isFunction(transform)) throw new Error("expected transform function");
+  assert(P.isFunction(transform), "expected transform function");
   // SAFETY: `effectKit`'s transform hook never reads its plugin context
   // (`this`), so an empty object stands in for it.
   const context = {} as ThisParameterType<typeof transform>;

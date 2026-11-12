@@ -4,11 +4,13 @@ import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as P from "effect/Predicate";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
 import { EffectCauseError } from "../src/internal/error.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
 import { mockEvent, mockLoadEvent, toServerLoadEvent } from "./fixtures/request-event.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
   "test/Greeter",
@@ -112,12 +114,12 @@ describe("makeServerRuntime", () => {
 
     const handleError = runtime.handleError(({ error: failure }) =>
       Effect.map(Greeter, (g) => ({
-        message: g.greet(failure instanceof Error ? failure.message : String(failure)),
+        message: g.greet(P.isError(failure) ? failure.message : String(failure)),
       })),
     );
     const appError = await handleError({
       kind: "unknown",
-      error: new Error("boom"),
+      error: new ForeignError("boom"),
       event: mockEvent(),
     });
     expect(appError).toEqual({ message: "hello boom" });
@@ -169,7 +171,7 @@ describe("makeServerRuntime", () => {
     const runtime = makeServerRuntime(greeterLayer, {
       translateError: (cause) => {
         if (Cause.squash(cause) instanceof NotFound) error(404, "missing");
-        throw new Error("unexpected");
+        throw new ForeignError("unexpected");
       },
     });
     const load = runtime.serverLoad(() => Effect.fail(new NotFound()));

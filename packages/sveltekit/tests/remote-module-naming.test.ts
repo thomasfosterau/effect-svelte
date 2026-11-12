@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
@@ -27,8 +28,9 @@ import * as Path from "effect/Path";
 const REMOTE_MODULE_PATTERN = /[/.]remote(\.[^/]+)+$/;
 
 /** Runs `effect` with Node's `FileSystem` and `Path` services provided. */
-const run = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>): Promise<A> =>
-  Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)));
+const run = <A, E>(
+  effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>,
+): Effect.Effect<A, E> => effect.pipe(Effect.provide(NodeServices.layer));
 
 /** The package root (the parent of this `tests/` directory). */
 const pkgRoot = Effect.fn("pkgRoot")(function* () {
@@ -59,7 +61,7 @@ describe("published module naming vs SvelteKit remote-module matcher", () => {
     expect(REMOTE_MODULE_PATTERN.test("dist/remote-reactive.js")).toBe(false);
   });
 
-  it("no source module builds to a name kit would treat as a remote module", () =>
+  it.effect("no source module builds to a name kit would treat as a remote module", () =>
     run(
       Effect.gen(function* () {
         const path = yield* Path.Path;
@@ -73,9 +75,10 @@ describe("published module naming vs SvelteKit remote-module matcher", () => {
 
         expect(offenders).toEqual([]);
       }),
-    ));
+    ),
+  );
 
-  it("no built dist module matches the remote-module matcher (when dist is present)", () =>
+  it.effect("no built dist module matches the remote-module matcher (when dist is present)", () =>
     run(
       Effect.gen(function* () {
         const path = yield* Path.Path;
@@ -85,5 +88,6 @@ describe("published module naming vs SvelteKit remote-module matcher", () => {
         );
         expect(offenders).toEqual([]);
       }),
-    ));
+    ),
+  );
 });

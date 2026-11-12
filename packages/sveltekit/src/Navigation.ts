@@ -49,6 +49,7 @@ import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "./internal/navigation-events.js";
+import { runPromise } from "./internal/run.js";
 
 /**
  * A `$app/navigation` promise wrapper ({@link goto}, {@link invalidate},
@@ -237,8 +238,9 @@ export function afterNavigate(): Stream.Stream<AfterNavigate> {
  * SvelteKit's `onNavigate` callback may return a cleanup function (or a promise
  * of one) that runs once the navigation completes and the DOM has updated; to
  * support that, `fn`'s Effect may succeed with a `() => void` cleanup, which is
- * forwarded to SvelteKit. The Effect is run with `runEffect` (default
- * {@link Effect.runPromise}); pass a managed runtime's `runPromise` to supply
+ * forwarded to SvelteKit. The Effect is run with `runEffect`, which by default
+ * runs it with no services, as `Effect.runPromise` does (a failure rejects the
+ * promise SvelteKit awaits); pass a managed runtime's `runPromise` to supply
  * services to `fn`.
  *
  * @example
@@ -259,7 +261,7 @@ export function afterNavigate(): Stream.Stream<AfterNavigate> {
  */
 export function onNavigate(
   fn: (navigation: OnNavigate) => Effect.Effect<(() => void) | void>,
-  runEffect: <X>(effect: Effect.Effect<X>) => Promise<X> = Effect.runPromise,
+  runEffect: <X>(effect: Effect.Effect<X>) => Promise<X> = runPromise,
 ): void {
   onNavigateWith<OnNavigate>(kitOnNavigate, fn, runEffect);
 }

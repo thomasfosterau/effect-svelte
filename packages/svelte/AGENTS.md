@@ -12,7 +12,7 @@ Effect integration for Svelte 5 runes: an ambient runtime (`provideRuntime` / `g
 - **Runes live in `*.svelte.ts`.** Any module that uses `$state` / `$derived` / `$effect` is named `*.svelte.ts`, and `pack.unbundle` keeps that name (`*.svelte.js`) in `dist/` so the consumer's Svelte compiler processes it.
 - **Hooks expose `.current`**, typed as `AsyncResult` from `effect/reactivity/AsyncResult` for result-producing hooks — the Svelte 5 `MediaQuery` / `fromStore` convention.
 - **A hook's fiber is scoped to its component.** Every hook interrupts its work when the component is destroyed (or its dependencies change); tests in `tests/dom/` pin this with `mount` / `unmount`.
-- **This package is a runtime boundary.** Svelte calls in from non-Effect code, so `Effect.runFork` / `runPromise` / `runSync` here are the edge (the `effect/effect-run-in-body` lint rule is off for that reason). Rune-free orchestration lives in `src/internal/` so it can be tested in plain Node.
+- **This package is a runtime boundary.** Svelte calls in from non-Effect code, so something here has to run the caller's Effect. The edge lives in `src/internal/run.ts`: the runners that dispatch on the caller's runtime, and `runSyncDefault` for the one place no runtime is in reach (closing a hook's scope). The `effect/effect-run-in-body` lint rule is on everywhere else, tests included (they use `@effect/vitest`'s `it.effect` / `it.live`); no other file calls `Effect.runFork` / `runPromise` / `runSync`. Rune-free orchestration lives in `src/internal/` so it can be tested in plain Node.
 
 ## Tests
 

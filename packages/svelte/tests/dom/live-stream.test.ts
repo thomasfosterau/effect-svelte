@@ -1,4 +1,5 @@
-import { afterEach, assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -43,9 +44,13 @@ const text = (target: HTMLElement, id: string): string | null =>
 
 /**
  * Polls `check` (with a `tick()` between attempts) until it returns `true`;
- * rejects with a `TimeoutError` once `timeoutMs` elapses.
+ * fails with a `TimeoutError` once `timeoutMs` elapses. Real time: run it in
+ * `it.live`.
  */
-const waitFor = (check: () => boolean, timeoutMs = 2000): Promise<void> => {
+const waitFor = (
+  check: () => boolean,
+  timeoutMs = 2000,
+): Effect.Effect<void, Cause.UnknownError | Cause.TimeoutError> => {
   const poll: Effect.Effect<void, Cause.UnknownError> = Effect.suspend(() =>
     check()
       ? Effect.void
@@ -54,7 +59,7 @@ const waitFor = (check: () => boolean, timeoutMs = 2000): Promise<void> => {
           Effect.andThen(poll),
         ),
   );
-  return Effect.runPromise(Effect.timeout(poll, Duration.millis(timeoutMs)));
+  return Effect.timeout(poll, Duration.millis(timeoutMs));
 };
 
 type Mounted = Parameters<typeof unmount>[0];
@@ -222,47 +227,51 @@ describe("useLiveStream (DOM boundary)", () => {
     await runtime.dispose();
   });
 
-  it("one subscription serves many emissions (self-invalidation regression)", async () => {
-    // A self-invalidating `$effect` reads its own result state, so every
-    // emission (which writes that state) re-triggers the effect and
-    // re-subscribes — the thunk below would run roughly once per emission
-    // instead of once for the component's whole lifetime.
-    const runtime = ManagedRuntime.make(Layer.empty);
-    const target = mountTarget();
+  it.live("one subscription serves many emissions (self-invalidation regression)", () =>
+    Effect.gen(function* () {
+      // A self-invalidating `$effect` reads its own result state, so every
+      // emission (which writes that state) re-triggers the effect and
+      // re-subscribes — the thunk below would run roughly once per emission
+      // instead of once for the component's whole lifetime.
+      const runtime = ManagedRuntime.make(Layer.empty);
+      const target = mountTarget();
 
-    const component = mount(Counting, {
-      target,
-      props: {
-        make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
-        runtime,
-      },
-    });
-    track(component, target);
+      const component = mount(Counting, {
+        target,
+        props: {
+          make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
+          runtime,
+        },
+      });
+      track(component, target);
 
-    await waitFor(() => Number(text(target, "value") ?? "-1") >= 5);
+      yield* waitFor(() => Number(text(target, "value") ?? "-1") >= 5);
 
-    expect(Number(text(target, "calls"))).toBeLessThan(3);
+      expect(Number(text(target, "calls"))).toBeLessThan(3);
 
-    await runtime.dispose();
-  });
+      yield* Effect.tryPromise(() => runtime.dispose());
+    }),
+  );
 
-  it("`waiting` clears after the first emission", async () => {
-    const runtime = ManagedRuntime.make(Layer.empty);
-    const target = mountTarget();
+  it.live("`waiting` clears after the first emission", () =>
+    Effect.gen(function* () {
+      const runtime = ManagedRuntime.make(Layer.empty);
+      const target = mountTarget();
 
-    const component = mount(Counting, {
-      target,
-      props: {
-        make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
-        runtime,
-      },
-    });
-    track(component, target);
+      const component = mount(Counting, {
+        target,
+        props: {
+          make: () => Stream.fromSchedule(Schedule.spaced("5 millis")),
+          runtime,
+        },
+      });
+      track(component, target);
 
-    await waitFor(() => text(target, "tag") === "Success");
+      yield* waitFor(() => text(target, "tag") === "Success");
 
-    expect(text(target, "waiting")).toBe("false");
+      expect(text(target, "waiting")).toBe("false");
 
-    await runtime.dispose();
-  });
+      yield* Effect.tryPromise(() => runtime.dispose());
+    }),
+  );
 });

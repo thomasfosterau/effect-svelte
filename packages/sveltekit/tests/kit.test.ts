@@ -1,4 +1,5 @@
-import { afterEach, assert, describe, expect, it, vi } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect, vi } from "vite-plus/test";
 import {
   error,
   isActionFailure,
@@ -81,41 +82,47 @@ describe("KitActionFailure", () => {
 // ─── SvelteKit.redirect / error / fail helpers ───────────────────────────────
 
 describe("SvelteKit helper effects", () => {
-  it("redirect produces a KitRedirect failure", async () => {
-    const exit = await Effect.runPromise(Effect.exit(SvelteKit.redirect(302, "/home")));
-    assert(Exit.isFailure(exit), "expected a failure");
-    const squashed = Cause.squash(exit.cause);
-    assert.instanceOf(squashed, KitRedirect);
-    expect(squashed.status).toBe(302);
-    expect(squashed.location).toBe("/home");
-  });
+  it.effect("redirect produces a KitRedirect failure", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(SvelteKit.redirect(302, "/home"));
+      assert(Exit.isFailure(exit), "expected a failure");
+      const squashed = Cause.squash(exit.cause);
+      assert.instanceOf(squashed, KitRedirect);
+      expect(squashed.status).toBe(302);
+      expect(squashed.location).toBe("/home");
+    }),
+  );
 
-  it("error produces a KitError failure", async () => {
-    const exit = await Effect.runPromise(Effect.exit(SvelteKit.error(404, "Not found")));
-    assert(Exit.isFailure(exit), "expected a failure");
-    const squashed = Cause.squash(exit.cause);
-    assert.instanceOf(squashed, KitError);
-    expect(squashed.status).toBe(404);
-    expect(squashed.body).toBe("Not found");
-  });
+  it.effect("error produces a KitError failure", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(SvelteKit.error(404, "Not found"));
+      assert(Exit.isFailure(exit), "expected a failure");
+      const squashed = Cause.squash(exit.cause);
+      assert.instanceOf(squashed, KitError);
+      expect(squashed.status).toBe(404);
+      expect(squashed.body).toBe("Not found");
+    }),
+  );
 
-  it("fail produces a KitActionFailure", async () => {
-    const exit = await Effect.runPromise(Effect.exit(SvelteKit.fail(422, { email: "taken" })));
-    assert(Exit.isFailure(exit), "expected a failure");
-    const squashed = Cause.squash(exit.cause);
-    assert.instanceOf(squashed, KitActionFailure);
-    expect(squashed.status).toBe(422);
-    expect(squashed.data).toEqual({ email: "taken" });
-  });
+  it.effect("fail produces a KitActionFailure", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(SvelteKit.fail(422, { email: "taken" }));
+      assert(Exit.isFailure(exit), "expected a failure");
+      const squashed = Cause.squash(exit.cause);
+      assert.instanceOf(squashed, KitActionFailure);
+      expect(squashed.status).toBe(422);
+      expect(squashed.data).toEqual({ email: "taken" });
+    }),
+  );
 
-  it("redirect is usable with Effect.catchTag", async () => {
-    const redirectStatus = await Effect.runPromise(
-      SvelteKit.redirect(303, "/login").pipe(
+  it.effect("redirect is usable with Effect.catchTag", () =>
+    Effect.gen(function* () {
+      const redirectStatus = yield* SvelteKit.redirect(303, "/login").pipe(
         Effect.catchTag("KitRedirect", (e) => Effect.succeed(e.status)),
-      ),
-    );
-    expect(redirectStatus).toBe(303);
-  });
+      );
+      expect(redirectStatus).toBe(303);
+    }),
+  );
 });
 
 // ─── SvelteKit.translate ─────────────────────────────────────────────────────

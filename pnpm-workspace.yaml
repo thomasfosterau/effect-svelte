@@ -27,6 +27,8 @@ catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.5
   "@effect/platform-node": 4.1.3
+  # Moves with the `effect` group: its `effect` peer floor is its own version.
+  "@effect/vitest": 4.1.3
   # The Effect lint preset (`effect/*` rules, anti-slop included), run as a
   # JS plugin inside vite-plus's oxlint. Not in the `toolchain` group: it takes
   # `@oxlint/plugins` at a caret range.

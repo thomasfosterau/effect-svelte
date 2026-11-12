@@ -9,6 +9,7 @@ import * as Stream from "effect/Stream";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { resultToPromise } from "../src/internal/await.js";
 import { makeLiveStream, type LiveResultState } from "../src/internal/live-stream.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /** Yields to the event loop so forked stream fibers process an emission/exit. */
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
@@ -115,7 +116,7 @@ describe("makeLiveStream", () => {
     const state = fakeLive<number, never>();
 
     const core = makeLiveStream(runtime, state);
-    core.subscribe(Stream.fromEffect(Effect.die(new Error("kaboom"))));
+    core.subscribe(Stream.fromEffect(Effect.die(new ForeignError("kaboom"))));
     await flush();
 
     expect(AsyncResult.isFailure(state.current)).toBe(true);

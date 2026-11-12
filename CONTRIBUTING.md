@@ -30,7 +30,7 @@ Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editabl
 
 ## Testing
 
-- Tests live in each package's `tests/` directory and import from `vite-plus/test`.
+- Tests live in each package's `tests/` directory and import from `vite-plus/test`; a test that runs an Effect takes `it` from `@effect/vitest` (`it.effect`, or `it.live` on real time).
 - `packages/svelte` splits its suite into three Vitest projects: `tests/dom/` mounts components under happy-dom, `tests/ssr/` renders them with `svelte/server`, and everything else in `tests/` runs in plain Node.
 - `packages/sveltekit` has two projects: `tests/client/` runs rune-backed client code (with `$app/*` stand-ins) under happy-dom and the Svelte plugin, and everything else in `tests/` runs in plain Node.
 

@@ -1,6 +1,7 @@
 /// <reference types="vite-plus/client" />
 
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { describe, expect } from "vite-plus/test";
 import { build, parseAst } from "vite-plus";
 import { build as pack } from "vite-plus/pack";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -176,41 +177,36 @@ const bundledModules = async (
  * object, which a consumer's bundler cannot shake (#191). So a recipe has to
  * be probed against packed output, not only against the sources.
  */
-const packedModules = (
-  probes: ReadonlyArray<string>,
-  entry = "index.js",
-): Promise<ReadonlyArray<ReadonlyArray<string>>> =>
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const outDir = yield* fs.makeTempDirectoryScoped({ prefix: "effect-sveltekit-dist-" });
-      const packConfig = config.pack;
-      if (packConfig === undefined || Arr.isArray(packConfig))
-        return yield* Effect.die("vite.config.ts must declare a single `pack` config");
-      yield* Effect.tryPromise(() =>
-        pack({
-          ...packConfig,
-          config: false,
-          cwd: pkgRoot,
-          outDir,
-          dts: false,
-          sourcemap: false,
-          logLevel: "silent",
-        }),
-      );
-      // After the pack, which empties `outDir` first.
-      const packageJson = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))({
-        type: "module",
-        sideEffects: manifest.sideEffects,
-      });
-      yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
-      return yield* Effect.forEach(
-        probes,
-        (code) => Effect.tryPromise(() => bundledModules(code, { root: `${outDir}/`, entry })),
-        { concurrency: 1 },
-      );
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-  );
+const packedModules = (probes: ReadonlyArray<string>, entry = "index.js") =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const outDir = yield* fs.makeTempDirectoryScoped({ prefix: "effect-sveltekit-dist-" });
+    const packConfig = config.pack;
+    if (packConfig === undefined || Arr.isArray(packConfig))
+      return yield* Effect.die("vite.config.ts must declare a single `pack` config");
+    yield* Effect.tryPromise(() =>
+      pack({
+        ...packConfig,
+        config: false,
+        cwd: pkgRoot,
+        outDir,
+        dts: false,
+        sourcemap: false,
+        logLevel: "silent",
+      }),
+    );
+    // After the pack, which empties `outDir` first.
+    const packageJson = yield* Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))({
+      type: "module",
+      sideEffects: manifest.sideEffects,
+    });
+    yield* fs.writeFileString(`${outDir}/package.json`, packageJson);
+    return yield* Effect.forEach(
+      probes,
+      (code) => Effect.tryPromise(() => bundledModules(code, { root: `${outDir}/`, entry })),
+      { concurrency: 1 },
+    );
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 
 /**
  * The timeout for a test that bundles through `vp pack` / rolldown: each
@@ -248,37 +244,39 @@ describe('"sideEffects": false', () => {
     bundleTimeout,
   );
 
-  it(
+  it.effect(
     "the README's ResponseHeaders recipe, packed, keeps only what it reaches",
-    async () => {
-      // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
-      const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
+    () =>
+      Effect.gen(function* () {
+        // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
+        const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
       export const hooks = transport({ ResponseHeaders: responseHeadersTransporter });`;
-      // Control: the same recipe through the `Hooks` namespace. The packed build
-      // turns `export * as Hooks` into one object, which keeps `Hooks.reroute`
-      // and the default universal runtime behind it; that is why the root entry
-      // also exports the members by name.
-      const viaNamespace = `import { Hooks } from "$pkg";
+        // Control: the same recipe through the `Hooks` namespace. The packed build
+        // turns `export * as Hooks` into one object, which keeps `Hooks.reroute`
+        // and the default universal runtime behind it; that is why the root entry
+        // also exports the members by name.
+        const viaNamespace = `import { Hooks } from "$pkg";
       export const hooks = Hooks.transport({ ResponseHeaders: Hooks.responseHeadersTransporter });`;
-      const [flat, namespaced] = await packedModules([recipe, viaNamespace]);
-      expect(flat).toEqual(["response-headers.js", "transport.js"]);
-      expect(namespaced).toContain("internal/default-runtime.js");
-    },
+        const [flat, namespaced] = yield* packedModules([recipe, viaNamespace]);
+        expect(flat).toEqual(["response-headers.js", "transport.js"]);
+        expect(namespaced).toContain("internal/default-runtime.js");
+      }),
     bundleTimeout,
   );
 
-  it(
+  it.effect(
     "a named import from ./client, packed, keeps only what it reaches",
-    async () => {
-      // A browser bundle's `goto` (#195): the flat export keeps only
-      // `Navigation.js`, while the namespace's `__exportAll` object also
-      // keeps the lifecycle members and the event registry behind them.
-      const flat = `import { goto } from "$pkg"; export const go = goto;`;
-      const viaNamespace = `import { Navigation } from "$pkg"; export const go = Navigation.goto;`;
-      const [named, namespaced] = await packedModules([flat, viaNamespace], "client.js");
-      expect(named).toEqual(["Navigation.js"]);
-      expect(namespaced).toContain("internal/navigation-events.js");
-    },
+    () =>
+      Effect.gen(function* () {
+        // A browser bundle's `goto` (#195): the flat export keeps only
+        // `Navigation.js`, while the namespace's `__exportAll` object also
+        // keeps the lifecycle members and the event registry behind them.
+        const flat = `import { goto } from "$pkg"; export const go = goto;`;
+        const viaNamespace = `import { Navigation } from "$pkg"; export const go = Navigation.goto;`;
+        const [named, namespaced] = yield* packedModules([flat, viaNamespace], "client.js");
+        expect(named).toEqual(["Navigation.js"]);
+        expect(namespaced).toContain("internal/navigation-events.js");
+      }),
     bundleTimeout,
   );
 });

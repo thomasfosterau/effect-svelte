@@ -34,7 +34,8 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import { Reactivity } from "effect/reactivity";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { flushSync, mount, unmount } from "svelte";
-import { afterEach, assert, describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { afterEach, assert, describe, expect } from "vite-plus/test";
 import { useDerived } from "../../src/derived.svelte.js";
 import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
@@ -139,62 +140,66 @@ describe("useEffect({ immediate: true })", () => {
     expect(text(target, "tag")).toBe("Failure");
   });
 
-  it("runs an asynchronous Effect once, then settles to Success", async () => {
-    const gate = Effect.runSync(Deferred.make<number>());
-    const success = nextSuccess();
-    let starts = 0;
-    const target = mountProbe({
-      use: () =>
-        useEffect(
-          Effect.suspend(() => {
-            starts++;
-            return Deferred.await(gate);
-          }),
-          { immediate: true, runtime },
-        ),
-      onSuccess: success.onSuccess,
-    });
-
-    expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Initial");
-    expect(text(target, "waiting")).toBe("true");
-
-    Effect.runSync(Deferred.succeed(gate, 42));
-    expect(await success.promise).toBe(42);
-    flushSync();
-
-    expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "waiting")).toBe("false");
-  });
-
-  it("interrupts the running Effect on unmount", async () => {
-    const interrupted = Effect.runSync(Deferred.make<void>());
-    let starts = 0;
-    const target = document.createElement("div");
-    document.body.appendChild(target);
-    const component = mount(ResultProbe, {
-      target,
-      props: {
+  it.effect("runs an asynchronous Effect once, then settles to Success", () =>
+    Effect.gen(function* () {
+      const gate = yield* Deferred.make<number>();
+      const success = nextSuccess();
+      let starts = 0;
+      const target = mountProbe({
         use: () =>
           useEffect(
             Effect.suspend(() => {
               starts++;
-              return Effect.never;
-            }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
+              return Deferred.await(gate);
+            }),
             { immediate: true, runtime },
           ),
-      },
-    });
-    flushSync();
-    expect(starts).toBe(1);
+        onSuccess: success.onSuccess,
+      });
 
-    await unmount(component);
-    target.remove();
+      expect(starts).toBe(1);
+      expect(text(target, "tag")).toBe("Initial");
+      expect(text(target, "waiting")).toBe("true");
 
-    await Effect.runPromise(Deferred.await(interrupted));
-    expect(starts).toBe(1);
-  });
+      yield* Deferred.succeed(gate, 42);
+      expect(yield* Effect.tryPromise(() => success.promise)).toBe(42);
+      flushSync();
+
+      expect(starts).toBe(1);
+      expect(text(target, "tag")).toBe("Success");
+      expect(text(target, "waiting")).toBe("false");
+    }),
+  );
+
+  it.effect("interrupts the running Effect on unmount", () =>
+    Effect.gen(function* () {
+      const interrupted = yield* Deferred.make<void>();
+      let starts = 0;
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+      const component = mount(ResultProbe, {
+        target,
+        props: {
+          use: () =>
+            useEffect(
+              Effect.suspend(() => {
+                starts++;
+                return Effect.never;
+              }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
+              { immediate: true, runtime },
+            ),
+        },
+      });
+      flushSync();
+      expect(starts).toBe(1);
+
+      yield* Effect.tryPromise(() => unmount(component));
+      target.remove();
+
+      yield* Deferred.await(interrupted);
+      expect(starts).toBe(1);
+    }),
+  );
 
   it("does not subscribe to state the Effect reads while it starts", () => {
     // `run()` from a click handler tracks nothing; `immediate` must match, or
@@ -669,50 +674,49 @@ describe("useReactiveStream", () => {
     await reactivity.dispose();
   });
 
-  it("interrupts the previous run when it restarts, and the last run on unmount", async () => {
-    const reactivity = await makeReactivity();
-    const dep = $state({ n: 1 });
-    const interrupted = [
-      Effect.runSync(Deferred.make<void>()),
-      Effect.runSync(Deferred.make<void>()),
-    ] as const;
-    let starts = 0;
-    const target = document.createElement("div");
-    document.body.appendChild(target);
-    const component = mount(ResultProbe, {
-      target,
-      props: {
-        use: () =>
-          useReactiveStream(
-            () => ["probe", dep.n],
-            () => {
-              const gate = interrupted[dep.n - 1];
-              assert.isDefined(gate);
-              return Effect.suspend(() => {
-                starts++;
-                return Effect.never;
-              }).pipe(Effect.onInterrupt(() => Deferred.succeed(gate, undefined)));
-            },
-            { runtime: reactivity.runtime },
-          ),
-      },
-    });
-    flushSync();
-    expect(starts).toBe(1);
+  it.effect("interrupts the previous run when it restarts, and the last run on unmount", () =>
+    Effect.gen(function* () {
+      const reactivity = yield* Effect.tryPromise(() => makeReactivity());
+      const dep = $state({ n: 1 });
+      const interrupted = [yield* Deferred.make<void>(), yield* Deferred.make<void>()] as const;
+      let starts = 0;
+      const target = document.createElement("div");
+      document.body.appendChild(target);
+      const component = mount(ResultProbe, {
+        target,
+        props: {
+          use: () =>
+            useReactiveStream(
+              () => ["probe", dep.n],
+              () => {
+                const gate = interrupted[dep.n - 1];
+                assert.isDefined(gate);
+                return Effect.suspend(() => {
+                  starts++;
+                  return Effect.never;
+                }).pipe(Effect.onInterrupt(() => Deferred.succeed(gate, undefined)));
+              },
+              { runtime: reactivity.runtime },
+            ),
+        },
+      });
+      flushSync();
+      expect(starts).toBe(1);
 
-    dep.n = 2;
-    flushSync();
-    expect(starts).toBe(2);
-    await Effect.runPromise(Deferred.await(interrupted[0]));
-    expect(Effect.runSync(Deferred.isDone(interrupted[1]))).toBe(false);
+      dep.n = 2;
+      flushSync();
+      expect(starts).toBe(2);
+      yield* Deferred.await(interrupted[0]);
+      expect(yield* Deferred.isDone(interrupted[1])).toBe(false);
 
-    await unmount(component);
-    target.remove();
-    await Effect.runPromise(Deferred.await(interrupted[1]));
-    expect(starts).toBe(2);
+      yield* Effect.tryPromise(() => unmount(component));
+      target.remove();
+      yield* Deferred.await(interrupted[1]);
+      expect(starts).toBe(2);
 
-    await reactivity.dispose();
-  });
+      yield* Effect.tryPromise(() => reactivity.dispose());
+    }),
+  );
 });
 
 describe("useInvalidateKeys", () => {

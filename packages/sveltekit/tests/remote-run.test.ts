@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
 import { type FormErrorMapper, makeRunHelpers } from "../src/internal/remote-run.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /** The `issue` helper a remote form handler receives. */
 type FormIssue = Parameters<FormErrorMapper>[1]["issue"];
@@ -28,14 +29,14 @@ class ValidationFailure {
 describe("makeRunHelpers", () => {
   it("run returns the success value", async () => {
     const { run } = makeRunHelpers(bareResolver, () => {
-      throw new Error("should not translate");
+      throw new ForeignError("should not translate");
     });
     expect(await run(Effect.succeed(42))).toBe(42);
   });
 
   it("run throws via the translator on failure", async () => {
     const { run } = makeRunHelpers(bareResolver, () => {
-      throw new Error("translated");
+      throw new ForeignError("translated");
     });
     await expect(run(Effect.fail("boom"))).rejects.toThrow("translated");
   });
@@ -49,13 +50,13 @@ describe("makeRunHelpers", () => {
     const { runForm } = makeRunHelpers(
       bareResolver,
       () => {
-        throw new Error("translate should not be used");
+        throw new ForeignError("translate should not be used");
       },
       (error, ctx) => {
         if (error instanceof ValidationFailure) {
           ctx.issue["field"](error.field, error.message);
         }
-        throw new Error("invalid()");
+        throw new ForeignError("invalid()");
       },
     );
 
@@ -70,7 +71,7 @@ describe("makeRunHelpers", () => {
 
   it("runForm falls back to the translator when no formError is given", async () => {
     const { runForm } = makeRunHelpers(bareResolver, () => {
-      throw new Error("translated");
+      throw new ForeignError("translated");
     });
     await expect(runForm(Effect.fail("boom"), { issue: {}, data: {} })).rejects.toThrow(
       "translated",
@@ -84,7 +85,7 @@ describe("makeRunHelpers", () => {
       dispose: () => order.push("dispose"),
     });
     const { run } = makeRunHelpers(resolver, () => {
-      throw new Error("x");
+      throw new ForeignError("x");
     });
     await run(Effect.sync(() => order.push("run")));
     expect(order).toEqual(["run", "dispose"]);

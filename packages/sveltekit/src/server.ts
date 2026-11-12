@@ -1,4 +1,4 @@
-import type { Action, Actions, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type { Action, Actions, HttpError, Redirect, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Cause from "effect/Cause";
@@ -111,6 +111,10 @@ export function actions<
   return runtime().actions(actionsMap);
 }
 
+/** Whether a squashed failure is SvelteKit's own `redirect()` / `error()`. */
+const isKitControlFlow = (squashed: unknown): squashed is Redirect | HttpError =>
+  isRedirect(squashed) || isHttpError(squashed);
+
 /**
  * Wraps an Effect-based function to work as a SvelteKit API endpoint handler.
  * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
@@ -147,19 +151,27 @@ export function endpoint<
   const { exposeErrors = false } = options ?? {};
 
   return async (event) => {
-    const exit = await runtime().runPromiseExit(event, fn(event));
+    const exit = await runtime().runPromiseExit(
+      event,
+      // Always log the full error server-side for debugging, as part of the
+      // request's own Effect: through the runtime's `Console` (the global
+      // console by default). SvelteKit's control flow objects are not errors.
+      fn(event).pipe(
+        Effect.tapCause((cause) =>
+          isKitControlFlow(Cause.squash(cause))
+            ? Effect.void
+            : Console.error("Endpoint error:", Cause.pretty(cause)),
+        ),
+      ),
+    );
 
     return Exit.match(exit, {
       onFailure: (cause) => {
         // Let SvelteKit handle its own control flow objects.
         const squashed = Cause.squash(cause);
-        if (isRedirect(squashed) || isHttpError(squashed)) {
+        if (isKitControlFlow(squashed)) {
           throw squashed;
         }
-
-        // Always log the full error server-side for debugging, through Effect's
-        // default `Console` (the global console).
-        Effect.runSync(Console.error("Endpoint error:", Cause.pretty(cause)));
 
         // Return generic error message to client unless explicitly enabled
         const clientMessage = exposeErrors ? Cause.pretty(cause) : "Internal server error";
