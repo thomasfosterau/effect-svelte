@@ -86,6 +86,7 @@
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@sveltejs/kit": "catalog:",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
