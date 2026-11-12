@@ -45,15 +45,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Setup pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: "*"
-          check-latest: true
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          cache: true
+          run-install: false
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Select mode
@@ -79,15 +76,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Setup pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1.22.0
         with:
           node-version: "*"
-          check-latest: true
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          cache: true
+          run-install: false
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Create or update the version PR
@@ -138,20 +132,20 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # Installs the pnpm version pinned by the package.json "packageManager"
-      # field. Must run before setup-node so its pnpm cache can find the store.
-      - name: Setup pnpm
-        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Vite+ at the catalog's pin, with the Node.js and pnpm it manages: the
+      # latest STABLE Node (`*` is a semver range, so never a pre-release; see
+      # .github/actions/setup/action.yml) and the pnpm that package.json's
+      # `packageManager` pins. `run-install: false`: the install is the step
+      # below, with `--ignore-scripts`. No `registry-url`: it would write an
+      # `.npmrc` with a placeholder `_authToken` and point pnpm at it
+      # (`PNPM_CONFIG_USERCONFIG`); publishing is OIDC, with no token, against
+      # pnpm's default registry (registry.npmjs.org).
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1.22.0
         with:
-          # The latest STABLE Node, not `latest` (a pre-release can head the
-          # dist index); see .github/actions/setup/action.yml.
           node-version: "*"
-          check-latest: true
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
+          cache: true
+          run-install: false
 
       # No npm upgrade: pnpm 11 publishes natively (libnpmpublish; it no
       # longer shells out to `npm publish`) and performs the OIDC trusted

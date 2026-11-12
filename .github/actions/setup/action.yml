@@ -1,41 +1,43 @@
-# Composite setup shared by every workflow that needs the toolchain: pnpm +
-# Node.js, the pnpm store cache (keyed on pnpm-lock.yaml by setup-node), and a
-# frozen-lockfile install (retried — see the Install step's own comment).
-# `vp`, `fallow` and the other dev bins land in node_modules/.bin; later steps
-# call them through `pnpm exec` rather than adding that directory to
-# `GITHUB_PATH` (a write to an environment file zizmor flags as `github-env`).
-# Copied in shape from the effect-web library's action.
+# Composite setup shared by every workflow that needs the toolchain: Vite+
+# (`vp`, at the catalog's `vite-plus` pin), the Node.js and pnpm it manages,
+# the pnpm store cache (keyed on pnpm-lock.yaml) and a frozen-lockfile install
+# (retried — see the Install step's own comment). setup-vp puts `vp`, `node`
+# and `pnpm` on PATH itself, so later steps call `vp` directly.
 #
 # Callers must run `actions/checkout` BEFORE this (a local composite action
-# needs the repo on disk first).
+# needs the repo on disk first, and setup-vp reads the Vite+ and pnpm versions
+# from it).
 name: Setup toolchain
-description: Set up Node.js and pnpm, restore the package cache and install dependencies against the lockfile.
+description: Set up Vite+ with its managed Node.js and pnpm, restore the package cache and install dependencies against the lockfile.
 inputs:
   node-version:
-    # CI tests one Node version, the latest stable release (#114). Not
-    # `latest`: setup-node resolves that to the first entry of nodejs.org's
-    # dist index, whatever it is, and on 2026-10-29 that became
-    # `v27.0.0-alpha.0.0.0`, a pre-release on which file responses hang.
-    # `*` with `check-latest` resolves against actions/node-versions'
-    # manifest of stable releases instead, so a new major arrives once it
-    # ships stable.
+    # CI tests one Node version, the latest stable release (#114). `*` is a
+    # semver range, and a range never matches a pre-release: `latest` would
+    # take whatever heads nodejs.org's dist index, and on 2026-10-29 that
+    # became `v27.0.0-alpha.0.0.0`, on which file responses hang (#214).
     description: The Node.js version (a semver range) to set up.
     required: false
     default: "*"
 runs:
   using: composite
   steps:
-    # pnpm before Node so setup-node's `cache: pnpm` can resolve the store path.
-    # The pnpm version comes from the `packageManager` field in package.json.
-    - name: Setup pnpm
-      uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-
-    - name: Setup Node.js
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+    # Vite+ at the version the catalog pins (`vite-plus: "catalog:"` in
+    # package.json, resolved through pnpm-workspace.yaml), then Node.js through
+    # `vp env use` and pnpm at package.json's `packageManager`. The install is
+    # the next step, so it can be retried.
+    - name: Setup Vite+
+      uses: voidzero-dev/setup-vp@v1.22.0 # zizmor: ignore[unpinned-uses] an exact release tag, as setup-vp's README asks; the Actions lockfile (#250) pins its commit
       with:
         node-version: ${{ inputs.node-version }}
-        check-latest: true
-        cache: pnpm
+        cache: true
+        run-install: false
+
+    - name: Show the toolchain
+      shell: bash
+      run: |
+        vp --version
+        node --version
+        pnpm --version
 
     # --frozen-lockfile fails if pnpm-lock.yaml is out of sync with the
     # manifests or the catalog in pnpm-workspace.yaml. Retried: pnpm's linker
@@ -47,14 +49,14 @@ runs:
       shell: bash
       run: |
         for attempt in 1 2 3; do
-          if pnpm install --frozen-lockfile; then
+          if vp install --frozen-lockfile; then
             break
           fi
           if [ "$attempt" -eq 3 ]; then
-            echo "::error::pnpm install failed after 3 attempts"
+            echo "::error::vp install failed after 3 attempts"
             exit 1
           fi
           delay=$((attempt * 15))
-          echo "::warning::pnpm install failed (attempt ${attempt}/3); retrying in ${delay}s"
+          echo "::warning::vp install failed (attempt ${attempt}/3); retrying in ${delay}s"
           sleep "$delay"
         done
