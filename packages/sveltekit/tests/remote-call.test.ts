@@ -14,6 +14,7 @@ import {
   submitForm,
   submitFormWithUpdates,
 } from "../src/Remote.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /**
  * Runs `effect` and asserts it failed on the error channel with exactly
@@ -96,7 +97,7 @@ describe("Remote call helpers: success", () => {
 });
 
 describe("Remote call helpers: a rejected call fails on the error channel", () => {
-  const boom = new Error("remote call rejected");
+  const boom = new ForeignError("remote call rejected");
   // SAFETY: every helper only calls the remote function and awaits its result
   // (or its `.updates()`), both of which `rejecting` provides.
   const reject = (() => rejecting(boom)) as never;
@@ -186,7 +187,7 @@ describe("liveQueryStream", () => {
   );
 
   it.effect("surfaces iteration errors on the Stream's error channel", () => {
-    const boom = new Error("boom");
+    const boom = new ForeignError("boom");
     // SAFETY: `liveQueryStream` only iterates the live query, which this
     // async iterable supports.
     const live = {

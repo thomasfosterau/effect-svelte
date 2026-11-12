@@ -12,6 +12,7 @@ import { it } from "@effect/vitest";
 import { afterEach, assert, describe, expect } from "vite-plus/test";
 import * as Navigation from "../../src/Navigation.js";
 import { navigationStubs, resetNavigationStubs } from "./fixtures/app-navigation.js";
+import { ForeignError } from "../fixtures/foreign-error.js";
 
 afterEach(resetNavigationStubs);
 
@@ -86,7 +87,7 @@ describe("Navigation promise wrappers: failure", () => {
     "%s fails with a NavigationError carrying the rejection",
     ([operation, run]) =>
       Effect.gen(function* () {
-        const cause = new Error(`${operation} rejected`);
+        const cause = new ForeignError(`${operation} rejected`);
         navigationStubs[operation] = () => Promise.reject(cause);
 
         const error = yield* failureOf(run());
@@ -99,7 +100,7 @@ describe("Navigation promise wrappers: failure", () => {
     ([operation, run]) => {
       // Kit's server build throws synchronously (`server_api_unavailable`);
       // `invalidate` also throws synchronously on an unparseable URL.
-      const cause = new Error(`Cannot call ${operation}(...) on the server`);
+      const cause = new ForeignError(`Cannot call ${operation}(...) on the server`);
       navigationStubs[operation] = () => {
         throw cause;
       };
@@ -113,7 +114,7 @@ describe("Navigation promise wrappers: failure", () => {
 
   it.effect("is a NavigationError instance that Effect.catchTag recovers from", () =>
     Effect.gen(function* () {
-      const cause = new Error("https://svelte.dev/e/kit/navigation_route_missing");
+      const cause = new ForeignError("https://svelte.dev/e/kit/navigation_route_missing");
       navigationStubs.goto = () => Promise.reject(cause);
 
       const error = yield* failureOf(Navigation.goto("/nowhere"));

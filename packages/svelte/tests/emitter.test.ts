@@ -7,6 +7,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { SignalEmitter } from "../src/emitter.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /**
  * Runs `emitter.stream` in a child fiber that forwards each element into a
@@ -37,7 +38,7 @@ const connect = (emitter: SignalEmitter<number>) =>
       );
     yield* awaitConnection(1_000);
     if (connectedRuns() === before) {
-      return yield* Effect.die(new Error("the stream never connected"));
+      return yield* Effect.die(new ForeignError("the stream never connected"));
     }
 
     // Bounded only so a regression fails fast instead of hanging the suite;

@@ -8,6 +8,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as P from "effect/Predicate";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 import { mockEvent } from "./fixtures/request-event.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 class Greeter extends Context.Service<Greeter, { greet: (name: string) => string }>()(
   "test/Greeter",
@@ -186,7 +187,7 @@ describe("boundary error translation", () => {
       const failure = Cause.squash(cause);
       if (failure instanceof NotFound) error(404, "not found");
       if (failure instanceof ValidationFailure) error(400, `invalid:${failure.field}`);
-      throw new Error("unexpected");
+      throw new ForeignError("unexpected");
     };
     const { serverLoad } = makeRuntimeAdapter(RequestRuntime.fromLayer(Layer.empty), {
       translateError,

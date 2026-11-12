@@ -15,6 +15,7 @@ import { EffectCauseError } from "../src/internal/error.js";
 import { KitError } from "../src/kit.js";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 import { TestRequestEvent } from "../src/testing.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 class NotFound extends Schema.TaggedError<NotFound>()("NotFound", {
   resource: Schema.String,
@@ -173,7 +174,7 @@ describe("Errors.toSvelteKit", () => {
   });
 
   it("wraps an unknown failure in an EffectCauseError by default (SvelteKit.translate)", () => {
-    const defect = new Error("boom");
+    const defect = new ForeignError("boom");
     expect(() => translateError(Cause.die(defect))).toThrow(EffectCauseError);
   });
 
@@ -183,7 +184,7 @@ describe("Errors.toSvelteKit", () => {
   });
 
   it("rethrows unknown failures unchanged with the rethrowSquashed fallback", () => {
-    const defect = new Error("boom");
+    const defect = new ForeignError("boom");
     const rethrowing = Errors.toSvelteKit<AppError>(
       { NotFound: 404 },
       { fallback: Errors.rethrowSquashed },

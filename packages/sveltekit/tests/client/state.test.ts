@@ -25,6 +25,7 @@ import {
   setPage,
   setUpdated,
 } from "./fixtures/app-state.svelte.js";
+import { ForeignError } from "../fixtures/foreign-error.js";
 
 /**
  * Runs `stream` in the background, forwarding each value to a queue the test
@@ -135,7 +136,7 @@ describe("State.checkForUpdate", () => {
 
   it.effect("fails with UpdateCheckError when updated.check() rejects", () =>
     Effect.gen(function* () {
-      const boom = new Error("no window");
+      const boom = new ForeignError("no window");
       setCheck(() => Promise.reject(boom));
       const exit = yield* Effect.exit(State.checkForUpdate());
       expect(exit).toEqual(Exit.fail(new State.UpdateCheckError({ cause: boom })));

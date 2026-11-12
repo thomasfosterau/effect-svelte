@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as P from "effect/Predicate";
 import { handleError, init } from "../src/client/Hooks.js";
 import { EffectCauseError } from "../src/internal/error.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 const navigationEvent = (pathname = "/"): NavigationEvent => ({
   url: new URL(`http://localhost${pathname}`),
@@ -20,7 +21,7 @@ describe("client Hooks.handleError", () => {
     );
     const result = await hook({
       kind: "unknown",
-      error: new Error("boom"),
+      error: new ForeignError("boom"),
       event: navigationEvent("/items"),
     });
     expect(result).toEqual({ message: "boom @ /items" });
@@ -30,7 +31,7 @@ describe("client Hooks.handleError", () => {
     const hook = handleError(() => Effect.void);
     const result = await hook({
       kind: "unknown",
-      error: new Error("boom"),
+      error: new ForeignError("boom"),
       event: navigationEvent(),
     });
     expect(result).toBeUndefined();
@@ -41,7 +42,7 @@ describe("client Hooks.handleError", () => {
     await expect(
       hook({
         kind: "unknown",
-        error: new Error("boom"),
+        error: new ForeignError("boom"),
         event: navigationEvent(),
       }),
     ).rejects.toThrow(EffectCauseError);

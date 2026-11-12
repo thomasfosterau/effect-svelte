@@ -26,6 +26,7 @@ import type {
   SubmitInput,
 } from "../../src/forms.js";
 import { formsStubs, resetFormsStubs } from "./fixtures/app-forms.js";
+import { ForeignError } from "../fixtures/foreign-error.js";
 
 afterEach(resetFormsStubs);
 
@@ -63,7 +64,7 @@ describe("Forms.applyAction", () => {
 
   it.effect("fails with an ApplyActionError carrying the rejection", () =>
     Effect.gen(function* () {
-      const cause = new Error("https://svelte.dev/e/kit/navigation_route_missing");
+      const cause = new ForeignError("https://svelte.dev/e/kit/navigation_route_missing");
       formsStubs.applyAction = () => Promise.reject(cause);
 
       const error = yield* failureOf(Forms.applyAction(redirect));
@@ -73,7 +74,7 @@ describe("Forms.applyAction", () => {
 
   it.effect("fails with an ApplyActionError when SvelteKit throws synchronously", () => {
     // Kit's server build throws synchronously (`server_api_unavailable`).
-    const cause = new Error("Cannot call applyAction(...) on the server");
+    const cause = new ForeignError("Cannot call applyAction(...) on the server");
     formsStubs.applyAction = () => {
       throw cause;
     };
@@ -86,7 +87,7 @@ describe("Forms.applyAction", () => {
 
   it.effect("is an ApplyActionError instance that Effect.catchTag recovers from", () =>
     Effect.gen(function* () {
-      const cause = new Error("chunk failed to load");
+      const cause = new ForeignError("chunk failed to load");
       formsStubs.applyAction = () => Promise.reject(cause);
 
       const error = yield* failureOf(Forms.applyAction(redirect));
@@ -133,7 +134,7 @@ describe("Forms.enhance with failing handlers", () => {
    */
   const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
     const callback = await submit(submitInput().input);
-    if (!P.isFunction(callback)) throw new Error("expected a result callback");
+    assert(P.isFunction(callback), "expected a result callback");
     let updates = 0;
     const update = () => {
       updates++;
@@ -146,7 +147,7 @@ describe("Forms.enhance with failing handlers", () => {
   };
 
   it("routes a failed applyAction returned from onResult to onError", async () => {
-    const cause = new Error("navigation failed");
+    const cause = new ForeignError("navigation failed");
     formsStubs.applyAction = () => Promise.reject(cause);
     const seen: Array<unknown> = [];
     const submit = Forms.enhance({
@@ -182,7 +183,7 @@ describe("Forms.enhance with failing handlers", () => {
       redirect,
     );
 
-    formsStubs.applyAction = () => Promise.reject(new Error("navigation failed"));
+    formsStubs.applyAction = () => Promise.reject(new ForeignError("navigation failed"));
     const recovered: Array<unknown> = [];
     await runEnhanced(
       Forms.enhance({
@@ -202,7 +203,7 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("rejects with the error when onResult fails and there is no onError", async () => {
-    const cause = new Error("navigation failed");
+    const cause = new ForeignError("navigation failed");
     formsStubs.applyAction = () => Promise.reject(cause);
     const submit = Forms.enhance({ onResult: ({ result }) => Forms.applyAction(result) });
 
@@ -212,7 +213,7 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("rejects on a defect without calling onError", async () => {
-    const cause = new Error("navigation failed");
+    const cause = new ForeignError("navigation failed");
     formsStubs.applyAction = () => Promise.reject(cause);
     const seen: Array<unknown> = [];
     const submit = Forms.enhance({

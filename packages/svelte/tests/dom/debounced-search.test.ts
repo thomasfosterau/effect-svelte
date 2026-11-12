@@ -12,6 +12,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import DebouncedSearch from "./DebouncedSearch.svelte";
 import { flush, makeMounter, text } from "./helpers.js";
+import { ForeignError } from "../fixtures/foreign-error.js";
 
 const OPTIONS = [
   { id: "1", label: "Parent Issue alpha" },
@@ -103,7 +104,7 @@ describe("useDebouncedSearch", () => {
 
   it("surfaces a failed search as an error message and clears the results", async () => {
     const { target, emit, runtime } = setup((q) =>
-      q === "boom" ? Effect.fail(new Error("search exploded")) : asyncSearch(q),
+      q === "boom" ? Effect.fail(new ForeignError("search exploded")) : asyncSearch(q),
     );
     await flush();
 

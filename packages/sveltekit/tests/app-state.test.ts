@@ -18,6 +18,7 @@ import {
   snapshotPage,
   watchedStream,
 } from "../src/internal/app-state.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 const makePage = (pathname: string): ReadonlyPage => ({
   url: new URL(`https://example.com${pathname}`),
@@ -151,7 +152,7 @@ describe("watchedStream", () => {
   });
 
   it.live("dies with what a throwing `watch` threw, instead of hanging", () => {
-    const thrown = new Error("watch failed");
+    const thrown = new ForeignError("watch failed");
     const throwingWatch: Watch = () => {
       throw thrown;
     };
@@ -240,14 +241,14 @@ describe("checkForUpdateWith", () => {
 
   it.effect("fails with UpdateCheckError when the check rejects", () =>
     Effect.gen(function* () {
-      const boom = new Error("no window");
+      const boom = new ForeignError("no window");
       const exit = yield* Effect.exit(checkForUpdateWith(() => Promise.reject(boom)));
       expect(exit).toEqual(Exit.fail(new UpdateCheckError({ cause: boom })));
     }),
   );
 
   it.effect("fails with UpdateCheckError when the check throws synchronously", () => {
-    const boom = new Error("window is not defined");
+    const boom = new ForeignError("window is not defined");
     const check = (): Promise<boolean> => {
       throw boom;
     };

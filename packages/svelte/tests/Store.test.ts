@@ -13,6 +13,7 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { get, writable } from "svelte/store";
 import * as Store from "../src/Store.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /** Yields to the event loop so forked reader fibers can drain pending values. */
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -144,7 +145,7 @@ describe("Store.toStream", () => {
 
   it.live("dies with what a throwing `subscribe` threw, instead of hanging", () => {
     // A store that breaks the readable store contract by throwing on subscribe.
-    const thrown = new Error("subscribe failed");
+    const thrown = new ForeignError("subscribe failed");
     const store = {
       subscribe(): () => void {
         throw thrown;

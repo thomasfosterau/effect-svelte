@@ -7,6 +7,7 @@ import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
 import * as Realtime from "../src/realtime.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 /**
  * Wait until the forked stream fiber has opened a fake socket. A single event-
@@ -18,7 +19,7 @@ const awaitSocket = (attempts = 200): Effect.Effect<FakeSocket> =>
   Effect.suspend(() => {
     const socket = FakeSocket.instances[0];
     if (socket !== undefined) return Effect.succeed(socket);
-    if (attempts === 0) return Effect.die(new Error("socket was never opened"));
+    if (attempts === 0) return Effect.die(new ForeignError("socket was never opened"));
     return Effect.andThen(Effect.sleep("5 millis"), awaitSocket(attempts - 1));
   });
 

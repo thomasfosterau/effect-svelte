@@ -308,13 +308,6 @@ export default defineConfig({
           // assertions (a call that must fail to compile); deleting one deletes
           // the test.
           "effect/avoid-ts-ignore": "off",
-          // The fixtures stand in for the foreign failures the packages must
-          // absorb — a user callback that throws, a SvelteKit promise that
-          // rejects with a plain `Error` — and the assertions check exactly
-          // how such an untagged error surfaces (a defect, a 500, an
-          // `ApplyActionError` cause). A tagged error would test a different
-          // path.
-          "effect/avoid-untagged-errors": "off",
         },
       },
       // The `Forms.enhance` type-level tests assert at compile time: each body

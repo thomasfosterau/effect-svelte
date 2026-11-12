@@ -15,6 +15,7 @@ import {
 } from "../src/request-services.js";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
 import { mockEvent } from "./fixtures/request-event.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ const makeMockCookies = (store: MockCookieStore = MutableHashMap.empty()): Cooki
     MutableHashMap.remove(store, name);
   },
   parse: () => {
-    throw new Error("cookies.parse is not mocked");
+    throw new ForeignError("cookies.parse is not mocked");
   },
   serialize: (name, value) => `${name}=${encodeURIComponent(value)}`,
 });
