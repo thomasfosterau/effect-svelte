@@ -92,21 +92,29 @@ const wrapperByKind: Record<EffectKitFileKind, Record<string, string>> = {
   },
 };
 
-function getFileKind(id: string): EffectKitFileKind | null {
+/** The file-name pattern of each kind, most specific first. */
+const kindPatterns: ReadonlyArray<readonly [RegExp, EffectKitFileKind]> = [
+  [/\/\+page\.server\.(?:ts|js|mts|mjs)$/, "pageServer"],
+  [/\/\+page\.(?:ts|js|mts|mjs)$/, "page"],
+  [/\/\+layout\.server\.(?:ts|js|mts|mjs)$/, "layoutServer"],
+  [/\/\+layout\.(?:ts|js|mts|mjs)$/, "layout"],
+  [/\/\+server\.(?:ts|js|mts|mjs)$/, "server"],
+  [/\/hooks\.server\.(?:ts|js|mts|mjs)$/, "hooksServer"],
+  [/\/hooks\.client\.(?:ts|js|mts|mjs)$/, "hooksClient"],
+  // Plain `hooks.ts` is the universal hooks file; listed last so the
+  // `.server.` / `.client.` variants above take precedence.
+  [/\/hooks\.(?:ts|js|mts|mjs)$/, "hooks"],
+];
+
+/** The kind of route or hook file the module `id` names; `None` for any other file. */
+const getFileKind = (id: string): Option.Option<EffectKitFileKind> => {
   // Drop the query (everything from the first `?`), then normalise separators.
   const path = id.replace(/\?[\s\S]*$/, "").replace(/\\/g, "/");
-  if (/\/\+page\.server\.(?:ts|js|mts|mjs)$/.test(path)) return "pageServer";
-  if (/\/\+page\.(?:ts|js|mts|mjs)$/.test(path)) return "page";
-  if (/\/\+layout\.server\.(?:ts|js|mts|mjs)$/.test(path)) return "layoutServer";
-  if (/\/\+layout\.(?:ts|js|mts|mjs)$/.test(path)) return "layout";
-  if (/\/\+server\.(?:ts|js|mts|mjs)$/.test(path)) return "server";
-  if (/\/hooks\.server\.(?:ts|js|mts|mjs)$/.test(path)) return "hooksServer";
-  if (/\/hooks\.client\.(?:ts|js|mts|mjs)$/.test(path)) return "hooksClient";
-  // Plain `hooks.ts` is the universal hooks file; checked last so the
-  // `.server.`/`.client.` variants above take precedence.
-  if (/\/hooks\.(?:ts|js|mts|mjs)$/.test(path)) return "hooks";
-  return null;
-}
+  return Option.map(
+    Arr.findFirst(kindPatterns, ([pattern]) => pattern.test(path)),
+    ([, kind]) => kind,
+  );
+};
 
 /** `text` with every character but a newline replaced by a space. */
 const blank = (text: string): string => text.replace(/[^\n]/g, " ");
@@ -128,11 +136,19 @@ const PLAIN = /[^/"'`]+|\//y;
 /** Template literal text up to its closing backtick, a `${`, or the end of the source. */
 const TEMPLATE_TEXT = /(?:\\[\s\S]?|\$(?!\{)|[^`\\$])*/y;
 
-/** The text the sticky `pattern` matches at `index`, if any. */
-const matchAt = (pattern: RegExp, source: string, index: number): RegExpExecArray | null => {
+/** What the sticky `pattern` matches at `index`; `None` when it does not match there. */
+const matchAt = (
+  pattern: RegExp,
+  source: string,
+  index: number,
+): Option.Option<RegExpExecArray> => {
   pattern.lastIndex = index;
-  return pattern.exec(source);
+  return Option.fromNullishOr(pattern.exec(source));
 };
+
+/** The text the sticky `pattern` matches at `index`; `None` when it does not match there. */
+const textAt = (pattern: RegExp, source: string, index: number): Option.Option<string> =>
+  Option.map(matchAt(pattern, source, index), (match) => match[0]);
 
 /**
  * The index just past the `}` closing a template expression whose body starts
@@ -158,7 +174,7 @@ interface MaskPosition {
 
 /** The masked chunk at a position inside a template literal, and the position after it. */
 const maskTemplateChunk = (source: string, index: number): readonly [string, MaskPosition] => {
-  const text = matchAt(TEMPLATE_TEXT, source, index)?.[0] ?? "";
+  const text = Option.getOrElse(textAt(TEMPLATE_TEXT, source, index), () => "");
   const end = index + text.length;
   if (source.startsWith("${", end)) {
     // Keep a template expression verbatim, up to its closing brace.
@@ -169,24 +185,28 @@ const maskTemplateChunk = (source: string, index: number): readonly [string, Mas
   return [blankLiteral(text) + source.slice(end, end + 1), { index: end + 1, inTemplate: false }];
 };
 
+/** A masked chunk and the position after it, outside any template literal. */
+const maskedChunk = (text: string, index: number): readonly [string, MaskPosition] => [
+  text,
+  { index, inTemplate: false },
+];
+
 /** The masked chunk at a position outside any template literal, and the position after it. */
-const maskChunk = (source: string, index: number): readonly [string, MaskPosition] => {
-  const comment = matchAt(COMMENT, source, index);
-  if (comment !== null) {
-    return [blank(comment[0]), { index: index + comment[0].length, inTemplate: false }];
-  }
-  const quoted = matchAt(QUOTED, source, index);
-  if (quoted !== null) {
-    const [whole, quote = "", body = "", closing = ""] = quoted;
-    return [
-      quote + blankLiteral(body) + closing,
-      { index: index + whole.length, inTemplate: false },
-    ];
-  }
-  if (source.startsWith("`", index)) return ["`", { index: index + 1, inTemplate: true }];
-  const plain = matchAt(PLAIN, source, index)?.[0] ?? source.charAt(index);
-  return [plain, { index: index + plain.length, inTemplate: false }];
-};
+const maskChunk = (source: string, index: number): readonly [string, MaskPosition] =>
+  textAt(COMMENT, source, index).pipe(
+    Option.map((comment) => maskedChunk(blank(comment), index + comment.length)),
+    Option.orElse(() =>
+      Option.map(matchAt(QUOTED, source, index), (quoted) => {
+        const [whole, quote = "", body = "", closing = ""] = quoted;
+        return maskedChunk(quote + blankLiteral(body) + closing, index + whole.length);
+      }),
+    ),
+    Option.getOrElse((): readonly [string, MaskPosition] => {
+      if (source.startsWith("`", index)) return ["`", { index: index + 1, inTemplate: true }];
+      const plain = Option.getOrElse(textAt(PLAIN, source, index), () => source.charAt(index));
+      return maskedChunk(plain, index + plain.length);
+    }),
+  );
 
 /**
  * Returns a copy of `source` with line/block comments and string/template
@@ -286,8 +306,9 @@ export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
     name: "effect-kit",
     enforce: "pre",
     transform(code, id) {
-      const kind = getFileKind(id);
-      if (!kind) return null;
+      const fileKind = getFileKind(id);
+      if (Option.isNone(fileKind)) return null;
+      const kind = fileKind.value;
       if (include && !Arr.contains(include, kind)) return null;
 
       const wrappers = wrapperByKind[kind];

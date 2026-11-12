@@ -110,6 +110,21 @@ describe("makeHandler", () => {
     }),
   );
 
+  it.live("initialises the SvelteKit server with an empty env when `env` is omitted", () =>
+    Effect.gen(function* () {
+      yield* Effect.gen(function* () {
+        yield* makeHandler({
+          server: new FakeServer(),
+          appPath: "_app",
+          prerendered: [],
+          base: "",
+          dir: yield* makeBuildDir(),
+        });
+      }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
+      expect(lastInitOptions?.env).toEqual({});
+    }),
+  );
+
   it.live("serves static client assets", () =>
     Effect.gen(function* () {
       const { status, text } = yield* withTestServer(
@@ -251,6 +266,26 @@ describe("makeHandler", () => {
         ),
       );
       expect(body.url).toBe("https://example.com/some/page");
+    }),
+  );
+
+  it.live("reads the configuration under `envPrefix`", () =>
+    Effect.gen(function* () {
+      const body = yield* Effect.gen(function* () {
+        const client = yield* testClient({ envPrefix: "MY_" });
+        const response = yield* client.get("/some/page");
+        return yield* decodeEchoedRequest(yield* response.json);
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(NodeHttpServer.layerTest),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromEnv({
+            env: { MY_ORIGIN: "https://prefixed.example", ORIGIN: "https://bare.example" },
+          }),
+        ),
+      );
+      expect(body.url).toBe("https://prefixed.example/some/page");
     }),
   );
 
