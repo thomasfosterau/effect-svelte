@@ -202,10 +202,22 @@ describe("Errors.toSvelteKit", () => {
     expectTypeOf(Errors.toSvelteKit<AppError>)
       .parameter(0)
       .toHaveProperty("NotFound");
-    // @ts-expect-error: `Missing` is not a tag of AppError
-    Errors.toSvelteKit<AppError>({ Missing: 404 });
-    // @ts-expect-error: NotFound has no `to` field
-    Errors.toSvelteKit<AppError>({ NotFound: { status: 404, message: (e) => e.to } });
+    // `Missing` is not a tag of AppError.
+    expectTypeOf(Errors.toSvelteKit<AppError>)
+      .parameter(0)
+      .not.toHaveProperty("Missing");
+    // An entry's callback receives the member with its tag: NotFound, which
+    // has no `to` field.
+    Errors.toSvelteKit<AppError>({
+      NotFound: {
+        status: 404,
+        message: (e) => {
+          expectTypeOf(e).toEqualTypeOf<NotFound>();
+          expectTypeOf(e).not.toHaveProperty("to");
+          return e.resource;
+        },
+      },
+    });
   });
 });
 

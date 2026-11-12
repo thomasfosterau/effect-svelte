@@ -35,6 +35,60 @@ import { ForeignError } from "../fixtures/foreign-error.js";
 
 afterEach(resetFormsStubs);
 
+/** The type of a call that the function's own signature does not accept. */
+interface Rejected {
+  readonly rejected: true;
+}
+
+/**
+ * `f` with `fallback`'s signatures as further overloads, so a call that `f`'s
+ * own signature rejects resolves to `fallback`'s and takes its return type,
+ * `Rejected`, where a call under an expect-error directive would not compile.
+ * The call site is the real one: TypeScript infers `f`'s type parameters and
+ * types the arguments as it does for a call to `f`, and only then falls back.
+ * At runtime it is `f` itself (`fallback` has no properties to copy).
+ */
+const orRejected = <F extends object, Fallback>(f: F, fallback: Fallback): F & Fallback =>
+  Object.assign(f, fallback);
+
+/** What {@link enhanceOrRejected} returns for a call `Forms.enhance` rejects. */
+type RejectedSubmit = SubmitFunction & Rejected;
+
+/** A handler's result, whatever it fails with or requires. */
+type AnyHandlerResult = Effect.Effect<void, unknown, unknown>;
+
+/**
+ * Accepts any handlers and options. The constraint only gives unannotated
+ * handler parameters their types: `Handlers` is inferred from the argument, so
+ * it admits a key `Forms.enhance` does not know.
+ */
+type RejectedEnhance = <
+  Handlers extends {
+    readonly onSubmit?: ((input: SubmitInput) => AnyHandlerResult) | undefined;
+    readonly onResult?: ((options: Forms.ResultOptions) => AnyHandlerResult) | undefined;
+    readonly onError?: ((error: never) => AnyHandlerResult) | undefined;
+  },
+>(
+  handlers: Handlers,
+  ...options: ReadonlyArray<unknown>
+) => RejectedSubmit;
+const rejectedEnhance: RejectedEnhance = () =>
+  assert.fail("only its type is used: orRejected() returns the function itself");
+
+/** `Forms.enhance`, typing a call it rejects as a {@link RejectedSubmit}. */
+const enhanceOrRejected = orRejected(Forms.enhance, rejectedEnhance);
+
+/** Accepts one or two type arguments of any type, as `Forms.deserialize` does not. */
+interface RejectedDeserialize {
+  <_Success>(result: string): Rejected;
+  <_Success, _Failure>(result: string): Rejected;
+}
+const rejectedDeserialize: RejectedDeserialize = () =>
+  assert.fail("only its type is used: orRejected() returns the function itself");
+
+/** `Forms.deserialize`, typing a call it rejects as {@link Rejected}. */
+const deserializeOrRejected = orRejected(Forms.deserialize, rejectedDeserialize);
+
 /**
  * Runs `effect` and returns the single error it failed with on the error
  * channel (a `Fail` reason), asserting it did not die.
@@ -116,8 +170,8 @@ describe("Forms.deserialize", () => {
     expectTypeOf(Forms.deserialize<{ id: string }, { message: string }>("{}")).toEqualTypeOf<
       Effect.Effect<ActionResult<{ id: string }, { message: string }>, unknown>
     >();
-    // @ts-expect-error: `Failure` has no default, as in `$app/forms`
-    Forms.deserialize<{ id: string }>("{}");
+    // `Failure` has no default, as in `$app/forms`.
+    expectTypeOf(deserializeOrRejected<{ id: string }>("{}")).toEqualTypeOf<Rejected>();
   });
 
   it("constrains Success and Failure as $app/forms does", () => {
@@ -133,10 +187,10 @@ describe("Forms.deserialize", () => {
     expectTypeOf(Forms.deserialize<undefined, undefined>("{}")).toEqualTypeOf<
       Effect.Effect<ActionResult<undefined, undefined>, unknown>
     >();
-    // @ts-expect-error: the data of an action is a record (or undefined), as in `$app/forms`
-    Forms.deserialize<string, undefined>("{}");
-    // @ts-expect-error: `null` is not action data, as in `$app/forms`
-    Forms.deserialize<{ id: string }, null>("{}");
+    // The data of an action is a record (or undefined), as in `$app/forms`.
+    expectTypeOf(deserializeOrRejected<string, undefined>("{}")).toEqualTypeOf<Rejected>();
+    // `null` is not action data, as in `$app/forms`.
+    expectTypeOf(deserializeOrRejected<{ id: string }, null>("{}")).toEqualTypeOf<Rejected>();
   });
 });
 
@@ -402,57 +456,70 @@ describe("Forms.enhance with failing handlers", () => {
       onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
       onResult: ({ result }) => Forms.applyAction(result),
     });
-    Forms.enhance({
-      // @ts-expect-error: the handlers fail with ApplyActionError, not Invalid
-      onError: (error: Invalid) => Effect.log(error.field),
-      onResult: ({ result }) => Forms.applyAction(result),
-    });
+    // The handlers fail with ApplyActionError, not Invalid.
+    expectTypeOf(
+      enhanceOrRejected({
+        onError: (error: Invalid) => Effect.log(error.field),
+        onResult: ({ result }) => Forms.applyAction(result),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
   });
 
   it("rejects an onError that does not fit the handlers", () => {
-    Forms.enhance({
-      onResult: ({ result }) => Forms.applyAction(result),
-      // @ts-expect-error: the handlers fail with ApplyActionError, not Invalid
-      onError: (error: Invalid) => Effect.log(error.field),
-    });
+    // The handlers fail with ApplyActionError, not Invalid.
+    expectTypeOf(
+      enhanceOrRejected({
+        onResult: ({ result }) => Forms.applyAction(result),
+        onError: (error: Invalid) => Effect.log(error.field),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
 
-    Forms.enhance({
-      onResult: ({ result }) => Forms.applyAction(result),
-      // @ts-expect-error: onError must not fail
-      onError: (error) => Effect.fail(error),
-    });
+    // onError must not fail.
+    expectTypeOf(
+      enhanceOrRejected({
+        onResult: ({ result }) => Forms.applyAction(result),
+        onError: (error) => Effect.fail(error),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    expectTypeOf(
+      enhanceOrRejected({
+        onError: (error) => Effect.fail(error),
+        onResult: ({ result }) => Forms.applyAction(result),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
 
-    Forms.enhance({
-      // @ts-expect-error: onError must not fail
-      onError: (error) => Effect.fail(error),
-      onResult: ({ result }) => Forms.applyAction(result),
-    });
+    // A misspelt handler is rejected, not ignored.
+    expectTypeOf(
+      enhanceOrRejected({
+        onResult: ({ result }) => Forms.applyAction(result),
+        onEror: (error: Forms.ApplyActionError) => Effect.log(error),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
 
-    Forms.enhance({
-      onResult: ({ result }) => Forms.applyAction(result),
-      // @ts-expect-error: a misspelt handler is rejected, not ignored
-      onEror: (error: Forms.ApplyActionError) => Effect.log(error),
-    });
-
-    // A narrower annotation would let an error through unhandled.
+    // A narrower annotation would let an error through unhandled: onError must
+    // also accept Invalid.
     const onApplyActionError = (error: Forms.ApplyActionError) => Effect.log(error.cause);
-    Forms.enhance({
-      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
-      onResult: ({ result }) => Forms.applyAction(result),
-      // @ts-expect-error: onError must also accept Invalid
-      onError: onApplyActionError,
-    });
-    Forms.enhance({
-      // @ts-expect-error: onError must also accept Invalid
-      onError: onApplyActionError,
-      onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
-      onResult: ({ result }) => Forms.applyAction(result),
-    });
-    Forms.enhance({
-      onResult: ({ result }) => Forms.deserialize(result.type),
-      // @ts-expect-error: deserialize fails with unknown, which onError must accept
-      onError: onApplyActionError,
-    });
+    expectTypeOf(
+      enhanceOrRejected({
+        onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+        onResult: ({ result }) => Forms.applyAction(result),
+        onError: onApplyActionError,
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    expectTypeOf(
+      enhanceOrRejected({
+        onError: onApplyActionError,
+        onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+        onResult: ({ result }) => Forms.applyAction(result),
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // deserialize fails with unknown, which onError must accept.
+    expectTypeOf(
+      enhanceOrRejected({
+        onResult: ({ result }) => Forms.deserialize(result.type),
+        onError: onApplyActionError,
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
   });
 
   it("joins onError's requirements with the handlers'", () => {
@@ -470,11 +537,13 @@ describe("Forms.enhance with failing handlers", () => {
       { onError: report, onResult: ({ result }) => Forms.applyAction(result) },
       { runtime: Context.make(Reporter, { report: () => {} }) },
     );
-    Forms.enhance(
-      { onResult: ({ result }) => Forms.applyAction(result), onError: report },
-      // @ts-expect-error: the runtime does not provide Reporter
-      { runtime: Context.empty() },
-    );
+    // The runtime does not provide Reporter.
+    expectTypeOf(
+      enhanceOrRejected(
+        { onResult: ({ result }) => Forms.applyAction(result), onError: report },
+        { runtime: Context.empty() },
+      ),
+    ).toEqualTypeOf<RejectedSubmit>();
   });
 
   it("reports a missing or wrong runtime on the call or the runtime, not a handler", () => {
@@ -491,38 +560,60 @@ describe("Forms.enhance with failing handlers", () => {
         reporter.report(error);
       });
     const greeter = Context.make(Greeter, { hi: "hello" });
+    const reporter = Context.make(Reporter, { report: () => {} });
 
-    // @ts-expect-error: onError requires Reporter, so a runtime is required
-    Forms.enhance({
-      onResult: ({ result }) => Forms.applyAction(result),
-      onError: report,
-    });
-    // @ts-expect-error: onError requires Reporter, so a runtime is required
-    Forms.enhance({
-      onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
-      onError: report,
-    });
-    // @ts-expect-error: the handlers require Greeter and Reporter, so a runtime is required
-    Forms.enhance({
-      onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
-      onError: report,
-    });
-    Forms.enhance(
-      {
+    // onError requires Reporter, so a runtime is required.
+    expectTypeOf(
+      enhanceOrRejected({
+        onResult: ({ result }) => Forms.applyAction(result),
+        onError: report,
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    expectTypeOf(
+      enhanceOrRejected({
+        onSubmit: ({ action }) => Effect.fail(new Invalid({ field: action.pathname })),
+        onError: report,
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The handlers require Greeter and Reporter, so a runtime is required.
+    expectTypeOf(
+      enhanceOrRejected({
         onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
         onError: report,
-      },
-      // @ts-expect-error: the runtime does not provide Reporter (onError)
-      { runtime: greeter },
-    );
-    Forms.enhance(
-      {
-        onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
-        onError: report,
-      },
-      // @ts-expect-error: the runtime does not provide Greeter (onResult)
-      { runtime: Context.make(Reporter, { report: () => {} }) },
-    );
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The runtime does not provide Reporter (onError).
+    expectTypeOf(
+      enhanceOrRejected(
+        {
+          onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+          onError: report,
+        },
+        { runtime: greeter },
+      ),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The runtime does not provide Greeter (onResult).
+    expectTypeOf(
+      enhanceOrRejected(
+        {
+          onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+          onError: report,
+        },
+        { runtime: reporter },
+      ),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The handlers alone are accepted: with a runtime that provides both
+    // services the same call type-checks, so each rejection above is the
+    // missing or wrong runtime's.
+    expectTypeOf(
+      enhanceOrRejected(
+        {
+          onResult: ({ result }) => Greeter.use(() => Forms.applyAction(result)),
+          onError: report,
+        },
+        { runtime: Context.merge(greeter, reporter) },
+      ),
+    ).toEqualTypeOf<SubmitFunction>();
   });
 
   it("requires a runtime when the handlers require services", () => {
@@ -535,21 +626,27 @@ describe("Forms.enhance with failing handlers", () => {
     const greeter = Context.make(Greeter, { hi: "hello" });
 
     // Without a runtime, the handlers would die with a missing-service defect.
-    // @ts-expect-error: onSubmit requires Greeter, so a runtime is required
-    Forms.enhance({ onSubmit: greet });
-    // @ts-expect-error: onResult requires Greeter, so a runtime is required
-    Forms.enhance({ onResult: greet });
-    // @ts-expect-error: onError requires Greeter, so a runtime is required
-    Forms.enhance({ onSubmit: () => Effect.fail(new Invalid({ field: "title" })), onError: greet });
-    // @ts-expect-error: the options must name a runtime
-    Forms.enhance({ onSubmit: greet }, {});
-    // @ts-expect-error: the runtime must not be undefined
-    Forms.enhance({ onSubmit: greet }, { runtime: undefined });
-    Forms.enhance(
-      { onSubmit: greet },
-      // @ts-expect-error: the runtime must provide Greeter
-      { runtime: Context.make(Clock, { now: 0 }) },
-    );
+    // onSubmit requires Greeter, so a runtime is required.
+    expectTypeOf(enhanceOrRejected({ onSubmit: greet })).toEqualTypeOf<RejectedSubmit>();
+    // onResult requires Greeter, so a runtime is required.
+    expectTypeOf(enhanceOrRejected({ onResult: greet })).toEqualTypeOf<RejectedSubmit>();
+    // onError requires Greeter, so a runtime is required.
+    expectTypeOf(
+      enhanceOrRejected({
+        onSubmit: () => Effect.fail(new Invalid({ field: "title" })),
+        onError: greet,
+      }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The options must name a runtime.
+    expectTypeOf(enhanceOrRejected({ onSubmit: greet }, {})).toEqualTypeOf<RejectedSubmit>();
+    // The runtime must not be undefined.
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: greet }, { runtime: undefined }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The runtime must provide Greeter.
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: greet }, { runtime: Context.make(Clock, { now: 0 }) }),
+    ).toEqualTypeOf<RejectedSubmit>();
 
     Forms.enhance({ onSubmit: greet }, { runtime: greeter });
     Forms.enhance(
@@ -610,30 +707,35 @@ describe("Forms.enhance with failing handlers", () => {
       },
     );
 
-    // A runtime missing one handler's service is still rejected, on the runtime.
-    Forms.enhance(
-      { onSubmit: () => greet(), onResult: () => tick() },
-      // @ts-expect-error: the runtime does not provide Clock (onResult)
-      { runtime: greeter },
-    );
-    Forms.enhance(
-      {
-        onSubmit: ({ cancel }) => greet().pipe(Effect.andThen(Effect.sync(cancel))),
-        onResult: ({ update }) => tick().pipe(Effect.andThen(Effect.tryPromise(() => update()))),
-      },
-      // @ts-expect-error: the runtime does not provide Clock (onResult)
-      { runtime: greeter },
-    );
-    Forms.enhance(
-      {
-        onSubmit: () => greet().pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
-        onError: report,
-      },
-      // @ts-expect-error: the runtime does not provide Reporter (onError)
-      { runtime: greeter },
-    );
-    // @ts-expect-error: the handlers require Greeter and Clock, so a runtime is required
-    Forms.enhance({ onSubmit: () => greet(), onResult: () => tick() });
+    // A runtime missing one handler's service is still rejected: here it does
+    // not provide Clock (onResult).
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: () => greet(), onResult: () => tick() }, { runtime: greeter }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    expectTypeOf(
+      enhanceOrRejected(
+        {
+          onSubmit: ({ cancel }) => greet().pipe(Effect.andThen(Effect.sync(cancel))),
+          onResult: ({ update }) => tick().pipe(Effect.andThen(Effect.tryPromise(() => update()))),
+        },
+        { runtime: greeter },
+      ),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The runtime does not provide Reporter (onError).
+    expectTypeOf(
+      enhanceOrRejected(
+        {
+          onSubmit: () =>
+            greet().pipe(Effect.andThen(Effect.fail(new Invalid({ field: "title" })))),
+          onError: report,
+        },
+        { runtime: greeter },
+      ),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The handlers require Greeter and Clock, so a runtime is required.
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: () => greet(), onResult: () => tick() }),
+    ).toEqualTypeOf<RejectedSubmit>();
   });
 
   it("lets a generic wrapper forward its options", () => {
@@ -647,8 +749,10 @@ describe("Forms.enhance with failing handlers", () => {
       Forms.enhance(handlers, ...options);
     wrap({ onSubmit: () => greet() }, { runtime: greeter });
     wrap({ onSubmit: () => Effect.void });
-    // @ts-expect-error: onSubmit requires Greeter, so a runtime is required
-    wrap({ onSubmit: () => greet() });
+    // onSubmit requires Greeter, so a runtime is required.
+    expectTypeOf(
+      orRejected(wrap, rejectedEnhance)({ onSubmit: () => greet() }),
+    ).toEqualTypeOf<RejectedSubmit>();
 
     const wrapWithRuntime = <R>(
       handlers: EnhanceHandlers<R>,
@@ -656,11 +760,11 @@ describe("Forms.enhance with failing handlers", () => {
     ) => Forms.enhance(handlers, options);
     wrapWithRuntime({ onSubmit: () => greet() }, { runtime: greeter });
 
-    // An optional runtime would let handlers that require services run without one.
+    // An optional runtime would let handlers that require services run without
+    // one: EnhanceOptions<R> may omit the runtime, so the call is rejected.
     const wrapOptional = <R>(handlers: EnhanceHandlers<R>, options: EnhanceOptions<R>) =>
-      // @ts-expect-error: EnhanceOptions<R> may omit the runtime
-      Forms.enhance(handlers, options);
-    expectTypeOf(wrapOptional).returns.toEqualTypeOf<SubmitFunction>();
+      enhanceOrRejected(handlers, options);
+    expectTypeOf(wrapOptional).returns.toEqualTypeOf<RejectedSubmit>();
   });
 
   it("keeps the runtime optional when the handlers require no services", () => {
@@ -673,10 +777,14 @@ describe("Forms.enhance with failing handlers", () => {
     );
     Forms.enhance({ onSubmit: () => Effect.void }, { runtime: Context.empty() });
     // An absent runtime, or absent options, are left out rather than `undefined`.
-    // @ts-expect-error: the runtime is omitted, not set to undefined
-    Forms.enhance({ onSubmit: () => Effect.void }, { runtime: undefined });
-    // @ts-expect-error: the options are omitted, not passed as undefined
-    Forms.enhance({ onSubmit: () => Effect.void }, undefined);
+    // The runtime is omitted, not set to undefined.
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: () => Effect.void }, { runtime: undefined }),
+    ).toEqualTypeOf<RejectedSubmit>();
+    // The options are omitted, not passed as undefined.
+    expectTypeOf(
+      enhanceOrRejected({ onSubmit: () => Effect.void }, undefined),
+    ).toEqualTypeOf<RejectedSubmit>();
   });
 
   it("treats an effect requiring any or unknown as requiring no services", () => {
@@ -706,13 +814,18 @@ describe("Forms.enhance with failing handlers", () => {
   });
 
   it("takes an absent handler as an omitted key, not as undefined", async () => {
-    // @ts-expect-error: an absent handler is omitted, not set to undefined
-    const submit = Forms.enhance({ onSubmit: undefined, onResult: undefined, onError: undefined });
+    // An absent handler is omitted, not set to undefined.
+    const submit = enhanceOrRejected({
+      onSubmit: undefined,
+      onResult: undefined,
+      onError: undefined,
+    });
+    expectTypeOf(submit).toEqualTypeOf<RejectedSubmit>();
 
+    // An optional parameter may be undefined, which the key may not.
     const viaParameter = (onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>) =>
-      // @ts-expect-error: an optional parameter may be undefined, which the key may not
-      Forms.enhance({ onSubmit: () => Effect.void, onResult });
-    expectTypeOf(viaParameter).returns.toEqualTypeOf<SubmitFunction>();
+      enhanceOrRejected({ onSubmit: () => Effect.void, onResult });
+    expectTypeOf(viaParameter).returns.toEqualTypeOf<RejectedSubmit>();
 
     // A plain JavaScript caller that does pass `undefined` gets the same
     // behaviour as omitting the handlers: nothing runs before the request, and

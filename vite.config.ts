@@ -272,23 +272,6 @@ export default defineConfig({
           "effect/avoid-sync-fs": "off",
         },
       },
-      // Tests.
-      {
-        files: ["**/tests/**"],
-        rules: {
-          // The expect-error directives in the suites ARE the type-level
-          // assertions (a call that must fail to compile); deleting one deletes
-          // the test.
-          "effect/avoid-ts-ignore": "off",
-        },
-      },
-      // The `Forms.enhance` type-level tests assert at compile time: each body
-      // is calls under expect-error directives (or calls that must compile),
-      // checked by `vp run check`, with nothing to assert at runtime.
-      {
-        files: ["packages/sveltekit/tests/client/forms.test.ts"],
-        rules: { "vitest/expect-expect": "off" },
-      },
     ],
     // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the
     // type-aware rules (floating promises and the like), plus `typeCheck`,
