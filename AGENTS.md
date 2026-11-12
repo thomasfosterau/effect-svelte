@@ -1,15 +1,15 @@
 # AGENTS.md
 
-`CLAUDE.md` is a symlink to this file; edit `AGENTS.md`. Project conventions live here; personal style preferences live in user memory.
+Guidance for coding agents: the conventions, pitfalls and gates of this repo (humans follow them too). What the packages are and how to install them is in [README.md](README.md); setup, commands and hooks are in [CONTRIBUTING.md](CONTRIBUTING.md). Claude Code reads [.claude/CLAUDE.md](.claude/CLAUDE.md), which imports all three and adds only what is specific to Claude Code. Project conventions live here; personal style preferences live in user memory.
 
-This repo publishes two npm packages for Effect v4 apps built on Svelte 5 and SvelteKit. It is a pnpm 11 workspace on [Vite+](https://viteplus.dev) (`vp`), linted with oxlint and the `@enfect/oxlint` Effect preset and audited with [fallow](https://fallow.tools); there is no docgen. The default branch is `trunk`.
+The repo is a pnpm 11 workspace on [Vite+](https://viteplus.dev) (`vp`), linted with oxlint and the `@enfect/oxlint` Effect preset and audited with [fallow](https://fallow.tools); there is no docgen. The default branch is `trunk`. Its two published packages, and where each one's code may reach:
 
-| Package                            | Directory            | Entries                                                                                                                    | Purpose / boundary                                                                                                                |
-| ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `@thomasfosterau/effect-svelte`    | `packages/svelte`    | `.`                                                                                                                        | Effect integration for Svelte 5 runes. Peers `effect`, `svelte`; no SvelteKit.                                                    |
-| `@thomasfosterau/effect-sveltekit` | `packages/sveltekit` | `.`, `./server`, `./client`, `./vite`, `./testing`, `./adapter`, `./adapter/handler`, `./adapter/serve`, `./internal/auto` | SvelteKit wrappers, remote functions, the `effectKit()` Vite plugin and an Effect deployment adapter. Depends on `effect-svelte`. |
+| Package                            | Directory            | Entries                                                                                                                    | Boundary                                                 |
+| ---------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `@thomasfosterau/effect-svelte`    | `packages/svelte`    | `.`                                                                                                                        | Peers `effect`, `svelte`; no SvelteKit.                  |
+| `@thomasfosterau/effect-sveltekit` | `packages/sveltekit` | `.`, `./server`, `./client`, `./vite`, `./testing`, `./adapter`, `./adapter/handler`, `./adapter/serve`, `./internal/auto` | Depends on `effect-svelte`; the root entry is universal. |
 
-Package-local invariants and terms live in each package's `CLAUDE.md` (`packages/<name>/CLAUDE.md`); read it before changing that package. A new package adds a row here and in the root `README.md`, its own `CLAUDE.md`, its entries and a zone in `.fallowrc.json`, and its `#check` edge in the root `vite.config.ts`.
+Package-local invariants and terms live in each package's `AGENTS.md` (`packages/<name>/AGENTS.md`; the `CLAUDE.md` beside it only imports it); read it before changing that package. A new package adds a row here and in the root `README.md`, its own `AGENTS.md` and `CLAUDE.md`, its entries and a zone in `.fallowrc.json`, and its `#check` edge in the root `vite.config.ts`.
 
 ## Common pitfalls
 
@@ -25,22 +25,14 @@ Package-local invariants and terms live in each package's `CLAUDE.md` (`packages
 - **Effect-first.** Domain failures are tagged errors; work that can fail returns `Effect`; pure total functions stay plain functions. Import Effect modules by path (`import * as Effect from "effect/Effect"`), never from the `effect` barrel (`effect/no-barrel-imports`). Six helper modules take the lint rule's short alias: `Arr` (`effect/Array`), `P` (`effect/Predicate`), `R` (`effect/Record`), `Str` (`effect/String`), `Eq` (`effect/Equal`), `Bool` (`effect/Boolean`) (`effect/prefer-namespace-imports`).
 - **Relative imports use the `.js` extension** (`./runtime.js`), not `.ts`.
 - **`exactOptionalPropertyTypes` is on**: an optional option a caller may forward `undefined` to is declared `?: T | undefined`.
-- **Tests import from `vite-plus/test`**, never `vitest`. In `packages/svelte`, component tests that mount go in `tests/dom/` (happy-dom), server-render tests in `tests/ssr/`, everything else in `tests/` (Node); `packages/svelte/vite.config.ts` defines the three projects. In `packages/sveltekit`, tests that need runes or `$app/*` stand-ins on the client go in `tests/client/` (happy-dom plus the Svelte plugin), everything else in `tests/` (Node); `packages/sveltekit/vite.config.ts` defines the two projects.
+- **Tests import from `vite-plus/test`**, never `vitest`. Which directory a test goes in (each package's Vitest projects) is in [CONTRIBUTING.md § Testing](CONTRIBUTING.md#testing).
 - **Every export has a TSDoc summary** that stands alone in a hover, and documents the Effect error channel ("fails with …", or "a rejection surfaces as a defect").
-- **Lint** is oxlint's `correctness` and `perf` categories (with the `import`, `promise` and `vitest` plugins), `@enfect/oxlint`'s `recommended` preset (the `effect/*` rules), type-aware rules and `vite-plus/prefer-vite-plus-imports`, all in the root `vite.config.ts`. `suspicious` is not on yet (#211).
+- **Lint** is oxlint's `correctness`, `perf` and `suspicious` categories (with the `import`, `promise` and `vitest` plugins), `@enfect/oxlint`'s `recommended` preset (the `effect/*` rules), type-aware rules and `vite-plus/prefer-vite-plus-imports`, all in the root `vite.config.ts`.
 - **Lint findings are fixed, not suppressed.** A type assertion carries a `// SAFETY: <the invariant>` comment on its statement (`effect/require-safety-comment-for-type-assertion`). A rule is turned off only in `vite.config.ts`, with a comment saying why it cannot apply.
 
 ## Commands
 
-- `pnpm install` — dependencies plus the Vite+ git hooks (`prepare` runs `vp config`; pre-commit runs `vp staged`: format + lint on staged files). No pre-push hook: run the gates yourself.
-- `vp check` — format + lint (Oxfmt + Oxlint); lint is type-aware through vite-plus's bundled oxlint-tsgolint (`typeAware` and `typeCheck` in `vite.config.ts`, so it also reports TypeScript errors in `.ts` files); `--fix` autofixes. `vp run check` — the type gate: svelte-check over every package's `src`, `tests` and `.svelte` fixtures. They are different commands.
-- `vp run -r test:unit` — every package's Vitest suite; `vp test run` inside one package.
-- `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`.
-- `vp run test:coverage` — every package's suite under one Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores. Without the map fallow scores every function as uncovered, and any function with cyclomatic complexity ≥ 5 fails the gate on its own.
-- `vp exec fallow dead-code` / `vp exec fallow audit` (also `vp run fallow` / `vp run fallow:audit`) — unused code and dependencies, boundaries, and the change-set gate.
-- `pnpm changeset` — add a changeset.
-
-Invoke everything through `vp` (`vp exec` instead of `npx`; `vp run <task>` instead of bare `pnpm`). The sanctioned non-`vp` invocations: `pnpm install` (and `pnpm install --frozen-lockfile` in CI), `pnpm audit`, `pnpm changeset` and the release scripts. Single-check variants are in [CONTRIBUTING.md](CONTRIBUTING.md#running-individual-checks).
+The commands are in [CONTRIBUTING.md § Commands](CONTRIBUTING.md#commands). Invoke everything through `vp` (`vp exec` instead of `npx`; `vp run <task>` instead of bare `pnpm`; `vpx <file>.ts` for scripts). The sanctioned non-`vp` invocations: `pnpm install` (and `pnpm install --frozen-lockfile` in CI), `pnpm audit`, `pnpm changeset` and the release scripts. `vp check` (format + lint) and `vp run check` (the type gate) are different commands.
 
 ## Verification
 
@@ -52,7 +44,7 @@ Before you report work as done, run the gates below in order and quote each comm
 4. `vp run -r test:unit`
 5. `vp run -r build`
 6. `pnpm audit --audit-level high` (network)
-7. `vp run test:coverage`, then `vp exec fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The PreToolUse fallow gate audits against `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first.
+7. `vp run test:coverage`, then `vp exec fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The audit reads the Istanbul map at `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first: without the map fallow scores every function as uncovered, and any function with cyclomatic complexity ≥ 5 fails the gate on its own.
 
 Steps 2–6 are CI's one `ci` job, in its order ([ci.yml](.github/workflows/ci.yml)). `CONTRIBUTING.md` and the PR template link here rather than restating the list.
 
@@ -80,15 +72,16 @@ Read the installed package before writing Effect code: `node_modules/effect/AGEN
 
 ## Agent sessions
 
-- The SessionStart hook (`.claude/hooks/session-start.sh`, also the devcontainer's `postCreateCommand`) installs the global Vite+ CLI at the catalog's `vite-plus` pin with the official installer (npm-provenance and SHA-512 checked; it needs `vite.plus` and `viteplus.dev` on the environment's allowlist), links `vp` and `vpx` into `~/.local/bin` (the CLI lives under `$VP_HOME` when set, as in the Vite+ container image, else `~/.local/share/vite-plus`) for non-interactive shells, repairs a broken `node` shim, and runs `vp install --frozen-lockfile`. The global `vp` delegates to each checkout's own `vite-plus`, worktrees included. Everything else goes through Vite+: `vp exec fallow …` for fallow, `vpx <file>.ts` for scripts; nothing else is put on PATH. If the installer can't run, `vp` falls back to this checkout's `node_modules` copy. It hydrates no secrets; none are needed, and nothing here can publish.
-- A PreToolUse hook (`.claude/hooks/fallow-gate.sh`) blocks `git commit` / `git push` when `fallow audit --base origin/trunk` (run through `vp exec fallow`) fails, in this checkout and its `.claude/worktrees/*` only: for a commit in any other tree it runs none of that tree's tooling and skips the audit with a notice. It reads the coverage map on disk, so run `vp run test:coverage` first. A PostToolUse hook runs `vp fmt` on every source, JSON, CSS or Markdown file you write or edit.
-- Every gate in [Verification](#verification) runs in an agent session; `pnpm audit` needs the network.
+- Every gate in [Verification](#verification) runs in an agent session; `pnpm audit` needs the network. Nothing here needs a secret, and nothing in a session can publish.
+- The session bootstrap is `.claude/hooks/session-start.sh` (Claude Code's SessionStart hook and the devcontainer's `postCreateCommand`; [CONTRIBUTING.md § Development setup](CONTRIBUTING.md#development-setup)). It puts `vp` and `vpx` on PATH and nothing else: fallow is `vp exec fallow`.
+- One checkout per branch: work in a git worktree, and run `pnpm install --frozen-lockfile` in each new one.
 
 ## Documentation surfaces
 
-- Package `README.md`s — the npm API reference (npm shows only these; links into the repo stay relative, but a consumer must not need them); root `README.md` — the landing page; package `CLAUDE.md`s — boundary, invariants and terms (not published).
+- Package `README.md`s — the npm API reference (npm shows only these; links into the repo stay relative, but a consumer must not need them); root `README.md` — the landing page; package `AGENTS.md`s — boundary, invariants and terms (not published).
 - `docs/cookbook.md` — recipes.
-- `CONTRIBUTING.md` — human setup, hooks and individual checks; `SECURITY.md` — reporting and supply-chain posture; `PUBLISHING.md` — the release pipeline and one-time owner setup.
+- `.claude/CLAUDE.md` and each package's `CLAUDE.md` — Claude Code's entry points: they import the `AGENTS.md` beside them (the root one also imports `CONTRIBUTING.md` and `README.md`) and hold only what is specific to Claude Code.
+- `CONTRIBUTING.md` — setup, commands, hooks and CI; `SECURITY.md` — reporting and supply-chain posture; `PUBLISHING.md` — the release pipeline and one-time owner setup.
 - Decisions — issue comments.
 
 ---

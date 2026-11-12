@@ -1,0 +1,35 @@
+name: Auto-assign
+
+# Assigns every new pull request to the owner, so it shows up in their
+# "assigned to me" queue. Dependabot's PRs are assigned by dependabot.yml's
+# `assignees`, so they are skipped here (and a Dependabot-triggered run only
+# gets a read-only token anyway).
+#
+# `pull_request`, not `pull_request_target`: the job checks nothing out and
+# runs no PR-controlled code, and a fork's PR simply gets a read-only token
+# (the step fails there; nothing is exposed).
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+# No permissions by default; the single job grants only what the edit needs.
+permissions: {}
+
+jobs:
+  assign:
+    # Skip a PR that already has an assignee, and Dependabot's.
+    if: github.actor != 'dependabot[bot]' && github.event.pull_request.assignees[0] == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # `gh pr edit --add-assignee`: assignees are an issue field, so the
+      # mutation needs both scopes.
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Assign the owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr edit "$PR_URL" --add-assignee thomasfosterau

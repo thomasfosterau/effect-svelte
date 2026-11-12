@@ -1,6 +1,6 @@
 # Contributing to effect-svelte
 
-This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`). Conventions are in [AGENTS.md](AGENTS.md); this file is the human setup, the hooks and the individual checks.
+This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`). What the packages are is in [README.md](README.md); the conventions, pitfalls and the pre-merge gates are in [AGENTS.md](AGENTS.md). This file is the setup, the commands, the hooks and CI.
 
 ## Development setup
 
@@ -26,7 +26,7 @@ Branch off `trunk`, rebase rather than merge, squash-merge with a conventional p
 
 ## Git hooks
 
-Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editable [.vite-hooks/pre-commit](.vite-hooks/pre-commit) is committed. **pre-commit** runs `vp staged` (format + lint on staged files). There is no pre-push hook.
+Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editable [.vite-hooks/pre-commit](.vite-hooks/pre-commit) is committed. **pre-commit** runs `vp staged` (format + lint on staged files). There is no pre-push hook: run the gates yourself.
 
 ## Testing
 
@@ -34,20 +34,25 @@ Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editabl
 - `packages/svelte` splits its suite into three Vitest projects: `tests/dom/` mounts components under happy-dom, `tests/ssr/` renders them with `svelte/server`, and everything else in `tests/` runs in plain Node.
 - `packages/sveltekit` has two projects: `tests/client/` runs rune-backed client code (with `$app/*` stand-ins) under happy-dom and the Svelte plugin, and everything else in `tests/` runs in plain Node.
 
-## Running individual checks
+## Commands
+
+- `pnpm install` — dependencies plus the Vite+ git hooks (`prepare` runs `vp config`).
+- `vp check` — format + lint (Oxfmt + Oxlint); lint is type-aware through vite-plus's bundled oxlint-tsgolint (`typeAware` and `typeCheck` in `vite.config.ts`, so it also reports TypeScript errors in `.ts` files); `--fix` autofixes.
+- `vp run check` — the type gate: svelte-check over every package's `src`, `tests` and `.svelte` fixtures.
+- `vp run -r test:unit` — every package's Vitest suite; `vp test run` inside one package.
+- `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`.
+- `vp run test:coverage` — every package's suite under one Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores.
+- `vp exec fallow dead-code` / `vp exec fallow audit` (also `vp run fallow` / `vp run fallow:audit`) — unused code and dependencies, boundaries, and the change-set gate (not a CI step).
+- `pnpm changeset` — add a changeset.
+
+Single checks:
 
 ```sh
 vp lint                                        # oxlint (with the @enfect/oxlint Effect preset)
 vp fmt                                         # oxfmt
 vp check --fix                                 # apply format and lint fixes
-vp run check                                   # the whole type gate
 vp run --filter ./packages/svelte check        # one package's type gate
-vp run -r test:unit                            # unit tests
 vp test run tests/some.test.ts                 # single file (from inside the package)
-vp run -r build                                # emit dist/
-vp run test:coverage                           # one Istanbul map for fallow
-vp run fallow                                  # dead code, dependencies, boundaries
-vp run fallow:audit                            # change-set review (not a CI gate)
 ```
 
 ## CI expectations
@@ -65,7 +70,7 @@ If your change affects a published package, add a changeset (`pnpm changeset`) a
 1. Every gate in [AGENTS.md § Verification](AGENTS.md#verification), each with its final pass/fail in the PR body.
 2. A changeset where [AGENTS.md § Branches and pull requests](AGENTS.md#branches-and-pull-requests) requires one.
 3. `git fetch origin trunk && git rebase origin/trunk` — never merge `trunk` into your branch.
-4. Docs: the package `README.md` (the npm API reference) for any exported change; the package `CLAUDE.md` for a new invariant or entry.
+4. Docs: the package `README.md` (the npm API reference) for any exported change; the package `AGENTS.md` for a new invariant or entry.
 
 ## Commit messages
 
