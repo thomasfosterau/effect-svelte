@@ -120,8 +120,8 @@ export class ApplyActionError extends Schema.TaggedError<ApplyActionError>()("Ap
  * ```
  */
 export const applyAction = <
-  Success extends Record<string, unknown> | undefined = Record<string, unknown>,
-  Failure extends Record<string, unknown> | undefined = Record<string, unknown>,
+  Success extends Record<string, unknown> | undefined,
+  Failure extends Record<string, unknown> | undefined,
 >(
   result: ActionResult<Success, Failure>,
 ): Effect.Effect<void, ApplyActionError> =>
@@ -132,11 +132,16 @@ export const applyAction = <
 
 /**
  * Deserialize a raw form-action response body into an `ActionResult`, as an
- * Effect. Wraps `$app/forms`' `deserialize`; a malformed body fails the effect.
+ * Effect. Wraps `$app/forms`' `deserialize`; fails with whatever it throws for
+ * a malformed body, unchanged (so the error is `unknown`).
+ *
+ * `Success` and `Failure` are the caller's claim about the action's data, as
+ * for `$app/forms`' `deserialize`, and like it they have no defaults: left
+ * out, each is its constraint, `Record<string, unknown> | undefined`.
  */
 export const deserialize = <
-  Success extends Record<string, unknown> | undefined = Record<string, unknown>,
-  Failure extends Record<string, unknown> | undefined = Record<string, unknown>,
+  Success extends Record<string, unknown> | undefined,
+  Failure extends Record<string, unknown> | undefined,
 >(
   result: string,
 ): Effect.Effect<ActionResult<Success, Failure>, unknown> =>

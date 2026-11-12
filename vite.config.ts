@@ -259,23 +259,12 @@ export default defineConfig({
           "effect/avoid-sync-fs": "off",
         },
       },
-      // `unknown` where it is the honest type (#185). Each site below has no
-      // narrower type to parse against or return:
-      // - the `Success` / `Failure` constraints of SvelteKit's own
-      //   `ActionResult`, which a wrapper of `applyAction` / `deserialize`
-      //   must accept unchanged;
-      // - `enhance`'s type-level inference helpers, where `unknown` is the
-      //   not-yet-inferred default every handler is assignable to.
-      {
-        files: ["packages/sveltekit/src/forms.ts"],
-        rules: { "effect/no-unsafe-dictionary-type": "off" },
-      },
+      // `unknown` where it is the honest type (#185): in `enhance`'s
+      // type-level inference helpers it is the not-yet-inferred default every
+      // handler's requirements are assignable to.
       {
         files: ["packages/sveltekit/src/internal/enhance.ts"],
-        rules: {
-          "effect/no-unsafe-dictionary-type": "off",
-          "effect/no-unknown-type-aliases": "off",
-        },
+        rules: { "effect/no-unknown-type-aliases": "off" },
       },
       // Tests.
       {

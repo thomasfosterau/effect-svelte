@@ -596,7 +596,9 @@ For SvelteKit page `actions`, the `Forms` namespace
 (`@thomasfosterau/effect-sveltekit/client`) expresses progressive enhancement
 with Effects: `Forms.enhance({ onSubmit, onResult, onError }, { runtime })`
 builds a `SubmitFunction` for `use:enhance`, and `Forms.applyAction` /
-`Forms.deserialize` wrap the `$app/forms` helpers. `Forms.applyAction` fails
+`Forms.deserialize` wrap the `$app/forms` helpers, with the same type
+parameters (`Forms.deserialize<Success, Failure>(body)` takes both or neither,
+as `deserialize` does). `Forms.applyAction` fails
 with `Forms.ApplyActionError` (SvelteKit's original reason as its `cause`) when
 SvelteKit rejects or throws: for example, when the navigation that follows a
 `redirect` result fails, or when it runs during server rendering.
