@@ -94,7 +94,7 @@ overrides:
   # Keep the transitive `platform-node-shared` on the same release line as
   # `@effect/platform-node`. Dependabot cannot bump an overrides-only pin:
   # move it by hand with every `effect` group PR (AGENTS.md).
-  "@effect/platform-node-shared": 4.1.2
+  "@effect/platform-node-shared": 4.1.3
   # `effect` MUST be a singleton (see the header): force every resolution to
   # the catalog version so a hoisting reshuffle cannot introduce a second copy.
   effect: "catalog:"
