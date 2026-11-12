@@ -45,6 +45,7 @@ export {
   transport,
   transporter,
   markerTransporter,
+  optionTransporter,
   responseHeadersTransporter,
   type MarkerTransporterOptions,
   type TransportEntry,

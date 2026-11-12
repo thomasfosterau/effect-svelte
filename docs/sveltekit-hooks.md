@@ -11,11 +11,11 @@ SvelteKit's hook files (`src/hooks.ts`, `src/hooks.server.ts`, `src/hooks.client
 
 Every SvelteKit hook has an explicit Effect wrapper, grouped into a `Hooks` namespace per hook file (mirroring the [Vite plugin's auto-wrap table](sveltekit-vite-plugin.md#supported-exports)). The universal members are also exported by name from the root entry; prefer those in `src/hooks.ts` (see [Import the universal helpers by name](#import-the-universal-helpers-by-name) for why):
 
-| Import path                               | `Hooks` members                                                                          | Runs on                                          |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `@thomasfosterau/effect-sveltekit`        | `reroute`, `transport`, `transporter`, `markerTransporter`, `responseHeadersTransporter` | universal runtime (`HttpClient` via event fetch) |
-| `@thomasfosterau/effect-sveltekit/server` | `handle`, `handleFetch`, `handleError`, `init`                                           | server runtime (`HttpClient` + `RequestEvent`)   |
-| `@thomasfosterau/effect-sveltekit/client` | `handleError`, `init`                                                                    | a bare Effect runtime                            |
+| Import path                               | `Hooks` members                                                                                               | Runs on                                          |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `@thomasfosterau/effect-sveltekit`        | `reroute`, `transport`, `transporter`, `markerTransporter`, `optionTransporter`, `responseHeadersTransporter` | universal runtime (`HttpClient` via event fetch) |
+| `@thomasfosterau/effect-sveltekit/server` | `handle`, `handleFetch`, `handleError`, `init`                                                                | server runtime (`HttpClient` + `RequestEvent`)   |
+| `@thomasfosterau/effect-sveltekit/client` | `handleError`, `init`                                                                                         | a bare Effect runtime                            |
 
 ```ts
 // src/hooks.ts
@@ -80,6 +80,32 @@ export const transport = effectTransport({
   Date: Schema.Date,
 });
 ```
+
+### `Option` values: `optionTransporter`
+
+Register `optionTransporter` once and any `Option` crosses the boundary, whatever its `Some` holds:
+
+```ts
+// src/hooks.ts
+import { optionTransporter, transport as effectTransport } from "@thomasfosterau/effect-sveltekit";
+
+export const transport = effectTransport({ Option: optionTransporter });
+```
+
+It encodes the structure only (`Some(value)` as `[value]`, `None` as `[]`) and leaves the value to SvelteKit's serialiser, which walks it with the whole `transport` again. A `Some` may therefore hold a `Date`, a `Map`, a `Set`, a `BigInt`, a `URL`, `undefined`, `null`, another `Option` or any other registered transport type. Look-alike objects such as `{ _tag: "None" }` are not claimed.
+
+Do not register `Option` through a JSON codec:
+
+```ts
+// Hazard: type-checks, passes unit tests, and 500s the page at run time.
+export const transport = effectTransport({
+  Option: Schema.toCodecJson(Schema.Option(Schema.Unknown)),
+});
+```
+
+A JSON codec encodes the value itself, and throws while the page is being serialised when a `Some` holds a value that is not JSON: a `Date` (a user record's `createdAt`, say), a nested `Option`, a `Map`, a `Set`, a `BigInt` or a `URL`. Nothing in the types warns of it. Use a schema entry only for an `Option` whose value needs that schema's own encoding.
+
+### Other entries
 
 `transporter(schema)` builds a single round-tripping entry from a `Schema.Codec`, and `markerTransporter` builds a deliberately lossy entry for a non-POJO wrapper whose contents should not round-trip: the value is detected on the server and reconstructed fresh on the client.
 

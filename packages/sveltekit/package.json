@@ -88,6 +88,7 @@
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@sveltejs/kit": "catalog:",
+    "devalue": "catalog:",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "typescript": "catalog:"

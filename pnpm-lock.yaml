@@ -36,6 +36,9 @@ catalogs:
     '@vitest/coverage-istanbul':
       specifier: 5.1.0
       version: 5.1.0
+    devalue:
+      specifier: ^5.9.4
+      version: 5.9.4
     fallow:
       specifier: 3.42.0
       version: 3.42.0
@@ -163,6 +166,9 @@ importers:
       '@sveltejs/kit':
         specifier: 'catalog:'
         version: 3.2.0(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@1.6.0(@types/node@26.6.6)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.3))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@1.6.0(@types/node@26.6.6)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.3)
+      devalue:
+        specifier: 'catalog:'
+        version: 5.9.4
       svelte:
         specifier: 'catalog:'
         version: 5.57.3
