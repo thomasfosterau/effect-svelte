@@ -13,6 +13,7 @@ import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
+import * as P from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import { failQueueOnSetupError } from "./internal/stream-callback.js";
@@ -180,6 +181,10 @@ export interface FromWebSocketOptions {
   readonly implementation?: WebSocketConstructor;
 }
 
+/** `protocols` as the platform `WebSocket` constructor types it: a list as a mutable `string[]`. */
+const mutableProtocols = (protocols: FromWebSocketOptions["protocols"]) =>
+  P.isString(protocols) || protocols === undefined ? protocols : Arr.fromIterable(protocols);
+
 /**
  * Consume a `WebSocket` as a `Stream` of its message payloads
  * (`string | ArrayBuffer | Blob`, depending on `binaryType`).
@@ -204,9 +209,8 @@ export const fromWebSocket = (
   url: string,
   options?: FromWebSocketOptions,
 ): Stream.Stream<string | ArrayBuffer | Blob, WebSocketError> => {
-  // SAFETY: the platform `WebSocket` constructor only reads `protocols`; it is
-  // typed as a mutable `string[]`, but a `ReadonlyArray` is equally valid input.
-  const Impl = options?.implementation ?? (globalThis.WebSocket as WebSocketConstructor);
+  // The platform constructor is read here, as `implementation` is.
+  const Platform = globalThis.WebSocket;
   return Stream.callback<string | ArrayBuffer | Blob, WebSocketError>(
     (queue) =>
       Effect.acquireRelease(
@@ -215,7 +219,10 @@ export const fromWebSocket = (
         // acquire registers no release.
         Effect.try({
           try: () => {
-            const socket = new Impl(url, options?.protocols);
+            const socket =
+              options?.implementation === undefined
+                ? new Platform(url, mutableProtocols(options?.protocols))
+                : new options.implementation(url, options.protocols);
             if (options?.binaryType !== undefined) socket.binaryType = options.binaryType;
 
             socket.addEventListener("message", (e: MessageEvent) => {

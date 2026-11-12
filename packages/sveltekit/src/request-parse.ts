@@ -40,16 +40,19 @@ import { toStandardValidator } from "./internal/remote-validators.js";
 // ParseError
 // ---------------------------------------------------------------------------
 
-/** A single issue reported by a Standard Schema validator. */
+/**
+ * A single issue reported by a Standard Schema validator. `path` is the
+ * Standard Schema `Issue`'s own: absent, or present and possibly `undefined`.
+ */
 export interface ParseIssue {
   readonly message: string;
-  readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>;
+  readonly path?: StandardSchemaV1.Issue["path"];
 }
 
 /** The schema of a {@link ParseIssue}, so {@link ParseError} can carry it. */
 const ParseIssue: Schema.Codec<ParseIssue> = Schema.Struct({
   message: Schema.String,
-  path: Schema.optionalKey(
+  path: Schema.optional(
     Schema.Array(Schema.Union([Schema.PropertyKey, Schema.Struct({ key: Schema.PropertyKey })])),
   ),
 });
@@ -85,10 +88,7 @@ const validate = <I, O>(schema: StandardSchemaV1<I, O>, value: I): Effect.Effect
     const resultOrPromise = schema["~standard"].validate(value);
     const settle = (result: StandardSchemaV1.Result<O>) => {
       if (result.issues !== undefined) {
-        // SAFETY: a Standard Schema `Issue` differs from `ParseIssue` only in
-        // admitting an explicit `path: undefined`, which reads as an absent path.
-        const issues = result.issues as ReadonlyArray<ParseIssue>;
-        resume(Effect.fail(new ParseError({ issues })));
+        resume(Effect.fail(new ParseError({ issues: result.issues })));
       } else {
         resume(Effect.succeed(result.value));
       }
@@ -104,7 +104,7 @@ const validate = <I, O>(schema: StandardSchemaV1<I, O>, value: I): Effect.Effect
 
 /** Normalise an Effect Schema or Standard Schema V1 to Standard Schema V1. */
 const normalise = <O>(
-  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+  schema: Schema.Decoder<O> | StandardSchemaV1<unknown, O>,
 ): StandardSchemaV1<unknown, O> =>
   // `toStandardValidator` wraps an Effect `Schema<O>` as a Standard
   // Schema with output `O` and passes a Standard Schema through unchanged.
@@ -143,7 +143,7 @@ const collectFields = (
  * ```
  */
 export const decodeParams = <O>(
-  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+  schema: Schema.Decoder<O> | StandardSchemaV1<unknown, O>,
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;
@@ -163,7 +163,7 @@ export const decodeParams = <O>(
  * ```
  */
 export const decodeSearchParams = <O>(
-  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+  schema: Schema.Decoder<O> | StandardSchemaV1<unknown, O>,
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;
@@ -185,7 +185,7 @@ export const decodeSearchParams = <O>(
  * ```
  */
 export const decodeJson = <O>(
-  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+  schema: Schema.Decoder<O> | StandardSchemaV1<unknown, O>,
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;
@@ -209,7 +209,7 @@ export const decodeJson = <O>(
  * ```
  */
 export const decodeFormData = <O>(
-  schema: Schema.Schema<O> | StandardSchemaV1<unknown, O>,
+  schema: Schema.Decoder<O> | StandardSchemaV1<unknown, O>,
 ): Effect.Effect<O, ParseError, SvelteKitRequestEvent> =>
   Effect.gen(function* () {
     const event = yield* SvelteKitRequestEvent;

@@ -34,6 +34,7 @@ import type { RequestHandler } from "@sveltejs/kit";
 import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import { identity } from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
@@ -54,10 +55,8 @@ import type * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import type * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import { runPromise } from "../internal/run.js";
+import { builtWithRouterOnly } from "../internal/unchecked.js";
 import { encodeRetry, encodeSseFrame, HEARTBEAT_FRAME, SSE_HEADERS } from "../internal/sse.js";
-
-/** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
-type WebHandler = (request: Request) => Promise<Response>;
 
 /** A Web handler that also accepts a per-request service context. */
 type WebHandlerWithContext = (
@@ -135,8 +134,7 @@ interface MakeOptions<RequestServices> extends EndpointOptions {
 
 /**
  * Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler, reading
- * `prefix` and `context` from the helper's own `options`. A {@link WebHandler}
- * is a {@link WebHandlerWithContext} that ignores the context.
+ * `prefix` and `context` from the helper's own `options`.
  */
 const make = <RequestServices = never>(
   webHandler: WebHandlerWithContext,
@@ -152,6 +150,38 @@ const make = <RequestServices = never>(
   };
   return Object.assign(handler, { dispose });
 };
+
+/** The router layers `HttpRouter.toWebHandler` accepts: what `R` may be. */
+type RouterRequirements =
+  Parameters<typeof HttpRouter.toWebHandler>[0] extends Layer.Layer<
+    infer _A,
+    infer _E,
+    infer Requirements
+  >
+    ? Requirements
+    : never;
+
+/**
+ * `HttpRouter.toWebHandler` for a router layer, with the handler typed as a
+ * {@link WebHandlerWithContext}: the request-scoped context is optional.
+ *
+ * `toWebHandler` types its handler by a conditional on `ReqR`, the
+ * request-scoped services the routes still require, which defaults to a type
+ * computed from the layer and stays unresolved while the layer's `R` is
+ * generic. `ReqR` is `toWebHandler`'s own type parameter; here it is given as
+ * `never`, which nothing checks: the `from*` helpers take the request-scoped
+ * services from their `context` option and pass them on each dispatch
+ * ({@link make}), and a route that asks for a service no context supplied dies
+ * with Effect's "Service not found" defect. This function is the one place
+ * that claim is made.
+ */
+const routerWebHandler = <A, E, R extends RouterRequirements>(
+  layer: Layer.Layer<A, E, R>,
+  logger?: boolean,
+): { readonly handler: WebHandlerWithContext; readonly dispose: () => Promise<void> } =>
+  HttpRouter.toWebHandler<A, E, R, never, never, never>(layer, {
+    disableLogger: logger !== true,
+  });
 
 /** The platform services an `HttpApi` needs, with a no-op file system. */
 const apiPlatform = Layer.mergeAll(Path.layer, Etag.layerWeak, HttpPlatform.layer).pipe(
@@ -217,13 +247,10 @@ export const fromApi = <
 
   // The request-scoped services are supplied per dispatch via the web handler's
   // context argument, so they are hidden from the build-once layer here.
-  const { handler, dispose } = HttpRouter.toWebHandler(
-    // SAFETY: the layer's remaining requirements beyond `HttpRouter` are the
-    // groups' request services, which `make` supplies on each dispatch from the
-    // context `options.context` resolves.
-    appLayer as Layer.Layer<never, E, HttpRouter.HttpRouter>,
-    { disableLogger: options?.logger !== true },
-  );
+  // The layer's remaining requirements beyond `HttpRouter` are the groups'
+  // request services, which `make` supplies on each dispatch from the context
+  // `options.context` resolves.
+  const { handler, dispose } = routerWebHandler(builtWithRouterOnly(appLayer), options?.logger);
   return make<RequestServices>(handler, dispose, options);
 };
 
@@ -269,17 +296,8 @@ export const fromRouter = <
     readonly context?: RequestContext<RequestServices>;
   },
 ): EndpointHandler => {
-  const { handler, dispose } = HttpRouter.toWebHandler(layer, {
-    disableLogger: options?.logger !== true,
-  });
-  return make<RequestServices>(
-    // SAFETY: the routes' per-request services are the `RequestServices` that
-    // `make` resolves from `options.context` and passes on each dispatch; the
-    // handler's conditional type only stays unresolved while `R` is generic.
-    handler as WebHandlerWithContext,
-    dispose,
-    options,
-  );
+  const { handler, dispose } = routerWebHandler(layer, options?.logger);
+  return make<RequestServices>(handler, dispose, options);
 };
 
 /**
@@ -300,35 +318,99 @@ export const fromRouter = <
  * );
  * ```
  */
-export const fromHttpEffect = <E, R = never, ProvidedE = never>(
+export function fromHttpEffect<E, R, ProvidedE>(
   effect: Effect.Effect<
     HttpServerResponse.HttpServerResponse,
     E,
     R | HttpServerRequest.HttpServerRequest | Scope.Scope
   >,
-  options?: EndpointOptions & {
+  options: EndpointOptions & {
     /** A layer providing the route's services (`R`), built once and shared. */
-    readonly layer?: Layer.Layer<R, ProvidedE>;
+    readonly layer: Layer.Layer<R, ProvidedE>;
   },
-): EndpointHandler => {
-  if (options?.layer) {
-    const { handler, dispose } = HttpEffect.toWebHandlerLayer(effect, options.layer);
-    // SAFETY: `options.layer` provides `R` and the web handler provides the
-    // request and scope, so no per-request context is needed; the conditional
-    // type only stays unresolved while `R` is generic.
-    return make(handler as WebHandler, dispose, options);
+): EndpointHandler;
+/**
+ * Create a SvelteKit endpoint from a single self-contained Effect HTTP route:
+ * one that requires nothing beyond the current `HttpServerRequest` and its
+ * `Scope`.
+ */
+export function fromHttpEffect<E>(
+  effect: SelfContainedRoute<E>,
+  options: EndpointOptions & { readonly layer?: never },
+): EndpointHandler;
+/**
+ * Create a SvelteKit endpoint from a single self-contained Effect HTTP route:
+ * one that requires nothing beyond the current `HttpServerRequest` and its
+ * `Scope`.
+ */
+export function fromHttpEffect<E>(effect: SelfContainedRoute<E>): EndpointHandler;
+export function fromHttpEffect<E, R, ProvidedE>(
+  ...args: FromHttpEffectArgs<E, R, ProvidedE>
+): EndpointHandler {
+  if (routeHasLayer(args)) {
+    const { handler, dispose } = layeredWebHandler(args[0], args[1].layer);
+    return make(handler, dispose, args[1]);
   }
-  const handler = HttpEffect.toWebHandler(
-    // SAFETY: without `options.layer` nothing can provide `R`, so the route
-    // must be self-contained (`R` is `never`, its default).
-    effect as Effect.Effect<
-      HttpServerResponse.HttpServerResponse,
-      E,
-      HttpServerRequest.HttpServerRequest | Scope.Scope
-    >,
-  );
-  return make(handler, noopDispose, options);
-};
+  return make(HttpEffect.toWebHandler(args[0]), noopDispose, args[1]);
+}
+
+/** A route that requires nothing beyond the request and its scope. */
+type SelfContainedRoute<E> = Effect.Effect<
+  HttpServerResponse.HttpServerResponse,
+  E,
+  HttpServerRequest.HttpServerRequest | Scope.Scope
+>;
+
+/**
+ * The two ways {@link fromHttpEffect} is called, as its overloads spell them:
+ * with a self-contained route, or with a route and the layer that provides
+ * the services `R` it requires.
+ */
+type FromHttpEffectArgs<E, R, ProvidedE> =
+  | readonly [effect: SelfContainedRoute<E>, options?: EndpointOptions & { readonly layer?: never }]
+  | readonly [
+      effect: Effect.Effect<
+        HttpServerResponse.HttpServerResponse,
+        E,
+        R | HttpServerRequest.HttpServerRequest | Scope.Scope
+      >,
+      options: EndpointOptions & { readonly layer: Layer.Layer<R, ProvidedE> },
+    ];
+
+/** Whether {@link fromHttpEffect} was called with a layer. */
+const routeHasLayer = <E, R, ProvidedE>(
+  args: FromHttpEffectArgs<E, R, ProvidedE>,
+): args is Extract<
+  FromHttpEffectArgs<E, R, ProvidedE>,
+  readonly [unknown, { readonly layer: Layer.Layer<R, ProvidedE> }]
+> => args[1]?.layer !== undefined;
+
+/**
+ * `HttpEffect.toWebHandlerLayer` for a route whose services `layer` provides
+ * in full, with the handler typed as a {@link WebHandlerWithContext}.
+ *
+ * `toWebHandlerLayer` types its handler by a conditional on `ReqR`, the
+ * services the route still requires per request:
+ * `Exclude<R | HttpServerRequest | Scope, R | Scope | HttpServerRequest>`,
+ * which is `never` but which TypeScript does not resolve while `R` is generic.
+ * `ReqR` is `toWebHandlerLayer`'s own type parameter, given here as the
+ * `never` it comes to.
+ */
+const layeredWebHandler = <E, R, ProvidedE>(
+  effect: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    E,
+    R | HttpServerRequest.HttpServerRequest | Scope.Scope
+  >,
+  layer: Layer.Layer<R, ProvidedE>,
+): { readonly handler: WebHandlerWithContext; readonly dispose: () => Promise<void> } =>
+  HttpEffect.toWebHandlerLayer<
+    E,
+    R | HttpServerRequest.HttpServerRequest | Scope.Scope,
+    R,
+    ProvidedE,
+    never
+  >(effect, layer);
 
 /** Options for {@link fromStream}: how to frame each element as an SSE event. */
 export interface FromStreamOptions<A, R = never> {
@@ -399,18 +481,105 @@ const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
  * });
  * ```
  */
-export const fromStream = <A, E, R = never>(
+export function fromStream<A, E, R>(
   stream: Stream.Stream<A, E, R>,
-  options?: FromStreamOptions<A, R>,
+  options: FromStreamOptions<A, R> & {
+    /** A layer (or context) providing the stream's services `R`, applied per connection. */
+    readonly provide: Layer.Layer<R> | Context.Context<R>;
+  },
+): RequestHandler;
+/**
+ * Create a SvelteKit endpoint that streams a self-contained Effect `Stream`
+ * (one that requires no services) to the browser as Server-Sent Events.
+ */
+export function fromStream<A, E>(
+  stream: Stream.Stream<A, E>,
+  options: FromStreamOptions<A> & { readonly provide?: never },
+): RequestHandler;
+/**
+ * Create a SvelteKit endpoint that streams a self-contained Effect `Stream`
+ * (one that requires no services) to the browser as Server-Sent Events, each
+ * element an unnamed `message` event with a JSON `data:` payload.
+ */
+export function fromStream<A, E>(stream: Stream.Stream<A, E>): RequestHandler;
+export function fromStream<A, E, R>(...args: FromStreamArgs<A, E, R>): RequestHandler {
+  return streamHasProvider(args)
+    ? sseHandler(args[0], args[1], providing(args[1].provide))
+    : sseHandler(args[0], args[1], identity);
+}
+
+/**
+ * The two ways {@link fromStream} is called, as its overloads spell them: with
+ * a self-contained stream, or with a stream and what provides the services
+ * `R` it requires.
+ */
+type FromStreamArgs<A, E, R> =
+  | readonly [
+      stream: Stream.Stream<A, E>,
+      options?: FromStreamOptions<A> & { readonly provide?: never },
+    ]
+  | readonly [
+      stream: Stream.Stream<A, E, R>,
+      options: FromStreamOptions<A, R> & {
+        readonly provide: Layer.Layer<R> | Context.Context<R>;
+      },
+    ];
+
+/** Whether {@link fromStream} was called with a `provide` option. */
+const streamHasProvider = <A, E, R>(
+  args: FromStreamArgs<A, E, R>,
+): args is Extract<
+  FromStreamArgs<A, E, R>,
+  readonly [unknown, { readonly provide: Layer.Layer<R> | Context.Context<R> }]
+> => args[1]?.provide !== undefined;
+
+/** Provides the services `R` a connection's byte stream requires. */
+type ProvideStream<E, R> = (bytes: Stream.Stream<Uint8Array, E, R>) => Stream.Stream<Uint8Array, E>;
+
+/**
+ * Provides `context` to a connection's byte stream, as `Stream.provideContext`
+ * does (written with `Stream.updateContext`, whose result type states the
+ * requirements left rather than an `Exclude` TypeScript cannot resolve for a
+ * generic `R`).
+ */
+const provideContextTo = <E, R>(
+  bytes: Stream.Stream<Uint8Array, E, R>,
+  context: Context.Context<R>,
+): Stream.Stream<Uint8Array, E> =>
+  Stream.updateContext(bytes, (current: Context.Context<never>) => Context.merge(current, context));
+
+/**
+ * {@link FromStreamOptions.provide} as a {@link ProvideStream}: a context is
+ * provided as is, and a layer is built in the connection's stream scope (so it
+ * is released when the stream ends) and its services provided.
+ */
+const providing =
+  <E, R>(provide: Layer.Layer<R> | Context.Context<R>): ProvideStream<E, R> =>
+  (bytes) =>
+    Context.isContext(provide)
+      ? provideContextTo(bytes, provide)
+      : Stream.unwrap(
+          Effect.map(Layer.build(provide), (context) => provideContextTo(bytes, context)),
+        );
+
+/**
+ * The SSE endpoint for `stream`: each connection frames the stream's elements
+ * as events and `provide` supplies the services it requires (see
+ * {@link fromStream}).
+ */
+const sseHandler = <A, E, R>(
+  stream: Stream.Stream<A, E, R>,
+  options: Omit<FromStreamOptions<A>, "provide"> = {},
+  provide: ProvideStream<E, R>,
 ): RequestHandler => {
-  const encodeData = options?.data ?? encodeJson;
+  const encodeData = options.data ?? encodeJson;
   // The element's `event:` name and `id:`: `None` leaves the field out.
   const eventOf = (value: A): Option.Option<string> => {
-    const name = options?.event;
+    const name = options.event;
     return P.isFunction(name) ? name(value) : Option.fromUndefinedOr(name);
   };
   const idOf = (value: A): Option.Option<string> =>
-    Option.flatMap(Option.fromUndefinedOr(options?.id), (id) => id(value));
+    Option.flatMap(Option.fromUndefinedOr(options.id), (id) => id(value));
 
   return (event) => {
     // Frame each element, then encode the resulting strings to bytes.
@@ -425,11 +594,11 @@ export const fromStream = <A, E, R = never>(
 
     // A leading `retry:` field, if configured.
     const withRetry =
-      options?.retry === undefined ? events : Stream.prepend(events, [encodeRetry(options.retry)]);
+      options.retry === undefined ? events : Stream.prepend(events, [encodeRetry(options.retry)]);
 
     // Merge in a heartbeat that halts as soon as the data stream ends.
     const framed =
-      options?.heartbeat === undefined
+      options.heartbeat === undefined
         ? withRetry
         : Stream.merge(
             withRetry,
@@ -439,13 +608,7 @@ export const fromStream = <A, E, R = never>(
             { haltStrategy: "left" },
           );
 
-    const bytes = Stream.encodeText(framed);
-    const provided =
-      options?.provide === undefined ? bytes : Stream.provide(bytes, options.provide);
-
-    // SAFETY: `options.provide` supplies `R`, and is omitted only for a
-    // self-contained stream (`R` is `never`, its default).
-    const body = Stream.toReadableStream(provided as Stream.Stream<Uint8Array, E>);
+    const body = Stream.toReadableStream(provide(Stream.encodeText(framed)));
 
     // SvelteKit forwards a streaming body Response as-is.
     void event;

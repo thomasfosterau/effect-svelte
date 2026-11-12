@@ -20,9 +20,6 @@ import * as Schema from "effect/Schema";
 export const isStandardSchema = <V>(value: V): value is V & StandardSchemaV1 =>
   P.hasProperty(value, "~standard");
 
-/** Any validator argument the remote helpers accept in the handler-with-validation position. */
-export type Validator = "unchecked" | StandardSchemaV1 | Schema.Top;
-
 /** A remote-function handler that takes no validated input. */
 export type EffectVoidHandler<Out, Env> = () => Effect.Effect<Out, unknown, Env>;
 
@@ -30,19 +27,33 @@ export type EffectVoidHandler<Out, Env> = () => Effect.Effect<Out, unknown, Env>
  * True when the argument is the no-validation (bare handler) overload: a
  * function that is neither kind of schema, which narrows it to the handler.
  */
-export const isBareHandler = <Out, Env>(
-  value: Validator | EffectVoidHandler<Out, Env>,
+export const isBareHandler = <In, Out, Env>(
+  value: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
 ): value is EffectVoidHandler<Out, Env> =>
   P.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
+ * A validator argument whose validated value is `In`: the `"unchecked"`
+ * marker (the handler names its own input type), a Standard Schema with output
+ * `In`, or an Effect `Schema` of `In` whose decoding needs no services (what
+ * `Schema.toStandardSchemaV1` converts).
+ */
+export type ValidatorOf<In> =
+  | "unchecked"
+  | StandardSchemaV1<unknown, In>
+  | Schema.ConstraintDecoder<In>;
+
+/**
  * True for an Effect `Schema` that carries no Standard Schema adapter of its
- * own. Since effect 4.1, `Schema.toStandardSchemaV1` returns a `Schema` with an
- * own `~standard` property, so `Schema.isSchema` alone would wrap it twice.
- * The check is for an own property: an inherited adapter describes a parent
+ * own, which tells it from the other first arguments of a remote helper. Since
+ * effect 4.1, `Schema.toStandardSchemaV1` returns a `Schema` with an own
+ * `~standard` property, so `Schema.isSchema` alone would wrap it twice. The
+ * check is for an own property: an inherited adapter describes a parent
  * class, not this schema.
  */
-const isBareSchema = <V>(value: V): value is V & Schema.Top =>
+const isBareSchema = <In, Out, Env>(
+  value: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
+): value is Schema.ConstraintDecoder<In> =>
   Schema.isSchema(value) && !Object.hasOwn(value, "~standard");
 
 /**
@@ -51,21 +62,25 @@ const isBareSchema = <V>(value: V): value is V & Schema.Top =>
  * (an Effect `Schema` already converted included) or the `"unchecked"` marker
  * passes through untouched.
  */
-export const toStandardValidator = <V>(value: V): StandardValidator<V> =>
-  // SAFETY: the inner cast only drops `toStandardSchemaV1`'s compile-time
-  // `DecodingServices: never` constraint (the runtime conversion is the same
-  // for every schema, and the remote helpers' callers pass schemas whose
-  // decoding needs no services); the outer one restates the branch
-  // `isBareSchema` took, which TypeScript cannot carry into the conditional
-  // return type.
-  (isBareSchema(value)
-    ? (Schema.toStandardSchemaV1 as (schema: Schema.Top) => StandardSchemaV1)(value)
-    : value) as StandardValidator<V>;
-
+export function toStandardValidator<In>(
+  value: Exclude<ValidatorOf<In>, "unchecked">,
+): StandardSchemaV1<unknown, In>;
 /**
- * What {@link toStandardValidator} returns for `V`: a Standard Schema for an
- * Effect `Schema`, else `V` unchanged.
+ * Normalise a validator argument that may be the `"unchecked"` marker, which
+ * passes through untouched like a Standard Schema.
  */
-export type StandardValidator<V> = V extends Schema.Top
-  ? StandardSchemaV1<V["Encoded"], V["Type"]>
-  : V;
+export function toStandardValidator<In>(
+  value: ValidatorOf<In>,
+): "unchecked" | StandardSchemaV1<unknown, In>;
+/**
+ * A bare handler, the other first argument of a remote helper, passes through
+ * untouched.
+ */
+export function toStandardValidator<Out, Env>(
+  value: EffectVoidHandler<Out, Env>,
+): EffectVoidHandler<Out, Env>;
+export function toStandardValidator<In, Out, Env>(
+  value: ValidatorOf<In> | EffectVoidHandler<Out, Env>,
+): "unchecked" | StandardSchemaV1<unknown, In> | EffectVoidHandler<Out, Env> {
+  return isBareSchema(value) ? Schema.toStandardSchemaV1(value) : value;
+}

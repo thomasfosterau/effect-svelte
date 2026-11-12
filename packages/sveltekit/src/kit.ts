@@ -47,6 +47,7 @@ import * as Arr from "effect/Array";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import { causeToThrowable, throwKitError, type KitErrorBody } from "./internal/error.js";
+import { returnedToSvelteKit } from "./internal/unchecked.js";
 
 // ─── Tagged error classes ────────────────────────────────────────────────────
 
@@ -142,10 +143,7 @@ const baseTranslate: KitErrorTranslator = (cause) => {
     // the action's return value. Typed as never to satisfy ErrorTranslator while
     // allowing makeRuntimeAdapter's `return translateError(cause)` to propagate
     // the ActionFailure to SvelteKit correctly at runtime.
-    // SAFETY: the `never` only satisfies the `KitErrorTranslator` contract;
-    // every caller returns the translator's result straight to SvelteKit, which
-    // treats a returned `ActionFailure` as the action's failure response.
-    return kitFail(squashed.status, squashed.data) as never;
+    return returnedToSvelteKit(kitFail(squashed.status, squashed.data));
   }
 
   throw causeToThrowable(cause);

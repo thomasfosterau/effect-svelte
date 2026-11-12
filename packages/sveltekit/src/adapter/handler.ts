@@ -350,12 +350,20 @@ export const toWebHandler = <RAssets, E>(
   // `None` until the first request builds the handler.
   let handler: Option.Option<(request: Request) => Promise<Response>> = Option.none();
   const build = (): ((request: Request) => Promise<Response>) => {
-    // SAFETY: `layer` provides `RAssets`, and the web handler provides the
-    // `HttpServerRequest`, so the handler needs no per-request context; the
-    // conditional type only stays unresolved while `RAssets` is generic.
-    const built = HttpEffect.toWebHandlerLayerWith(layer, { toHandler: () => app }).handler as (
-      request: Request,
-    ) => Promise<Response>;
+    // `toWebHandlerLayerWith` types its handler by a conditional on `ReqR`,
+    // the services the app still requires per request:
+    // `Exclude<RAssets | HttpServerRequest, RAssets | Scope | HttpServerRequest>`,
+    // which is `never` (`layer` provides `RAssets`, the web handler the
+    // request) but which TypeScript does not resolve while `RAssets` is
+    // generic. `ReqR` is `toWebHandlerLayerWith`'s own type parameter, given
+    // here as the `never` it comes to.
+    const built: (request: Request) => Promise<Response> = HttpEffect.toWebHandlerLayerWith<
+      never,
+      RAssets,
+      E,
+      RAssets | HttpServerRequest.HttpServerRequest,
+      never
+    >(layer, { toHandler: () => app }).handler;
     handler = Option.some(built);
     return built;
   };

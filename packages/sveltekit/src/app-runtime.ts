@@ -28,6 +28,7 @@ import * as Scope from "effect/Scope";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
+import { provideContext, provideLayer } from "./internal/provide.js";
 import type {
   SvelteLoadInputData,
   SvelteRouteId,
@@ -86,42 +87,6 @@ export interface RequestRuntime<R = never> {
 const RequestRuntimeKey: unique symbol = Symbol.for(
   "@thomasfosterau/effect-sveltekit/requestRuntime",
 );
-
-/**
- * The locals entry: the per-request runtime tagged with the `ServerRuntime`
- * that created it, so a different runtime's wrappers ignore it (and fall back
- * to building request services themselves) rather than running on the wrong
- * application layer.
- */
-interface RequestRuntimeEntry {
-  readonly owner: object;
-  readonly runtime: RequestRuntime<any>;
-}
-
-/** `event.locals` as this module sees it: possibly carrying a {@link RequestRuntimeEntry}. */
-interface LocalsWithRequestRuntime {
-  [RequestRuntimeKey]?: RequestRuntimeEntry;
-}
-
-/**
- * Whether a value found under {@link RequestRuntimeKey} has the shape of the
- * {@link RequestRuntimeEntry} a `handle` stores there: an `owner` token and a
- * `runtime`, both objects.
- */
-const isRequestRuntimeEntry = (value: unknown): value is RequestRuntimeEntry =>
-  P.hasProperty(value, "owner") &&
-  P.isObject(value.owner) &&
-  P.hasProperty(value, "runtime") &&
-  P.isObject(value.runtime);
-
-/**
- * The per-request runtime entry an event carries: `None` when no `handle` of
- * this package stored one on its `locals` (or the event has no `locals`).
- */
-const requestRuntimeEntry = (event: RequestEvent): Option.Option<RequestRuntimeEntry> =>
-  P.hasProperty(event.locals, RequestRuntimeKey)
-    ? Option.liftPredicate(event.locals[RequestRuntimeKey], isRequestRuntimeEntry)
-    : Option.none();
 
 /** Whether a universal load event is a server-side `RequestEvent` (it carries a `request`). */
 const isRequestEvent = <Event>(event: Event): event is Event & RequestEvent =>
@@ -362,30 +327,59 @@ export interface ServerRuntime<R = never, E = never> {
  * `HttpClient`. Request-specific data should be passed to service methods as
  * arguments instead.
  */
-export const makeServerRuntime = <R = never, E = never>(
+export function makeServerRuntime<R, E>(
+  layer: Layer.Layer<R, E>,
+  options?: ServerRuntimeOptions,
+): ServerRuntime<R, E>;
+/**
+ * Creates a {@link ServerRuntime} with no application layer: its wrappers run
+ * effects that need only the per-request {@link SvelteKitServices}.
+ */
+export function makeServerRuntime(layer?: undefined, options?: ServerRuntimeOptions): ServerRuntime;
+export function makeServerRuntime<R, E>(
   layer?: Layer.Layer<R, E>,
   options?: ServerRuntimeOptions,
+): ServerRuntime<R, E> | ServerRuntime {
+  return layer === undefined
+    ? serverRuntimeOver(Layer.empty, options)
+    : serverRuntimeOver(layer, options);
+}
+
+/** The {@link ServerRuntime} over an application layer (see {@link makeServerRuntime}). */
+const serverRuntimeOver = <R, E>(
+  layer: Layer.Layer<R, E>,
+  options?: ServerRuntimeOptions,
 ): ServerRuntime<R, E> => {
-  // SAFETY: a runtime made without a layer has the defaults `R = never` and
-  // `E = never`, which `Layer.empty` provides.
-  const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
+  const runtime = ManagedRuntime.make(layer);
 
   // The boundary translator for this runtime's wrappers (defaults to the
   // package passthrough: SvelteKit control flow through, anything else a 500).
   const settleRequest = options?.translateError ? makeSettle(options.translateError) : settle;
 
-  // Identity token tagging the per-request runtimes this runtime creates, so a
-  // different runtime's wrappers don't run on the wrong application layer.
-  const owner = {};
+  /**
+   * The `event.locals` entry: a per-request runtime this runtime's `handle`
+   * created. The class is this runtime's own, so `instanceof` tells its
+   * entries from another `ServerRuntime`'s, whose wrappers ignore them (and
+   * build the request services themselves) rather than run on the wrong
+   * application layer.
+   */
+  class RequestRuntimeEntry {
+    readonly runtime: RequestRuntime<R>;
+    constructor(requestRuntime: RequestRuntime<R>) {
+      this.runtime = requestRuntime;
+    }
+  }
+  const isOwnEntry = (value: unknown): value is RequestRuntimeEntry =>
+    value instanceof RequestRuntimeEntry;
 
   /** A {@link ScopedRequestRuntime} that provides the prebuilt request services. */
   const makeRequestRuntime = (
     requestServices: Context.Context<SvelteKitServices>,
   ): RequestRuntime<R> => {
-    const provide = <A>(effect: Effect.Effect<A, unknown, R | SvelteKitServices>) =>
-      // SAFETY: providing the `SvelteKitServices` leaves at most `R`; the
-      // `Exclude` only stays unresolved while `R` is generic.
-      Effect.provideContext(effect, requestServices) as Effect.Effect<A, unknown, R>;
+    const provide = <A>(
+      effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
+    ): Effect.Effect<A, unknown, R> =>
+      provideContext<A, unknown, R, SvelteKitServices>(effect, requestServices);
     return {
       runPromiseExit: (effect) => runtime.runPromiseExit(provide(effect)),
       runPromise: (effect) => runtime.runPromiseExit(provide(effect)).then(settleRequest),
@@ -395,15 +389,16 @@ export const makeServerRuntime = <R = never, E = never>(
 
   /**
    * The per-request runtime for this runtime carried by the event: `None` when
-   * the event carries none, or one another `ServerRuntime` created.
+   * the event carries none (or has no `locals`), or one another
+   * `ServerRuntime` created.
    */
   const requestRuntimeOf = (event: RequestEvent): Option.Option<RequestRuntime<R>> =>
-    Option.map(
-      Option.filter(requestRuntimeEntry(event), (entry) => entry.owner === owner),
-      // SAFETY: an entry tagged with this runtime's `owner` was created by its
-      // `handle`, from `makeRequestRuntime`, so it is a `RequestRuntime<R>`.
-      (entry) => entry.runtime as RequestRuntime<R>,
-    );
+    P.hasProperty(event.locals, RequestRuntimeKey)
+      ? Option.map(
+          Option.liftPredicate(event.locals[RequestRuntimeKey], isOwnEntry),
+          (entry) => entry.runtime,
+        )
+      : Option.none();
 
   const runExit = <A>(
     event: RequestEvent,
@@ -413,10 +408,9 @@ export const makeServerRuntime = <R = never, E = never>(
     // the per-request services for this single call.
     const requestRuntime = requestRuntimeOf(event);
     if (Option.isSome(requestRuntime)) return requestRuntime.value.runPromiseExit(effect);
-    // SAFETY: the request layer provides the `SvelteKitServices`, leaving at
-    // most `R`; the `Exclude` only stays unresolved while `R` is generic.
-    const provided = Effect.provide(effect, requestLayer(event)) as Effect.Effect<A, unknown, R>;
-    return runtime.runPromiseExit(provided);
+    return runtime.runPromiseExit(
+      provideLayer<A, unknown, R, SvelteKitServices, never>(effect, requestLayer(event)),
+    );
   };
 
   const run = <A>(
@@ -445,10 +439,10 @@ export const makeServerRuntime = <R = never, E = never>(
     );
 
     const requestRuntime = makeRequestRuntime(requestServices);
-    const entry: RequestRuntimeEntry = { owner, runtime: requestRuntime };
-    // SAFETY: `locals` is the request's plain, writable object; the namespaced
-    // symbol key cannot clash with the app's own `App.Locals` fields.
-    (event.locals as LocalsWithRequestRuntime)[RequestRuntimeKey] = entry;
+    // `locals` is the request's plain, writable object, and the namespaced
+    // symbol key cannot clash with the app's own `App.Locals` fields (which is
+    // also why `App.Locals` has no such key to assign to).
+    Reflect.set(event.locals, RequestRuntimeKey, new RequestRuntimeEntry(requestRuntime));
 
     // Close the request scope once the user's effect settles, also when
     // building it throws, then surface its outcome (or the close's failure).
@@ -580,12 +574,21 @@ export interface UniversalRuntime<R = never, E = never> {
  * );
  * ```
  */
-export const makeUniversalRuntime = <R = never, E = never>(
+export function makeUniversalRuntime<R, E>(layer: Layer.Layer<R, E>): UniversalRuntime<R, E>;
+/**
+ * Creates a {@link UniversalRuntime} with no application layer: its wrappers
+ * run effects that need only the `HttpClient`.
+ */
+export function makeUniversalRuntime(layer?: undefined): UniversalRuntime;
+export function makeUniversalRuntime<R, E>(
   layer?: Layer.Layer<R, E>,
-): UniversalRuntime<R, E> => {
-  // SAFETY: a runtime made without a layer has the defaults `R = never` and
-  // `E = never`, which `Layer.empty` provides.
-  const runtime = ManagedRuntime.make((layer ?? Layer.empty) as Layer.Layer<R, E>);
+): UniversalRuntime<R, E> | UniversalRuntime {
+  return layer === undefined ? universalRuntimeOver(Layer.empty) : universalRuntimeOver(layer);
+}
+
+/** The {@link UniversalRuntime} over an application layer (see {@link makeUniversalRuntime}). */
+const universalRuntimeOver = <R, E>(layer: Layer.Layer<R, E>): UniversalRuntime<R, E> => {
+  const runtime = ManagedRuntime.make(layer);
 
   const run = <A>(
     fetchFn: typeof globalThis.fetch,
@@ -594,10 +597,9 @@ export const makeUniversalRuntime = <R = never, E = never>(
   ): Promise<A> => {
     // On the server the full request layer (HttpClient + SvelteKitRequestEvent)
     // is available; on the client only HttpClient backed by the event's fetch.
-    const services = event ? requestLayer(event) : fetchLayer(fetchFn);
-    // SAFETY: both layers provide `HttpClient`, leaving at most `R`; the
-    // `Exclude` only stays unresolved while `R` is generic.
-    const provided = Effect.provide(effect, services) as Effect.Effect<A, unknown, R>;
+    const provided = event
+      ? provideLayer<A, unknown, R, SvelteKitServices, never>(effect, requestLayer(event))
+      : provideLayer<A, unknown, R, HttpClient.HttpClient, never>(effect, fetchLayer(fetchFn));
     return runtime.runPromiseExit(provided).then(settle);
   };
 

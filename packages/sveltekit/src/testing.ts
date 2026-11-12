@@ -40,12 +40,13 @@
  * ```
  */
 
-import type { Cookies, RequestEvent } from "@sveltejs/kit";
+import type { Cookies, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Arr from "effect/Array";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as R from "effect/Record";
+import * as Schema from "effect/Schema";
 import {
   RequestRuntime,
   type ErrorTranslator,
@@ -74,7 +75,7 @@ interface TestCookie {
  * ordered list, so `getAll()` returns cookies in the order they were first set
  * (as SvelteKit's does), and `set` on an existing name replaces it in place.
  */
-class TestCookies implements Omit<Cookies, "parse"> {
+class TestCookies implements Cookies {
   private store: ReadonlyArray<TestCookie>;
 
   constructor(initial: Readonly<Record<string, string>> = {}) {
@@ -112,7 +113,48 @@ class TestCookies implements Omit<Cookies, "parse"> {
   serialize(name: string, value: string, _opts?: CookieSerializeOptions): string {
     return `${name}=${encodeURIComponent(value)}`;
   }
+
+  /**
+   * `cookies.parse` is the one member with no in-memory stand-in: it throws a
+   * {@link TestCookiesParseError}.
+   */
+  parse(..._args: Parameters<Cookies["parse"]>): never {
+    throw new TestCookiesParseError({
+      message:
+        "TestRequestEvent's cookies do not implement parse(): parse the Set-Cookie header in the test instead.",
+    });
+  }
 }
+
+/**
+ * Thrown synchronously by `event.cookies.parse` of a {@link TestRequestEvent}:
+ * its in-memory cookies have no `Set-Cookie` parser.
+ */
+export class TestCookiesParseError extends Schema.TaggedError<TestCookiesParseError>()(
+  "TestCookiesParseError",
+  { message: Schema.String },
+) {}
+
+/** A span's context when tracing is off, as SvelteKit's own no-op span reports it. */
+const noopSpanContext = { traceId: "", spanId: "", traceFlags: 0 };
+
+/**
+ * The no-op span SvelteKit puts on `event.tracing` when tracing is disabled:
+ * every method does nothing and returns the span.
+ */
+const noopSpan = {
+  spanContext: () => noopSpanContext,
+  setAttribute: () => noopSpan,
+  setAttributes: () => noopSpan,
+  addEvent: () => noopSpan,
+  addLink: () => noopSpan,
+  addLinks: () => noopSpan,
+  setStatus: () => noopSpan,
+  updateName: () => noopSpan,
+  end: () => {},
+  isRecording: () => false,
+  recordException: () => {},
+};
 
 // ─── TestRequestEvent ─────────────────────────────────────────────────────────
 
@@ -145,7 +187,7 @@ export interface TestRequestEventOptions {
   /**
    * Pre-seeded cookies as `{ name: value }` pairs.
    * The backing store supports `get`, `getAll`, `set`, `delete`, and
-   * `serialize`; the object is cast to SvelteKit's `Cookies` interface.
+   * `serialize` (`parse` throws).
    */
   readonly cookies?: Record<string, string>;
   /**
@@ -162,25 +204,14 @@ export interface TestRequestEventOptions {
 }
 
 /**
- * The fields {@link TestRequestEvent} actually provides: a {@link RequestEvent}
- * without `tracing` / `isRemoteRequest`, with in-memory cookies (no `parse`)
- * and the test's own `locals` / `platform` values (`platform` keeps
- * SvelteKit's own `RequestEvent["platform"]` type).
- */
-type TestRequestEventFixture = Omit<
-  RequestEvent,
-  "cookies" | "locals" | "tracing" | "isRemoteRequest"
-> & {
-  readonly cookies: Omit<Cookies, "parse">;
-  readonly locals: App.Locals;
-};
-
-/**
  * Create a minimal {@link RequestEvent} for use in unit tests.
  *
  * All fields are optional — omit what the handler under test doesn't inspect.
- * Cookies are backed by an in-memory `Map`; mutations (`set`, `delete`) are
- * reflected in subsequent `get`/`getAll` calls on the same event.
+ * Cookies are backed by an in-memory store; mutations (`set`, `delete`) are
+ * reflected in subsequent `get`/`getAll` calls on the same event, and
+ * `cookies.parse` throws a {@link TestCookiesParseError}. Tracing is off
+ * (`event.tracing` holds no-op spans, as SvelteKit's does then) and
+ * `isRemoteRequest` is `false`.
  *
  * @example
  * ```ts
@@ -204,7 +235,7 @@ export function TestRequestEvent(opts: TestRequestEventOptions = {}): RequestEve
   const cookies = new TestCookies(opts.cookies ?? {});
   const fetchFn = opts.fetch ?? globalThis.fetch;
 
-  const fixture: TestRequestEventFixture = {
+  return {
     request,
     url,
     params: opts.params ?? {},
@@ -217,12 +248,9 @@ export function TestRequestEvent(opts: TestRequestEventOptions = {}): RequestEve
     isSubRequest: false,
     setHeaders: () => {},
     getClientAddress: () => "127.0.0.1",
+    isRemoteRequest: false,
+    tracing: { enabled: false, root: noopSpan, current: noopSpan },
   };
-  // SAFETY: a deliberately partial fixture, as the TSDoc above says: it has
-  // the fields load/action/endpoint/remote handlers read, while `tracing`,
-  // `isRemoteRequest` and `cookies.parse` are absent, and `locals` / `platform`
-  // are whatever the test passed in place of `App.Locals` / `App.Platform`.
-  return fixture as RequestEvent;
 }
 
 // ─── Options ──────────────────────────────────────────────────────────────────
@@ -266,16 +294,67 @@ export interface RunRemoteOptions<R> {
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
-// SAFETY: `layer` may be omitted only when the handler needs no services
-// (`R` is `never`, as `TestRunOptions.layer` documents), and then `Layer.empty`
-// provides all of `R`.
-const makeAdapter = <R>(opts: TestRunOptions<R> = {}) =>
-  RequestRuntimeModule.makeRuntimeAdapter(
-    RequestRuntime.fromLayer((opts.layer ?? Layer.empty) as Layer.Layer<R>),
-    {
-      translateError: opts.translateError ?? SvelteKit.translate,
-    },
-  );
+/** An Effect-based handler under test, as the `run*` helpers take it. */
+type TestHandler<A, R> = (event: RequestEvent) => Effect.Effect<A, unknown, R>;
+
+/** {@link TestRunOptions} without a layer, for a handler that requires no services. */
+type TestRunOptionsWithoutLayer = TestRunOptions<never> & { readonly layer?: never };
+
+/** {@link TestRunOptions} with the layer that provides the handler's services `R`. */
+type TestRunOptionsWithLayer<R> = TestRunOptions<R> & { readonly layer: Layer.Layer<R> };
+
+/**
+ * The two ways a `run*` helper is called, as its overloads spell them: with a
+ * handler that requires no services, or with a handler and the layer that
+ * provides the services `R` it requires.
+ */
+type TestRunArgs<A, R> =
+  | readonly [fn: TestHandler<A, never>, event: RequestEvent, opts?: TestRunOptionsWithoutLayer]
+  | readonly [fn: TestHandler<A, R>, event: RequestEvent, opts: TestRunOptionsWithLayer<R>];
+
+/** Whether a `run*` helper was called with a layer. */
+const hasLayer = <A, R>(
+  args: TestRunArgs<A, R>,
+): args is Extract<TestRunArgs<A, R>, readonly [unknown, unknown, TestRunOptionsWithLayer<R>]> =>
+  args[2]?.layer !== undefined;
+
+/** The adapter whose wrappers run a handler on `layer`. */
+const adapterOn = <R>(layer: Layer.Layer<R>, opts?: Pick<TestRunOptions<R>, "translateError">) =>
+  RequestRuntimeModule.makeRuntimeAdapter(RequestRuntime.fromLayer(layer), {
+    translateError: opts?.translateError ?? SvelteKit.translate,
+  });
+
+/** A server `load`'s event for `event`: no parent data, and nothing tracked. */
+const serverLoadEvent = (event: RequestEvent): Parameters<ServerLoad>[0] => ({
+  ...event,
+  parent: () => Promise.resolve({}),
+  depends: () => {},
+  untrack: (fn) => fn(),
+});
+
+/** Runs `fn` as the adapter's server `load` for `event`. */
+const loadOn = <A extends Record<string, any> | void, R>(
+  adapter: RequestRuntimeModule.RuntimeAdapter<R>,
+  fn: TestHandler<A, R>,
+  event: RequestEvent,
+): Promise<A> =>
+  // The handler gets the caller's own event; the copy with a `load`'s extra
+  // members is what the wrapper reads the route id from.
+  Promise.resolve(adapter.serverLoad(() => fn(event))(serverLoadEvent(event)));
+
+/** Runs `fn` as the adapter's form action for `event`. */
+const actOn = <A extends Record<string, any> | void, R>(
+  adapter: RequestRuntimeModule.RuntimeAdapter<R>,
+  fn: TestHandler<A, R>,
+  event: RequestEvent,
+): Promise<A> => Promise.resolve(adapter.action(fn)(event));
+
+/** Runs `fn` as the adapter's endpoint for `event`. */
+const respondOn = <R>(
+  adapter: RequestRuntimeModule.RuntimeAdapter<R>,
+  fn: TestHandler<Response, R>,
+  event: RequestEvent,
+): Promise<Response> => Promise.resolve(adapter.endpoint(fn)(event));
 
 // ─── runServerLoad ────────────────────────────────────────────────────────────
 
@@ -300,14 +379,35 @@ const makeAdapter = <R>(opts: TestRunOptions<R> = {}) =>
  * expect(data.items).toHaveLength(0);
  * ```
  */
-// SAFETY: the adapter's `serverLoad` handler is an async function that reads
-// only `RequestEvent` fields (`route.id` plus whatever `fn` reads), so it
-// accepts a plain `RequestEvent` and always returns a `Promise`.
-export const runServerLoad = <R, A extends Record<string, any> | void = void>(
+export function runServerLoad<R, A extends Record<string, any> | void = void>(
   fn: (event: RequestEvent) => Effect.Effect<A, unknown, R>,
   event: RequestEvent,
-  opts?: TestRunOptions<R>,
-): Promise<A> => (makeAdapter(opts).serverLoad(fn) as (e: RequestEvent) => Promise<A>)(event);
+  opts: TestRunOptions<R> & { readonly layer: Layer.Layer<R> },
+): Promise<A>;
+/**
+ * Run an Effect-based server `load` function that requires no services under
+ * test, with no layer. Errors are translated by `opts.translateError`.
+ */
+export function runServerLoad<A extends Record<string, any> | void = void>(
+  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+  event: RequestEvent,
+  opts: TestRunOptions<never> & { readonly layer?: never },
+): Promise<A>;
+/**
+ * Run an Effect-based server `load` function that requires no services under
+ * test, with no layer. Errors are translated by {@link SvelteKit.translate}.
+ */
+export function runServerLoad<A extends Record<string, any> | void = void>(
+  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+  event: RequestEvent,
+): Promise<A>;
+export function runServerLoad<R, A extends Record<string, any> | void>(
+  ...args: TestRunArgs<A, R>
+): Promise<A> {
+  return hasLayer(args)
+    ? loadOn(adapterOn(args[2].layer, args[2]), args[0], args[1])
+    : loadOn(adapterOn(Layer.empty, args[2]), args[0], args[1]);
+}
 
 // ─── runAction ───────────────────────────────────────────────────────────────
 
@@ -323,13 +423,35 @@ export const runServerLoad = <R, A extends Record<string, any> | void = void>(
  * expect((result as any).success).toBe(true);
  * ```
  */
-// SAFETY: the adapter's `action` handler is an async function over a
-// `RequestEvent`, so it always returns a `Promise` of the action's value.
-export const runAction = <R, A extends Record<string, any> | void = void>(
+export function runAction<R, A extends Record<string, any> | void = void>(
   fn: (event: RequestEvent) => Effect.Effect<A, unknown, R>,
   event: RequestEvent,
-  opts?: TestRunOptions<R>,
-): Promise<A> => (makeAdapter(opts).action(fn) as (e: RequestEvent) => Promise<A>)(event);
+  opts: TestRunOptions<R> & { readonly layer: Layer.Layer<R> },
+): Promise<A>;
+/**
+ * Run an Effect-based form action handler that requires no services under
+ * test, with no layer. Errors are translated by `opts.translateError`.
+ */
+export function runAction<A extends Record<string, any> | void = void>(
+  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+  event: RequestEvent,
+  opts: TestRunOptions<never> & { readonly layer?: never },
+): Promise<A>;
+/**
+ * Run an Effect-based form action handler that requires no services under
+ * test, with no layer. Errors are translated by {@link SvelteKit.translate}.
+ */
+export function runAction<A extends Record<string, any> | void = void>(
+  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+  event: RequestEvent,
+): Promise<A>;
+export function runAction<R, A extends Record<string, any> | void>(
+  ...args: TestRunArgs<A, R>
+): Promise<A> {
+  return hasLayer(args)
+    ? actOn(adapterOn(args[2].layer, args[2]), args[0], args[1])
+    : actOn(adapterOn(Layer.empty, args[2]), args[0], args[1]);
+}
 
 // ─── runEndpoint ──────────────────────────────────────────────────────────────
 
@@ -345,11 +467,47 @@ export const runAction = <R, A extends Record<string, any> | void = void>(
  * expect(response.status).toBe(200);
  * ```
  */
-export const runEndpoint = <R>(
+export function runEndpoint<R>(
   fn: (event: RequestEvent) => Effect.Effect<Response, unknown, R>,
   event: RequestEvent,
-  opts?: TestRunOptions<R>,
-): Promise<Response> => Promise.resolve(makeAdapter(opts).endpoint(fn)(event));
+  opts: TestRunOptions<R> & { readonly layer: Layer.Layer<R> },
+): Promise<Response>;
+/**
+ * Run an Effect-based `+server.ts` endpoint handler that requires no services
+ * under test, with no layer. A failure `opts.translateError` does not turn
+ * into SvelteKit control flow becomes a 500 `Response`.
+ */
+export function runEndpoint(
+  fn: (event: RequestEvent) => Effect.Effect<Response, unknown>,
+  event: RequestEvent,
+  opts: TestRunOptions<never> & { readonly layer?: never },
+): Promise<Response>;
+/**
+ * Run an Effect-based `+server.ts` endpoint handler that requires no services
+ * under test, with no layer. A failure that is not SvelteKit control flow
+ * becomes a 500 `Response`.
+ */
+export function runEndpoint(
+  fn: (event: RequestEvent) => Effect.Effect<Response, unknown>,
+  event: RequestEvent,
+): Promise<Response>;
+export function runEndpoint<R>(...args: TestRunArgs<Response, R>): Promise<Response> {
+  return hasLayer(args)
+    ? respondOn(adapterOn(args[2].layer, args[2]), args[0], args[1])
+    : respondOn(adapterOn(Layer.empty, args[2]), args[0], args[1]);
+}
+
+/** The remote-function helpers that run a handler for `event` on `provider`. */
+const remoteHelpersOn = <R>(
+  event: RequestEvent,
+  provider: RequestRuntimeProvider<R>,
+  opts?: Pick<RunRemoteOptions<R>, "translateError" | "formError">,
+): RunHelpers =>
+  RemoteRun.makeRunHelpers(
+    () => ({ runExit: (effect) => provider.run(event).runPromiseExit(effect) }),
+    opts?.translateError ?? SvelteKit.translate,
+    opts?.formError,
+  );
 
 // ─── runRemote ────────────────────────────────────────────────────────────────
 
@@ -376,18 +534,8 @@ export const runEndpoint = <R>(
  * expect(items).toEqual([]);
  * ```
  */
-export const runRemote = <R = never>(
-  event: RequestEvent,
-  opts?: RunRemoteOptions<R>,
-): RunHelpers => {
-  const translate = opts?.translateError ?? SvelteKit.translate;
-  // SAFETY: `layer` may be omitted only when the handlers need no services
-  // (`R = never`, the default), and then `Layer.empty` provides all of `R`.
-  const layer = (opts?.layer ?? Layer.empty) as Layer.Layer<R>;
-  const provider: RequestRuntimeProvider<R> = RequestRuntime.fromLayer(layer);
-  return RemoteRun.makeRunHelpers(
-    () => ({ runExit: (effect) => provider.run(event).runPromiseExit(effect) }),
-    translate,
-    opts?.formError,
-  );
-};
+export const runRemote = <R = never>(event: RequestEvent, opts?: RunRemoteOptions<R>): RunHelpers =>
+  // Without a layer the handlers run on an empty one.
+  opts?.layer === undefined
+    ? remoteHelpersOn(event, RequestRuntime.fromLayer(Layer.empty), opts)
+    : remoteHelpersOn(event, RequestRuntime.fromLayer(opts.layer), opts);
