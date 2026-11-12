@@ -107,7 +107,8 @@ interface RuntimeContext<R> {
 
   /**
    * Retrieve the runtime. Must be called during component initialisation.
-   * Throws an actionable error when no ancestor called `provide`.
+   * Throws a {@link RuntimeNotFoundError}, whose message names this context,
+   * when no ancestor called `provide`.
    */
   readonly get: () => RuntimeLike<R>;
 }

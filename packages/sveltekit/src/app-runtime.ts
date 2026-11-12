@@ -193,6 +193,16 @@ export interface ServerRuntime<R = never, E = never> {
 
   /**
    * Wraps an Effect-based function as a SvelteKit `handle` hook.
+   *
+   * It also creates the per-request runtime: the application layer's services
+   * plus the request's `HttpClient` and `SvelteKitRequestEvent`, built once,
+   * sharing one request scope, and stored on `event.locals`. With this hook
+   * wired, this runtime's other wrappers (`serverLoad`, `action`, `endpoint`,
+   * ...) run on that runtime for the request; without it (or for another
+   * runtime's wrappers) they build the request services per call. Read it
+   * with {@link ServerRuntime.requestRuntime}. A failure of the effect goes
+   * through `translateError`: by default SvelteKit's own `redirect()` /
+   * `error()` are rethrown and anything else is a 500.
    */
   readonly handle: (
     fn: (args: Parameters<Handle>[0]) => Effect.Effect<Response, unknown, R | SvelteKitServices>,
