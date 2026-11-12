@@ -78,8 +78,9 @@ Read the installed package before writing Effect code: `node_modules/effect/AGEN
 
 ## Documentation surfaces
 
-- Package `README.md`s — the npm API reference (npm shows only these; links into the repo stay relative, but a consumer must not need them); root `README.md` — the landing page; package `AGENTS.md`s — boundary, invariants and terms (not published).
-- `docs/cookbook.md` — recipes.
+- Package `README.md`s — the short npm front page: what the package is, install, one example, the entry-point table and links. npm renders them outside the repo, so their links are absolute (`https://github.com/thomasfosterau/effect-svelte/blob/trunk/…`). Root `README.md` — the landing page; package `AGENTS.md`s — boundary, invariants and terms (not published).
+- `docs/*.md` — the reference, one page per topic (`effect-svelte.md`, `sveltekit-*.md`), and the recipes (`cookbook.md`); relative links. Not shipped in the packages.
+- TSDoc on each export — the per-export detail (it ships in the `.d.ts`).
 - `.claude/CLAUDE.md` and each package's `CLAUDE.md` — Claude Code's entry points: they import the `AGENTS.md` beside them (the root one also imports `CONTRIBUTING.md` and `README.md`) and hold only what is specific to Claude Code.
 - `CONTRIBUTING.md` — setup, commands, hooks and CI; `SECURITY.md` — reporting and supply-chain posture; `PUBLISHING.md` — the release pipeline and one-time owner setup.
 - Decisions — issue comments.

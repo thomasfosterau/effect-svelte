@@ -82,6 +82,9 @@ export interface EffectAdapterOptions {
  * either target), on a runtime it creates for the build and disposes when the
  * build ends. The promise it returns rejects with the `PlatformError` of a
  * file operation that failed, or with whatever SvelteKit's builder threw.
+ *
+ * The production server needs Node `>=22.19`: `@effect/platform-node` pulls
+ * in `undici`, which requires it, although this package declares `>=22.17`.
  */
 export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
   const { out = "build", precompress = true, envPrefix = "", target = "node" } = options;
