@@ -19,10 +19,12 @@ export const defaultTranslate: ErrorTranslator = SvelteKit.translate;
  * Maps a remote *form* handler's failure into SvelteKit's field issues, given
  * the form's parsed `data` and the `issue` helper. It may call `invalid()` so a
  * structured/nested validation error drives field-level invalidation instead of
- * a generic failure. Receives the squashed handler failure.
+ * a generic failure. Receives the squashed handler failure: whatever
+ * `Cause.squash` makes of the failed `Cause` (the typed failure, a defect or an
+ * interruption error), so it is `unknown` until the mapper narrows it.
  */
 export type FormErrorMapper = (
-  error: unknown,
+  error: ReturnType<typeof Cause.squash>,
   ctx: { readonly issue: InvalidField<any>; readonly data: unknown },
 ) => never;
 
