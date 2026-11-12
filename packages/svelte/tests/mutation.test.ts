@@ -71,23 +71,72 @@ describe("makeMutation", () => {
     const state = fakeResult<string, never>();
 
     const calls: Array<string> = [];
+    const contexts: Array<Option.Option<{ readonly snapshot: string }>> = [];
     const core = makeMutation(runtime, state, (name: string) => Effect.succeed(`hi ${name}`), {
       onMutate: (input) => {
         calls.push(`onMutate:${input}`);
         return { snapshot: input };
       },
       onSuccess: (value, input, context) => {
-        calls.push(`onSuccess:${value}:${input}:${context?.snapshot}`);
+        calls.push(`onSuccess:${value}:${input}`);
+        contexts.push(context);
       },
       onSettled: (input, context) => {
-        calls.push(`onSettled:${input}:${context?.snapshot}`);
+        calls.push(`onSettled:${input}`);
+        contexts.push(context);
       },
     });
 
     core.mutate("ada");
     await flush();
 
-    expect(calls).toEqual(["onMutate:ada", "onSuccess:hi ada:ada:ada", "onSettled:ada:ada"]);
+    expect(calls).toEqual(["onMutate:ada", "onSuccess:hi ada:ada", "onSettled:ada"]);
+    expect(contexts).toEqual([Option.some({ snapshot: "ada" }), Option.some({ snapshot: "ada" })]);
+
+    await runtime.dispose();
+  });
+
+  it("threads onMutate's context into onError and onSettled on failure", async () => {
+    const runtime = ManagedRuntime.make(Layer.empty);
+    const state = fakeResult<never, string>();
+
+    const contexts: Array<Option.Option<{ readonly snapshot: number }>> = [];
+    const core = makeMutation(runtime, state, (input: number) => Effect.fail(`boom ${input}`), {
+      onMutate: (input) => ({ snapshot: input }),
+      onError: (_error, _input, context) => {
+        contexts.push(context);
+      },
+      onSettled: (_input, context) => {
+        contexts.push(context);
+      },
+    });
+
+    core.mutate(7);
+    await flush();
+
+    expect(contexts).toEqual([Option.some({ snapshot: 7 }), Option.some({ snapshot: 7 })]);
+
+    await runtime.dispose();
+  });
+
+  it("passes None as the context when there is no onMutate", async () => {
+    const runtime = ManagedRuntime.make(Layer.empty);
+    const state = fakeResult<string, never>();
+
+    const contexts: Array<Option.Option<unknown>> = [];
+    const core = makeMutation(runtime, state, (name: string) => Effect.succeed(`hi ${name}`), {
+      onSuccess: (_value, _input, context) => {
+        contexts.push(context);
+      },
+      onSettled: (_input, context) => {
+        contexts.push(context);
+      },
+    });
+
+    core.mutate("ada");
+    await flush();
+
+    expect(contexts).toEqual([Option.none(), Option.none()]);
 
     await runtime.dispose();
   });

@@ -19,6 +19,7 @@ import { it } from "@effect/vitest";
 import { afterEach, assert, describe, expect } from "vite-plus/test";
 import * as State from "../../src/State.js";
 import {
+  clearNavigation,
   navigatingReads,
   setCheck,
   setNavigation,
@@ -58,7 +59,7 @@ const navigation = (type: "link" | "goto", pathname: string): Navigation => {
 };
 
 afterEach(() => {
-  setNavigation(null);
+  clearNavigation();
   setUpdated(false);
   setPage({ url: new URL("https://example.com/"), status: -1 });
   setCheck(() => Promise.resolve(false));
@@ -75,7 +76,7 @@ describe("State.navigating", () => {
           setNavigation(navigation("link", "/about"));
           const active = yield* next;
 
-          setNavigation(null);
+          clearNavigation();
           const done = yield* next;
           return { idle, active, done };
         }),
@@ -84,9 +85,44 @@ describe("State.navigating", () => {
       assert(Option.isSome(seen.active), "expected a navigation in flight");
       const active = seen.active.value;
       expect(active.type).toBe("link");
-      expect(active.to?.url.pathname).toBe("/about");
-      expect(active.delta).toBeNull();
+      expect(Option.isNone(active.from)).toBe(true);
+      assert(Option.isSome(active.to), "expected a destination");
+      expect(active.to.value.url.pathname).toBe("/about");
+      expect(Option.isNone(active.delta)).toBe(true);
       expect(Option.isNone(seen.done)).toBe(true);
+    }),
+  );
+
+  it.effect("carries the history delta and the origin of a popstate navigation", () =>
+    Effect.gen(function* () {
+      const from = {
+        params: {},
+        route: { id: "/about" },
+        url: new URL("https://example.com/about"),
+        scroll: null,
+      };
+      const active = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const { next } = yield* subscribe(State.navigating());
+          yield* next;
+          setNavigation({
+            type: "popstate",
+            shallow: false,
+            from,
+            to: null,
+            willUnload: false,
+            delta: -2,
+            event: new PopStateEvent("popstate"),
+            complete: Promise.resolve(),
+          });
+          return yield* next;
+        }),
+      );
+      assert(Option.isSome(active), "expected a navigation in flight");
+      expect(active.value.type).toBe("popstate");
+      expect(active.value.delta).toEqual(Option.some(-2));
+      expect(active.value.from).toEqual(Option.some(from));
+      expect(Option.isNone(active.value.to)).toBe(true);
     }),
   );
 
@@ -170,7 +206,12 @@ describe("State.CurrentPage", () => {
           const first = yield* next;
 
           // A navigation assigns several fields at once: one emission.
-          setPage({ url: new URL("https://example.com/next"), status: 404, error: "nope" });
+          setPage({
+            url: new URL("https://example.com/next"),
+            status: 404,
+            error: { message: "nope", status: 404 },
+            route: { id: null },
+          });
           const navigated = yield* next;
 
           // Shallow routing changes `state` without a navigation.
@@ -180,7 +221,11 @@ describe("State.CurrentPage", () => {
         }),
       ).pipe(Effect.provide(State.CurrentPage.layer));
       expect(seen.first.url.pathname).toBe("/");
-      expect(seen.navigated).toMatchObject({ status: 404, error: "nope" });
+      expect(Option.isNone(seen.first.error)).toBe(true);
+      expect(Option.isNone(seen.first.shallow)).toBe(true);
+      expect(seen.navigated.status).toBe(404);
+      expect(seen.navigated.error).toEqual(Option.some({ message: "nope", status: 404 }));
+      expect(Option.isNone(seen.navigated.route.id)).toBe(true);
       expect(seen.navigated.url.pathname).toBe("/next");
       expect(seen.shallow.state).toEqual({ modal: true });
       expect(seen.shallow.url.pathname).toBe("/next");

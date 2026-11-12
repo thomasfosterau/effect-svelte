@@ -1,12 +1,21 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
-import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
+import {
+  emptyFiberSlot,
+  interruptFiber,
+  interruptSlot,
+  runFork,
+  runSync,
+  trackFiber,
+  type RuntimeLike,
+} from "./internal/run.js";
 import * as ResultState from "./internal/result.svelte.js";
 import { streamState } from "./internal/subscribe.js";
 
@@ -81,7 +90,7 @@ export function useReactiveQuery<A, E, R>(
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = ResultState.makeResult<A, E>();
-  let fiber: Fiber.Fiber<void> | null = null;
+  let fiber: Option.Option<Fiber.Fiber<void>> = Option.none();
 
   $effect(() => {
     // Get the current keys and effect: the reads these thunks make are the
@@ -116,14 +125,14 @@ export function useReactiveQuery<A, E, R>(
     fiber = untrack(() => {
       // Mark as waiting, preserving any previous value.
       state.startWaiting();
-      return runFork(runtime)(queryEffect);
+      return Option.some(runFork(runtime)(queryEffect));
     });
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
     return () => {
-      if (fiber !== null) {
-        interruptFiber(fiber);
-        fiber = null;
+      if (Option.isSome(fiber)) {
+        interruptFiber(fiber.value);
+        fiber = Option.none();
       }
     };
   });
@@ -146,7 +155,7 @@ export interface UseReactiveStreamReturn<A, E> {
   /** Every value emitted since the stream last (re)started, oldest first. */
   readonly values: ReadonlyArray<A>;
   /** The most recent value emitted since the stream last (re)started, if any. */
-  readonly latest: A | undefined;
+  readonly latest: Option.Option<A>;
 }
 
 /**
@@ -283,7 +292,7 @@ export function useReactiveMutation<A, E, R>(
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
   const state = ResultState.makeResult<A, E>();
-  let currentFiber: Fiber.Fiber<A, E> | null = null;
+  const slot = emptyFiberSlot<A, E>();
 
   // Untracked: the thunks run here, `runFork` runs the mutation synchronously
   // up to its first async step, and a synchronous success invalidates the
@@ -291,9 +300,7 @@ export function useReactiveMutation<A, E, R>(
   // from a caller's `$effect` would subscribe that effect to all of their reads.
   const run = () =>
     untrack(() => {
-      if (currentFiber !== null) {
-        interruptFiber(currentFiber);
-      }
+      interruptSlot(slot);
 
       const currentKeys = P.isFunction(keys) ? keys() : keys;
       const currentEffect = P.isFunction(effect) ? effect() : effect;
@@ -302,26 +309,14 @@ export function useReactiveMutation<A, E, R>(
 
       const mutationEffect = Reactivity.mutation(currentEffect, currentKeys);
       const runningFiber = runFork(runtime)(mutationEffect);
-      currentFiber = runningFiber;
-
-      runFork(runtime)(
-        Effect.gen(function* () {
-          const exit = yield* Fiber.await(runningFiber);
-          if (currentFiber === runningFiber) {
-            state.settle(exit);
-            currentFiber = null;
-          }
-        }),
-      );
+      trackFiber(runtime)(slot, runningFiber, (exit) => state.settle(exit));
     });
 
   $effect(() => {
     // Cleanup: interrupt any running fiber on unmount
     return () => {
-      if (currentFiber !== null) {
-        interruptFiber(currentFiber);
-        currentFiber = null;
-      }
+      interruptSlot(slot);
+      slot.current = Option.none();
     };
   });
 

@@ -1,4 +1,5 @@
 import * as Arr from "effect/Array";
+import * as Option from "effect/Option";
 import { mount, tick, unmount } from "svelte";
 
 /** Mounts `component` into a fresh element; `cleanup` unmounts everything mounted so far. */
@@ -24,8 +25,12 @@ export const makeMounter = () => {
   };
 };
 
-export const text = (target: HTMLElement, id: string): string | null =>
-  target.querySelector(`[data-testid="${id}"]`)?.textContent?.trim() ?? null;
+/** The trimmed text of the element with this `data-testid`: `None` when it is not rendered. */
+export const text = (target: HTMLElement, id: string): Option.Option<string> =>
+  Option.fromNullishOr(target.querySelector(`[data-testid="${id}"]`)).pipe(
+    Option.flatMap((element) => Option.fromNullishOr(element.textContent)),
+    Option.map((content) => content.trim()),
+  );
 
 /** Flushes pending Svelte updates after the current macrotask. */
 export const flush = async (): Promise<void> => {

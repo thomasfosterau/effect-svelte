@@ -3,6 +3,7 @@ import { assert, describe, expect } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
@@ -194,9 +195,9 @@ describe("SignalEmitter", () => {
           // while some subscription has yet to take it, so a leaked subscription
           // shows up as a non-zero size. The first run to connect allocated it.
           const pubsub = emitter["pubsub"];
-          assert(pubsub !== undefined);
-          PubSub.publishUnsafe(pubsub, 99);
-          expect(PubSub.sizeUnsafe(pubsub)).toBe(0);
+          assert(Option.isSome(pubsub));
+          PubSub.publishUnsafe(pubsub.value, 99);
+          expect(PubSub.sizeUnsafe(pubsub.value)).toBe(0);
 
           // With no run connected, the next emit is buffered for the next run
           // rather than published to nobody.

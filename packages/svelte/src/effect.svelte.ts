@@ -1,11 +1,17 @@
 import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
-import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
+import {
+  emptyFiberSlot,
+  interruptFiber,
+  interruptSlot,
+  runFork,
+  trackFiber,
+  type RuntimeLike,
+} from "./internal/run.js";
 import * as ResultState from "./internal/result.svelte.js";
 
 /**
@@ -14,8 +20,8 @@ import * as ResultState from "./internal/result.svelte.js";
  * function-typed `A` must be passed wrapped (`() => fn`).
  */
 const isUpdater = <A>(
-  updater: A | ((previous: A | undefined) => A),
-): updater is (previous: A | undefined) => A => P.isFunction(updater);
+  updater: A | ((previous: Option.Option<A>) => A),
+): updater is (previous: Option.Option<A>) => A => P.isFunction(updater);
 
 /** Options for {@link useEffect}. */
 export interface UseEffectOptions<R = never> {
@@ -56,10 +62,13 @@ export interface UseEffectReturn<A, E> {
   /**
    * Optimistically overwrite the current value with a non-waiting `Success`,
    * without running the effect. Accepts a value or an updater function that
-   * receives the current value (`undefined` if there is none yet). Useful for
-   * local cache writes after a mutation, reconciled by the next `run`.
+   * receives the current value as an `Option`: `Some` with the value the
+   * result holds (a `Success`, or a `Failure` that kept its previous success),
+   * `None` if there is none yet. Useful for local cache writes after a
+   * mutation, reconciled by the next `run`. An updater that throws propagates
+   * to the caller and leaves the result unchanged.
    */
-  setData: (updater: A | ((previous: A | undefined) => A)) => void;
+  setData: (updater: A | ((previous: Option.Option<A>) => A)) => void;
 
   /**
    * `true` while a previous value is being shown but a re-run is in flight
@@ -100,37 +109,25 @@ export function useEffect<A, E, R>(
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = ResultState.makeResult<A, E>();
-  let currentFiber: Fiber.Fiber<A, E> | null = null;
+  const slot = emptyFiberSlot<A, E>();
 
   const run = () => {
     // Interrupt any existing fiber
-    if (currentFiber !== null) {
-      interruptFiber(currentFiber);
-    }
+    interruptSlot(slot);
 
     // Mark as waiting, preserving the previous value if there is one.
     state.startWaiting();
 
     // Run the effect and capture the fiber reference
     const runningFiber = runFork(runtime)(effect);
-    currentFiber = runningFiber;
-
     // Settle the result when the fiber completes, unless a newer run replaced it.
-    runFork(runtime)(
-      Effect.gen(function* () {
-        const exit = yield* Fiber.await(runningFiber);
-        if (currentFiber === runningFiber) {
-          state.settle(exit);
-          currentFiber = null;
-        }
-      }),
-    );
+    trackFiber(runtime)(slot, runningFiber, (exit) => state.settle(exit));
   };
 
   const interrupt = () => {
-    if (currentFiber !== null) {
-      interruptFiber(currentFiber);
-      currentFiber = null;
+    if (Option.isSome(slot.current)) {
+      interruptFiber(slot.current.value);
+      slot.current = Option.none();
       // Return to the initial state so the effect can be run again cleanly.
       state.reset();
     }
@@ -151,10 +148,10 @@ export function useEffect<A, E, R>(
     };
   });
 
-  const setData = (updater: A | ((previous: A | undefined) => A)): void => {
+  const setData = (updater: A | ((previous: Option.Option<A>) => A)): void => {
     // Untracked, so calling `setData` from an `$effect` does not make that
     // effect depend on the result it is about to write.
-    const previous = Option.getOrUndefined(AsyncResult.value(untrack(() => state.current)));
+    const previous = AsyncResult.value(untrack(() => state.current));
     const next = isUpdater(updater) ? updater(previous) : updater;
     state.succeed(next);
   };

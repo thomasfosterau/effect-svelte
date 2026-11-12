@@ -7,6 +7,7 @@ import type { SubmitFunction } from "$app/forms";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import { runPromise } from "./run.js";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */
@@ -27,7 +28,7 @@ export type EnhanceRuntime<R> = Context.Context<R> | ManagedRuntime.ManagedRunti
  * errors `onSubmit` / `onResult` may fail with, and `E` (their union by
  * default) the error `onError` receives. Each handler is called as a method of
  * the handlers object, so `this` in a handler written as a method is that
- * object.
+ * object. An absent handler is an omitted key, not one set to `undefined`.
  */
 export interface EnhanceHandlers<
   R = never,
@@ -43,7 +44,7 @@ export interface EnhanceHandlers<
    * If it fails with `ESubmit`, the submission is cancelled and the error goes
    * to {@link EnhanceHandlers.onError | onError}.
    */
-  readonly onSubmit?: ((input: SubmitInput) => Effect.Effect<void, ESubmit, R>) | undefined;
+  readonly onSubmit?: (input: SubmitInput) => Effect.Effect<void, ESubmit, R>;
   /**
    * Runs once the action responds, with the `ActionResult` and SvelteKit's
    * `update()` (which applies the default behaviour — updating `page.form`,
@@ -54,7 +55,7 @@ export interface EnhanceHandlers<
    * {@link EnhanceHandlers.onError | onError}; SvelteKit's default behaviour
    * is not applied in its place.
    */
-  readonly onResult?: ((options: ResultOptions) => Effect.Effect<void, EResult, R>) | undefined;
+  readonly onResult?: (options: ResultOptions) => Effect.Effect<void, EResult, R>;
   /**
    * Handles an error `onSubmit` or `onResult` failed with (`E`, the union of
    * their error types), as `Effect.catch` would. It runs on the same runtime
@@ -76,7 +77,7 @@ export interface EnhanceHandlers<
    * after a rejected `onResult`, and the browser reports an unhandled
    * rejection.
    */
-  readonly onError?: ((error: E) => Effect.Effect<void, never, R>) | undefined;
+  readonly onError?: (error: E) => Effect.Effect<void, never, R>;
 }
 
 /** Options for {@link makeSubmitFunction}. */
@@ -85,9 +86,9 @@ export interface EnhanceOptions<R = never> {
    * The runtime to run the handler effects against, providing every service
    * `R` they require. Required when the handlers (or `onError`) require
    * services; omit it when they require none (`R = never`), and they run on
-   * the default runtime.
+   * the default runtime. Absent means the key is omitted, not `undefined`.
    */
-  readonly runtime?: EnhanceRuntime<R> | undefined;
+  readonly runtime?: EnhanceRuntime<R>;
 }
 
 /**
@@ -100,7 +101,7 @@ export interface EnhanceOptions<R = never> {
  * them unchanged.
  */
 export type EnhanceOptionsArgs<R> = [R] extends [never]
-  ? [options?: EnhanceOptions | undefined]
+  ? [options?: EnhanceOptions]
   : [options: EnhanceOptions<R> & { readonly runtime: EnhanceRuntime<R> }];
 
 /** The handler names {@link makeSubmitFunction} accepts. */
@@ -166,21 +167,28 @@ export type OnErrorAccepts<R, Errors, E> =
 
 /** The `onError` that {@link OnErrorAccepts} requires. */
 export interface OnErrorMustAccept<R, Errors> {
-  readonly onError?: ((error: Errors) => Effect.Effect<void, never, R>) | undefined;
+  readonly onError?: (error: Errors) => Effect.Effect<void, never, R>;
 }
 
-/** Run an `Effect<A, E, R>` on the given runtime (or the default when none). */
+/**
+ * Run an `Effect<A, E, R>` on the given runtime (or the default when `None`).
+ * The caller vouches that the runtime provides `R`, or that `R` is `never`
+ * when there is none.
+ */
 const runPromiseWith =
-  <R>(runtime: EnhanceRuntime<R> | undefined) =>
-  <A, E>(effect: Effect.Effect<A, E, R>): Promise<A> => {
-    if (runtime === undefined) {
-      // SAFETY: `EnhanceOptionsArgs` makes the runtime optional only when the
-      // handlers require no services, so without one `R` is `never`.
-      return runPromise(effect as Effect.Effect<A, E>);
-    }
-    return Context.isContext(runtime)
-      ? Effect.runPromiseWith(runtime)(effect)
-      : runtime.runPromise(effect);
+  (runtime: Option.Option<EnhanceRuntime<never>>) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> => {
+    // SAFETY: `EnhanceOptionsArgs<R>` makes the runtime optional only when the
+    // handlers require no services (`R` is `never`), and otherwise requires
+    // one that provides `R`, so the runtime meets the effect's requirements.
+    const provided = effect as Effect.Effect<A, E>;
+    return Option.match(runtime, {
+      onNone: () => runPromise(provided),
+      onSome: (given) =>
+        Context.isContext(given)
+          ? Effect.runPromiseWith(given)(provided)
+          : given.runPromise(provided),
+    });
   };
 
 /**
@@ -240,21 +248,19 @@ export const makeSubmitFunction = <
   >
 ): SubmitFunction => {
   type R = RequiredServices<RSubmit> | RequiredServices<RResult> | RequiredServices<RError>;
-  // SAFETY: `rest` is either branch of `EnhanceOptionsArgs<R>`: the `never`
-  // one only when `R` is `never`, where the two coincide.
-  const options = rest[0] as EnhanceOptions<R> | undefined;
-  const run = runPromiseWith(options?.runtime);
-  // SAFETY: each handler requires a part of `R`, which the runtime provides in full.
-  const phases = handlers as EnhanceHandlers<R, ESubmit, EResult, E>;
-  // SAFETY: `E` is the union of the errors of the handlers present, so
-  // `onError` accepts whatever either handler fails with.
-  const onError = handlers.onError as
-    | ((error: ESubmit | EResult) => Effect.Effect<void, never, R>)
-    | undefined;
+  // `None` when the options, or their runtime, were left out.
+  const run = runPromiseWith(Option.fromUndefinedOr(rest[0]?.runtime));
+  // SAFETY: each handler requires a part of `R`, which the runtime provides in
+  // full, and `E` is the union of the errors of the handlers present, so
+  // `onError` accepts whatever either handler fails with (`ESubmit | EResult`,
+  // the default of `EnhanceHandlers`' last parameter).
+  const phases = handlers as EnhanceHandlers<R, ESubmit, EResult>;
   // Each handler is called as a method of the handlers object (`this` is
-  // `handlers`), as 0.5.0 called `onSubmit`.
-  const handleError =
-    onError === undefined ? undefined : (error: ESubmit | EResult) => onError.call(handlers, error);
+  // `handlers`), as 0.5.0 called `onSubmit`. `onError` is read once, here.
+  const handleError = Option.map(
+    Option.fromUndefinedOr(phases.onError),
+    (onError) => (error: ESubmit | EResult) => onError.call(handlers, error),
+  );
   return async (input) => {
     // `onSubmit` and `onResult` are read on each submission, so a handler
     // replaced on the handlers object after `enhance()` is the one that runs.
@@ -262,13 +268,15 @@ export const makeSubmitFunction = <
     const submit = phases.onSubmit?.(input);
     if (submit !== undefined) {
       await run(
-        handleError === undefined
-          ? submit
-          : submit.pipe(
+        Option.match(handleError, {
+          onNone: () => submit,
+          onSome: (handle) =>
+            submit.pipe(
               Effect.catch((error) =>
-                Effect.sync(() => input.cancel()).pipe(Effect.andThen(handleError(error))),
+                Effect.sync(() => input.cancel()).pipe(Effect.andThen(handle(error))),
               ),
             ),
+        }),
       );
     }
     const { onResult } = phases;
@@ -276,7 +284,12 @@ export const makeSubmitFunction = <
     if (!onResult) return undefined;
     return (resultOptions) => {
       const result = onResult.call(handlers, resultOptions);
-      return run(handleError === undefined ? result : result.pipe(Effect.catch(handleError)));
+      return run(
+        Option.match(handleError, {
+          onNone: () => result,
+          onSome: (handle) => result.pipe(Effect.catch(handle)),
+        }),
+      );
     };
   };
 };

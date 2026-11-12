@@ -48,7 +48,7 @@ describe("useAtomResult", () => {
   it("renders the atom's settled value", async () => {
     const target = mounter.mount(AtomProbe, { select: fixed(countingAtom(["render"])) });
 
-    await expect.poll(() => text(target, "atom-state")).toBe("run-1");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("run-1"));
   });
 
   it.effect("renders loading until an async atom settles", () =>
@@ -60,11 +60,11 @@ describe("useAtomResult", () => {
       const target = mounter.mount(AtomProbe, { select: fixed(atom) });
       yield* Effect.tryPromise(() => flush());
 
-      expect(text(target, "atom-state")).toBe("loading");
+      expect(text(target, "atom-state")).toEqual(Option.some("loading"));
 
       yield* Deferred.succeed(gate, undefined);
       yield* Effect.tryPromise(async () => {
-        await expect.poll(() => text(target, "atom-state")).toBe("late");
+        await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("late"));
       });
     }),
   );
@@ -73,11 +73,11 @@ describe("useAtomResult", () => {
     const target = mounter.mount(AtomProbe, {
       select: fixed(countingAtom(["invalidate"])),
     });
-    await expect.poll(() => text(target, "atom-state")).toBe("run-1");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("run-1"));
 
     invalidateAtomKeys(["invalidate"]);
 
-    await expect.poll(() => text(target, "atom-state")).toBe("run-2");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("run-2"));
   });
 
   it("leaves an atom registered against other keys alone", async () => {
@@ -85,16 +85,16 @@ describe("useAtomResult", () => {
     const sentinel = mounter.mount(AtomProbe, {
       select: fixed(countingAtom(["some-other-family"])),
     });
-    await expect.poll(() => text(scoped, "atom-state")).toBe("run-1");
-    await expect.poll(() => text(sentinel, "atom-state")).toBe("run-1");
+    await expect.poll(() => text(scoped, "atom-state")).toEqual(Option.some("run-1"));
+    await expect.poll(() => text(sentinel, "atom-state")).toEqual(Option.some("run-1"));
 
     invalidateAtomKeys(["some-other-family"]);
 
     // The sentinel IS in the invalidated family: once its refresh has landed, an
     // errant refresh of the scoped atom would have landed too — no wall-clock
     // margin needed for the negative assertion.
-    await expect.poll(() => text(sentinel, "atom-state")).toBe("run-2");
-    expect(text(scoped, "atom-state")).toBe("run-1");
+    await expect.poll(() => text(sentinel, "atom-state")).toEqual(Option.some("run-2"));
+    expect(text(scoped, "atom-state")).toEqual(Option.some("run-1"));
   });
 
   it("invalidates through an explicitly provided registry", async () => {
@@ -103,11 +103,11 @@ describe("useAtomResult", () => {
       select: fixed(countingAtom(["explicit"])),
       registry,
     });
-    await expect.poll(() => text(target, "atom-state")).toBe("run-1");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("run-1"));
 
     invalidateAtomKeys(["explicit"], registry);
 
-    await expect.poll(() => text(target, "atom-state")).toBe("run-2");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("run-2"));
     registry.dispose();
   });
 
@@ -120,11 +120,11 @@ describe("useAtomResult", () => {
       ),
       registry,
     });
-    await expect.poll(() => text(target, "label")).toBe("run-1");
+    await expect.poll(() => text(target, "label")).toEqual(Option.some("run-1"));
 
     invalidateAtomKeys(["provided"]);
 
-    await expect.poll(() => text(target, "label")).toBe("run-2");
+    await expect.poll(() => text(target, "label")).toEqual(Option.some("run-2"));
     expect(getAtomRegistry()).toBe(registry);
   });
 
@@ -144,12 +144,12 @@ describe("useAtomResult", () => {
         return key;
       },
     });
-    await expect.poll(() => text(target, "atom-state")).toBe("first");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("first"));
 
     key = "second";
     await tick();
 
-    await expect.poll(() => text(target, "atom-state")).toBe("second");
+    await expect.poll(() => text(target, "atom-state")).toEqual(Option.some("second"));
   });
 });
 
@@ -160,15 +160,15 @@ describe("useAtom", () => {
     const label = Atom.make((get) => `count is ${get(count)}`);
     const target = mounter.mount(WritableAtomProbe, { atom: count, derived: label, registry });
     await flush();
-    expect(text(target, "increment")).toBe("1");
-    expect(text(target, "label")).toBe("count is 1");
+    expect(text(target, "increment")).toEqual(Option.some("1"));
+    expect(text(target, "label")).toEqual(Option.some("count is 1"));
 
     const increment = target.querySelector<HTMLButtonElement>('[data-testid="increment"]');
     assert(increment !== null);
     increment.click();
 
-    await expect.poll(() => text(target, "increment")).toBe("2");
-    expect(text(target, "label")).toBe("count is 2");
+    await expect.poll(() => text(target, "increment")).toEqual(Option.some("2"));
+    expect(text(target, "label")).toEqual(Option.some("count is 2"));
     expect(registry.get(count)).toBe(2);
     registry.dispose();
   });
@@ -185,7 +185,7 @@ describe("useAtom", () => {
 
     registry.set(count, 42);
 
-    await expect.poll(() => text(target, "increment")).toBe("42");
+    await expect.poll(() => text(target, "increment")).toEqual(Option.some("42"));
     registry.dispose();
   });
 });
