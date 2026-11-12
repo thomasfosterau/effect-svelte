@@ -1,7 +1,7 @@
 import type * as Effect from "effect/Effect";
 import { untrack } from "svelte";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import * as MutationCore from "./internal/mutation.js";
 import type { MutationCallbacks } from "./internal/mutation.js";
 import type { RuntimeLike } from "./internal/run.js";
@@ -80,10 +80,7 @@ export function useMutation<A, E, I, R, C = unknown>(
   fn: (input: I) => Effect.Effect<A, E, R>,
   options: UseMutationOptions<A, E, I, R, C> = {},
 ): UseMutationReturn<A, E, I> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
+  const runtime = options.runtime ?? ambientRuntime<R>();
   const state = ResultState.makeResult<A, E>();
   const core = MutationCore.makeMutation(runtime, state, fn, options);
 

@@ -3,7 +3,7 @@ import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import {
   emptyFiberSlot,
   interruptFiber,
@@ -103,10 +103,7 @@ export function useEffect<A, E, R>(
   options: UseEffectOptions<R> = {},
 ): UseEffectReturn<A, E> {
   const { immediate = false } = options;
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
+  const runtime = options.runtime ?? ambientRuntime<R>();
 
   const state = ResultState.makeResult<A, E>();
   const slot = emptyFiberSlot<A, E>();

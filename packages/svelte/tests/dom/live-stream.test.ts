@@ -91,8 +91,7 @@ describe("useLiveStream (DOM boundary)", () => {
       props: {
         make: () => Stream.fromQueue(queue),
         runtime,
-        initial: 7,
-        hasInitial: true,
+        seed: Option.some(7),
       },
     });
     track(component, target);
