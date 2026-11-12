@@ -47,9 +47,9 @@ export interface MakeAtomRegistryOptions {
    * straight back, a section re-created during hydration) re-read the cache
    * instead of re-fetching. Defaults to Effect's own default (dispose at once).
    */
-  readonly defaultIdleTTL?: number | undefined;
+  readonly defaultIdleTTL?: number;
   /** Initial atom values, e.g. dehydrated server state. */
-  readonly initialValues?: Iterable<readonly [Atom.Atom<any>, any]> | undefined;
+  readonly initialValues?: Iterable<readonly [Atom.Atom<any>, any]>;
 }
 
 /**
@@ -147,7 +147,7 @@ export const getAtomRegistry = (): AtomRegistry =>
 /** Options shared by the atom hooks. */
 export interface UseAtomOptions {
   /** Read from this registry instead of the ambient one ({@link getAtomRegistry}). */
-  readonly registry?: AtomRegistry | undefined;
+  readonly registry?: AtomRegistry;
 }
 
 /** The reactive view {@link useAtom} returns for a read-only atom. */

@@ -26,8 +26,8 @@ export interface StreamState<A, E> {
   readonly current: AsyncResult.AsyncResult<ReadonlyArray<A>, E>;
   /** Every value emitted so far, oldest first. */
   readonly values: ReadonlyArray<A>;
-  /** The most recent value, or `undefined` before the first emission. */
-  readonly latest: A | undefined;
+  /** The most recent value: `None` before the first emission. */
+  readonly latest: Option.Option<A>;
 }
 
 /** The reactive view {@link valueState} returns. */
@@ -87,7 +87,7 @@ export function streamState<A, E, R>(
     },
     get latest() {
       subscribe();
-      return Option.getOrUndefined(Arr.last(values));
+      return Arr.last(values);
     },
   };
 }

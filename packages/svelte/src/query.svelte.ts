@@ -1,4 +1,5 @@
 import type * as Effect from "effect/Effect";
+import type * as Option from "effect/Option";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { useEffect } from "./effect.svelte.js";
 import type { RuntimeLike } from "./internal/run.js";
@@ -27,10 +28,13 @@ export interface UseQueryReturn<A, E> {
 
   /**
    * Optimistically overwrite the query's data locally without refetching.
-   * Accepts a value or an updater over the current value (`undefined` if none
-   * yet). The next `refetch` reconciles it with the server.
+   * Accepts a value or an updater over the current value, passed as an
+   * `Option`: `Some` with the value the result holds, `None` if there is none
+   * yet (the query has not succeeded). The next `refetch` reconciles it with
+   * the server. An updater that throws propagates to the caller and leaves the
+   * result unchanged.
    */
-  setData: (updater: A | ((previous: A | undefined) => A)) => void;
+  setData: (updater: A | ((previous: Option.Option<A>) => A)) => void;
 
   /**
    * `true` while showing a previous value during a refetch

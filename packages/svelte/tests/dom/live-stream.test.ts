@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Cause from "effect/Cause";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
@@ -39,8 +40,11 @@ const mountTarget = (): HTMLElement => {
   return target;
 };
 
-const text = (target: HTMLElement, id: string): string | null =>
-  target.querySelector(`[data-testid="${id}"]`)?.textContent?.trim() ?? null;
+const text = (target: HTMLElement, id: string): Option.Option<string> =>
+  Option.fromNullishOr(target.querySelector(`[data-testid="${id}"]`)).pipe(
+    Option.flatMap((element) => Option.fromNullishOr(element.textContent)),
+    Option.map((content) => content.trim()),
+  );
 
 /**
  * Polls `check` (with a `tick()` between attempts) until it returns `true`;
@@ -95,8 +99,8 @@ describe("useLiveStream (DOM boundary)", () => {
     await settle();
 
     // Pre-resolved promise from the seed → the value renders, pending never shows.
-    expect(text(target, "value")).toBe("value:7");
-    expect(text(target, "status")).toBeNull();
+    expect(text(target, "value")).toEqual(Option.some("value:7"));
+    expect(text(target, "status")).toEqual(Option.none());
 
     await runtime.dispose();
   });
@@ -114,14 +118,14 @@ describe("useLiveStream (DOM boundary)", () => {
     await settle();
 
     // No seed, no emission yet → the boundary shows its pending snippet.
-    expect(text(target, "status")).toBe("pending");
-    expect(text(target, "value")).toBeNull();
+    expect(text(target, "status")).toEqual(Option.some("pending"));
+    expect(text(target, "value")).toEqual(Option.none());
 
     await runtime.runPromise(Queue.offer(queue, 1));
     await settle();
 
-    expect(text(target, "value")).toBe("value:1");
-    expect(text(target, "status")).toBeNull();
+    expect(text(target, "value")).toEqual(Option.some("value:1"));
+    expect(text(target, "status")).toEqual(Option.none());
 
     await runtime.dispose();
   });
@@ -139,13 +143,13 @@ describe("useLiveStream (DOM boundary)", () => {
 
     await runtime.runPromise(Queue.offer(queue, 1));
     await settle();
-    expect(text(target, "value")).toBe("value:1");
+    expect(text(target, "value")).toEqual(Option.some("value:1"));
 
     await runtime.runPromise(Queue.offer(queue, 2));
     await settle();
-    expect(text(target, "value")).toBe("value:2");
+    expect(text(target, "value")).toEqual(Option.some("value:2"));
     // Each emission is an already-resolved promise — no pending between them.
-    expect(text(target, "status")).toBeNull();
+    expect(text(target, "status")).toEqual(Option.none());
 
     await runtime.dispose();
   });
@@ -161,7 +165,7 @@ describe("useLiveStream (DOM boundary)", () => {
     track(component, target);
     await settle();
 
-    expect(text(target, "error")).toBe("error:boom");
+    expect(text(target, "error")).toEqual(Option.some("error:boom"));
 
     await runtime.dispose();
   });
@@ -175,7 +179,7 @@ describe("useLiveStream (DOM boundary)", () => {
     await settle();
 
     // factor (3) * 4
-    expect(text(target, "value")).toBe("value:12");
+    expect(text(target, "value")).toEqual(Option.some("value:12"));
 
     await runtime.dispose();
   });
@@ -204,7 +208,7 @@ describe("useLiveStream (DOM boundary)", () => {
 
     await runtime.runPromise(Queue.offer(first, 10));
     await settle();
-    expect(text(target, "value")).toBe("value:10");
+    expect(text(target, "value")).toEqual(Option.some("value:10"));
 
     // Change the cursor → interrupt the first subscription, subscribe the second.
     await runtime.runPromise(SubscriptionRef.set(cursorRef, 1));
@@ -212,17 +216,17 @@ describe("useLiveStream (DOM boundary)", () => {
 
     // Stale-while-revalidate: the previous value is still shown (no pending
     // flash) until the new subscription emits.
-    expect(text(target, "value")).toBe("value:10");
-    expect(text(target, "status")).toBeNull();
+    expect(text(target, "value")).toEqual(Option.some("value:10"));
+    expect(text(target, "status")).toEqual(Option.none());
 
     // Waiting while the second subscription is still pending its first value.
-    expect(text(target, "waiting")).toBe("true");
+    expect(text(target, "waiting")).toEqual(Option.some("true"));
 
     await runtime.runPromise(Queue.offer(second, 20));
     await settle();
-    expect(text(target, "value")).toBe("value:20");
+    expect(text(target, "value")).toEqual(Option.some("value:20"));
     // The new subscription's first emission clears `waiting` again.
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     await runtime.dispose();
   });
@@ -245,9 +249,9 @@ describe("useLiveStream (DOM boundary)", () => {
       });
       track(component, target);
 
-      yield* waitFor(() => Number(text(target, "value") ?? "-1") >= 5);
+      yield* waitFor(() => Number(Option.getOrElse(text(target, "value"), () => "-1")) >= 5);
 
-      expect(Number(text(target, "calls"))).toBeLessThan(3);
+      expect(Number(Option.getOrElse(text(target, "calls"), () => "NaN"))).toBeLessThan(3);
 
       yield* Effect.tryPromise(() => runtime.dispose());
     }),
@@ -267,9 +271,9 @@ describe("useLiveStream (DOM boundary)", () => {
       });
       track(component, target);
 
-      yield* waitFor(() => text(target, "tag") === "Success");
+      yield* waitFor(() => Option.contains(text(target, "tag"), "Success"));
 
-      expect(text(target, "waiting")).toBe("false");
+      expect(text(target, "waiting")).toEqual(Option.some("false"));
 
       yield* Effect.tryPromise(() => runtime.dispose());
     }),

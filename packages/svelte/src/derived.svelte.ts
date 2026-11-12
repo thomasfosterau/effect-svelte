@@ -1,10 +1,17 @@
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
+import type * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
-import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
+import {
+  emptyFiberSlot,
+  interruptSlot,
+  runFork,
+  trackFiber,
+  type RuntimeLike,
+} from "./internal/run.js";
 import * as ResultState from "./internal/result.svelte.js";
 
 /** Options for {@link useDerived}. */
@@ -86,14 +93,12 @@ export function useDerived<A, E, R>(
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
   const state = ResultState.makeResult<A, E>();
-  let currentFiber: Fiber.Fiber<A, E> | null = null;
+  const slot = emptyFiberSlot<A, E>();
 
   $effect(() => {
     // Interrupt previous fiber if it exists (this also cancels a pending
     // debounce sleep, which is what makes debouncing work).
-    if (currentFiber !== null) {
-      interruptFiber(currentFiber);
-    }
+    interruptSlot(slot);
 
     // Get the effect: the reads `fn` makes are the only tracked dependencies.
     const effect = fn();
@@ -118,26 +123,14 @@ export function useDerived<A, E, R>(
           }),
         );
       }
-      currentFiber = runningFiber;
-
       // Settle the result when the fiber completes, unless deps changed first.
-      runFork(runtime)(
-        Effect.gen(function* () {
-          const exit = yield* Fiber.await(runningFiber);
-          if (currentFiber === runningFiber) {
-            state.settle(exit);
-            currentFiber = null;
-          }
-        }),
-      );
+      trackFiber(runtime)(slot, runningFiber, (exit) => state.settle(exit));
     });
 
     // Cleanup: interrupt the fiber when dependencies change or component unmounts
     return () => {
-      if (currentFiber !== null) {
-        interruptFiber(currentFiber);
-        currentFiber = null;
-      }
+      interruptSlot(slot);
+      slot.current = Option.none();
     };
   });
 

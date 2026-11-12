@@ -7,19 +7,24 @@
   shape a real page has, where a query atom's identity is its request.
 -->
 <script lang="ts">
+  import * as Option from "effect/Option";
+  import * as R from "effect/Record";
   import { AsyncResult, type Atom } from "effect/reactivity";
   import { useAtomResult, type AtomRegistry } from "../../src/atom.svelte.js";
 
   interface Props {
     select: (key: string) => Atom.Atom<AsyncResult.AsyncResult<string>>;
     key?: string;
-    registry?: AtomRegistry | undefined;
+    registry?: AtomRegistry;
   }
 
   let { select, key = "default", registry }: Props = $props();
 
   // svelte-ignore state_referenced_locally
-  const view = useAtomResult(() => select(key), { registry });
+  const view = useAtomResult(
+    () => select(key),
+    R.getSomes({ registry: Option.fromUndefinedOr(registry) }),
+  );
 
   const text = $derived(
     AsyncResult.isSuccess(view.current)

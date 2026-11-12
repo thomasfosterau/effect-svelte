@@ -1,3 +1,4 @@
+import type * as Option from "effect/Option";
 import type * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
@@ -28,9 +29,10 @@ export interface UseStreamReturn<A, E> {
   readonly values: ReadonlyArray<A>;
 
   /**
-   * The most recent value emitted by the stream (undefined if none)
+   * The most recent value emitted by the stream: `None` until the first
+   * emission (and whenever `values` is empty), then `Some` with the last one.
    */
-  readonly latest: A | undefined;
+  readonly latest: Option.Option<A>;
 }
 
 /**
@@ -44,7 +46,7 @@ export interface UseStreamReturn<A, E> {
  * ```svelte
  * <script lang="ts">
  *   import { useStream } from '@thomasfosterau/effect-svelte';
- *   import { Stream, Schedule } from 'effect';
+ *   import { Option, Stream, Schedule } from 'effect';
  *
  *   const counter = useStream(
  *     Stream.iterate(0, n => n + 1).pipe(
@@ -53,7 +55,7 @@ export interface UseStreamReturn<A, E> {
  *   );
  * </script>
  *
- * <p>Latest: {counter.latest}</p>
+ * <p>Latest: {Option.getOrElse(counter.latest, () => 0)}</p>
  * <p>All values: {counter.values.join(', ')}</p>
  * ```
  */

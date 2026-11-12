@@ -48,8 +48,8 @@ function fakeLive<A, E>(seed?: {
   };
 }
 
-const valueOf = <A, E>(result: AsyncResult.AsyncResult<A, E>): A | undefined =>
-  Option.getOrUndefined(AsyncResult.value(result));
+const valueOf = <A, E>(result: AsyncResult.AsyncResult<A, E>): Option.Option<A> =>
+  AsyncResult.value(result);
 
 describe("makeLiveStream", () => {
   it("replaces (never appends) on each emission — live queries emit whole result sets", async () => {
@@ -62,12 +62,12 @@ describe("makeLiveStream", () => {
 
     await runtime.runPromise(Queue.offer(queue, [1]));
     await flush();
-    expect(valueOf(state.current)).toEqual([1]);
+    expect(valueOf(state.current)).toEqual(Option.some([1]));
 
     await runtime.runPromise(Queue.offer(queue, [1, 2, 3]));
     await flush();
     // Replaced wholesale, not [[1], [1,2,3]] appended.
-    expect(valueOf(state.current)).toEqual([1, 2, 3]);
+    expect(valueOf(state.current)).toEqual(Option.some([1, 2, 3]));
 
     teardown();
     await runtime.dispose();
@@ -83,7 +83,7 @@ describe("makeLiveStream", () => {
 
     await runtime.runPromise(Queue.offer(queue, 1));
     await flush();
-    expect(valueOf(state.current)).toBe(1);
+    expect(valueOf(state.current)).toEqual(Option.some(1));
 
     // Tearing down interrupts the fiber — this must not settle a Failure.
     teardown();
@@ -92,7 +92,7 @@ describe("makeLiveStream", () => {
     expect(AsyncResult.isFailure(state.current)).toBe(false);
     expect(state.history).not.toContain("fail");
     // The last good value is still visible.
-    expect(valueOf(state.current)).toBe(1);
+    expect(valueOf(state.current)).toEqual(Option.some(1));
 
     await runtime.dispose();
   });
@@ -135,7 +135,7 @@ describe("makeLiveStream", () => {
 
     await runtime.runPromise(Queue.offer(first, ["a"]));
     await flush();
-    expect(valueOf(state.current)).toEqual(["a"]);
+    expect(valueOf(state.current)).toEqual(Option.some(["a"]));
     expect(AsyncResult.isWaiting(state.current)).toBe(false);
 
     // Simulate the hook's $effect re-running on a reactive-input change:
@@ -147,13 +147,13 @@ describe("makeLiveStream", () => {
     // as a waiting Success (stale-while-revalidate), not Initial.
     expect(AsyncResult.isSuccess(state.current)).toBe(true);
     expect(AsyncResult.isWaiting(state.current)).toBe(true);
-    expect(valueOf(state.current)).toEqual(["a"]);
+    expect(valueOf(state.current)).toEqual(Option.some(["a"]));
     // The stale value keeps `promise` resolved (no re-pending on re-subscribe).
     await expect(resultToPromise(state.current)).resolves.toEqual(["a"]);
 
     await runtime.runPromise(Queue.offer(second, ["b"]));
     await flush();
-    expect(valueOf(state.current)).toEqual(["b"]);
+    expect(valueOf(state.current)).toEqual(Option.some(["b"]));
     expect(AsyncResult.isWaiting(state.current)).toBe(false);
 
     await runtime.dispose();
@@ -172,12 +172,12 @@ describe("makeLiveStream", () => {
 
     await runtime.runPromise(Queue.offer(fresh, 2));
     await flush();
-    expect(valueOf(state.current)).toBe(2);
+    expect(valueOf(state.current)).toEqual(Option.some(2));
 
     // A late offer on the superseded queue must never clobber the fresh value.
     await runtime.runPromise(Queue.offer(stale, 99));
     await flush();
-    expect(valueOf(state.current)).toBe(2);
+    expect(valueOf(state.current)).toEqual(Option.some(2));
 
     await runtime.dispose();
   });
@@ -203,7 +203,7 @@ describe("makeLiveStream", () => {
     );
     await flush();
 
-    expect(valueOf(state.current)).toBe(50);
+    expect(valueOf(state.current)).toEqual(Option.some(50));
 
     await runtime.dispose();
   });

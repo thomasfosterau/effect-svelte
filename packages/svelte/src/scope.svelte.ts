@@ -1,15 +1,18 @@
 import * as Scope from "effect/Scope";
 import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import { untrack } from "svelte";
 import { runSyncDefault } from "./internal/run.js";
 
 /**
  * What {@link useScope} returns: the component's scope, read through
- * `current`, which is `null` until the component mounts and the scope exists.
+ * `current`, which is `None` until the component mounts and the scope exists,
+ * then `Some` with the scope.
  */
 export interface ScopeRef {
-  readonly current: Scope.Closeable | null;
+  /** The component's scope: `None` before mount (and during SSR), `Some` once it exists. */
+  readonly current: Option.Option<Scope.Closeable>;
 }
 
 /**
@@ -17,36 +20,36 @@ export interface ScopeRef {
  * The scope is created when the component mounts and closed when it unmounts.
  *
  * Note: Due to Svelte's initialization order ($effect runs after mount),
- * the scope will be null initially. Use the callback-based approach for
+ * `current` is `None` initially. Use the callback-based approach for
  * guaranteed availability.
  *
  * @example
  * ```svelte
  * <script lang="ts">
  *   import { useScope } from 'effect-svelte';
+ *   import { Option } from 'effect';
  *
  *   const scope = useScope();
  *
  *   $effect(() => {
- *     if (scope.current) {
- *       // Use scope.current here
+ *     if (Option.isSome(scope.current)) {
+ *       // Use scope.current.value here
  *     }
  *   });
  * </script>
  * ```
  */
 export function useScope(): ScopeRef {
-  let scope = $state<Scope.Closeable | null>(null);
+  let scope = $state.raw<Option.Option<Scope.Closeable>>(Option.none());
 
   $effect(() => {
     // Create the scope when component mounts
-    scope = Scope.makeUnsafe();
+    const made = Scope.makeUnsafe();
+    scope = Option.some(made);
 
     // Clean up: close the scope when component unmounts
     return () => {
-      if (scope) {
-        runSyncDefault(Scope.close(scope, Exit.void));
-      }
+      runSyncDefault(Scope.close(made, Exit.void));
     };
   });
 

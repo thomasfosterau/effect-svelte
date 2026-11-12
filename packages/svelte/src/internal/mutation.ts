@@ -5,7 +5,7 @@ import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import { Reactivity } from "effect/reactivity";
-import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
+import { holds, interruptFiber, runFork, type RuntimeLike } from "./run.js";
 import type { ResultState } from "./result.svelte.js";
 
 /**
@@ -14,7 +14,8 @@ import type { ResultState } from "./result.svelte.js";
  * `onMutate` runs synchronously before the effect starts and its return value
  * is threaded through `onSuccess` / `onError` / `onSettled` as `context` — the
  * idiomatic place to apply an optimistic update and capture a snapshot for
- * rollback.
+ * rollback. `context` is an `Option`: `Some` with what `onMutate` returned,
+ * `None` when no `onMutate` was given.
  */
 export interface MutationCallbacks<A, E, I, C> {
   /**
@@ -23,16 +24,24 @@ export interface MutationCallbacks<A, E, I, C> {
    * callbacks — use it to roll back in `onError`.
    */
   readonly onMutate?: (input: I) => C;
-  /** Runs after the mutation succeeds, before invalidation. */
-  readonly onSuccess?: (value: A, input: I, context: C | undefined) => void;
+  /**
+   * Runs after the mutation succeeds, before invalidation. `context` is `Some`
+   * with `onMutate`'s return value, `None` when there is no `onMutate`.
+   */
+  readonly onSuccess?: (value: A, input: I, context: Option.Option<C>) => void;
   /**
    * Runs after the mutation fails with a typed error. Pure defects (dies)
    * still settle `current` as a failure but do not invoke this callback, since
    * there is no `E` value to hand back — inspect `current` for those.
+   * `context` is `Some` with `onMutate`'s return value, `None` when there is
+   * no `onMutate`.
    */
-  readonly onError?: (error: E, input: I, context: C | undefined) => void;
-  /** Runs after `onSuccess` / `onError`, regardless of outcome. */
-  readonly onSettled?: (input: I, context: C | undefined) => void;
+  readonly onError?: (error: E, input: I, context: Option.Option<C>) => void;
+  /**
+   * Runs after `onSuccess` / `onError`, regardless of outcome. `context` is
+   * `Some` with `onMutate`'s return value, `None` when there is no `onMutate`.
+   */
+  readonly onSettled?: (input: I, context: Option.Option<C>) => void;
   /**
    * Reactivity keys to invalidate after a successful mutation (a static array
    * or a function of the input). Requires the runtime to include
@@ -67,23 +76,25 @@ export function makeMutation<A, E, I, C, R>(
   fn: (input: I) => Effect.Effect<A, E, R>,
   callbacks: MutationCallbacks<A, E, I, C> = {},
 ): MutationCore<I> {
-  let currentFiber: Fiber.Fiber<A, E> | null = null;
+  let currentFiber: Option.Option<Fiber.Fiber<A, E>> = Option.none();
 
   const mutate = (input: I): void => {
-    if (currentFiber !== null) interruptFiber(currentFiber);
+    if (Option.isSome(currentFiber)) interruptFiber(currentFiber.value);
 
-    const context = callbacks.onMutate?.(input);
+    const context = Option.map(Option.fromUndefinedOr(callbacks.onMutate), (onMutate) =>
+      onMutate(input),
+    );
     state.startWaiting();
 
     const running = runFork(runtime)(fn(input));
-    currentFiber = running;
+    currentFiber = Option.some(running);
 
     runFork(runtime)(
       Effect.gen(function* () {
         const exit = yield* Fiber.await(running);
         // A newer mutate (or teardown) has superseded this run.
-        if (currentFiber !== running) return;
-        currentFiber = null;
+        if (!holds(currentFiber, running)) return;
+        currentFiber = Option.none();
 
         if (Exit.isSuccess(exit)) {
           state.settle(exit);
@@ -112,9 +123,9 @@ export function makeMutation<A, E, I, C, R>(
   };
 
   const interrupt = (): void => {
-    if (currentFiber !== null) {
-      interruptFiber(currentFiber);
-      currentFiber = null;
+    if (Option.isSome(currentFiber)) {
+      interruptFiber(currentFiber.value);
+      currentFiber = Option.none();
     }
   };
 

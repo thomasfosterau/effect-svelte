@@ -1,7 +1,9 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import type * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 
 /**
  * A runtime that the Svelte hooks can run effects against.
@@ -54,3 +56,53 @@ export const runSyncDefault = <A, E>(effect: Effect.Effect<A, E>): A => Effect.r
 export const interruptFiber = <A, E>(fiber: Fiber.Fiber<A, E>): void => {
   fiber.interruptUnsafe();
 };
+
+/**
+ * Whether `slot` holds exactly `value`, compared by identity (`===`) rather
+ * than `Equal`: the hooks keep their current fiber (or subscription token) in
+ * an `Option` slot and ask whether a settling run is still the current one.
+ */
+export const holds = <A>(slot: Option.Option<A>, value: A): boolean =>
+  Option.isSome(slot) && slot.value === value;
+
+/**
+ * Where a hook keeps the fiber of its current run: `None` while nothing is
+ * running. A plain mutable cell, so the rune-free helpers here can read and
+ * replace it.
+ */
+export interface FiberSlot<A, E> {
+  current: Option.Option<Fiber.Fiber<A, E>>;
+}
+
+/** An empty {@link FiberSlot}. */
+export const emptyFiberSlot = <A, E>(): FiberSlot<A, E> => ({ current: Option.none() });
+
+/** Interrupts the fiber in `slot`, if any, leaving it in the slot. */
+export const interruptSlot = <A, E>(slot: FiberSlot<A, E>): void => {
+  if (Option.isSome(slot.current)) interruptFiber(slot.current.value);
+};
+
+/**
+ * Makes `fiber` the current run of `slot` and, once it exits, hands its exit
+ * to `onExit` and empties the slot — unless another run (or a teardown that
+ * emptied the slot) has replaced it by then, in which case the exit is dropped
+ * so a superseded run never settles the hook's result.
+ */
+export const trackFiber =
+  <R>(runtime: RuntimeLike<R>) =>
+  <A, E>(
+    slot: FiberSlot<A, E>,
+    fiber: Fiber.Fiber<A, E>,
+    onExit: (exit: Exit.Exit<A, E>) => void,
+  ): void => {
+    slot.current = Option.some(fiber);
+    runFork(runtime)(
+      Effect.gen(function* () {
+        const exit = yield* Fiber.await(fiber);
+        if (holds(slot.current, fiber)) {
+          onExit(exit);
+          slot.current = Option.none();
+        }
+      }),
+    );
+  };
