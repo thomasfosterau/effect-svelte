@@ -22,7 +22,10 @@
  * `$app/state` proxy: the proxy mutates in place on every navigation, so a
  * captured reference is unreliable for downstream consumers — the snapshot
  * gives each emission a stable value. `navigating` emissions are snapshots for
- * the same reason.
+ * the same reason. Where `$app/state` has `null`, a snapshot has an `Option`:
+ * a page's `route.id`, `error` and `shallow`, and a navigation's `from`, `to`
+ * and `delta` (see {@link PageSnapshot} and {@link NavigatingSnapshot}). An
+ * `Option` is always truthy, so test one with `Option.isSome`.
  *
  * `navigating`, `updated` and `CurrentPage.changes` watch the rune state with a
  * root `$effect`, so they work anywhere on the client (not only during
@@ -75,12 +78,19 @@ import {
 import * as AppState from "./internal/app-state.js";
 import { watch } from "./internal/watch.svelte.js";
 
-/** A shallow snapshot of SvelteKit's `page` — see {@link page}. */
+/**
+ * A shallow snapshot of SvelteKit's `page` — see {@link page}. `route.id`,
+ * `error` and `shallow` are an `Option`, `None` where SvelteKit's `page` has
+ * `null` (no matched route, no error, no shallow navigation); the other fields
+ * are SvelteKit's values, unchanged.
+ */
 export type { PageSnapshot } from "./internal/app-state.js";
 
 /**
  * A snapshot of an in-flight SvelteKit navigation (`type`, `from`, `to`,
- * `willUnload`, `delta`, `complete`) — see {@link navigating}.
+ * `willUnload`, `delta`, `complete`) — see {@link navigating}. `from` and `to`
+ * are an `Option`, `None` where SvelteKit's are `null`; `delta` is `Some` with
+ * the history step count for a `popstate` navigation and `None` otherwise.
  */
 export type { NavigatingSnapshot } from "./internal/app-state.js";
 
@@ -94,7 +104,8 @@ export { UpdateCheckError } from "./internal/app-state.js";
 
 /**
  * A `Stream` of the current SvelteKit `page`, emitting a shallow snapshot
- * immediately and again after every navigation; never fails. Call during
+ * (a {@link PageSnapshot}, whose `route.id`, `error` and `shallow` are an
+ * `Option`) immediately and again after every navigation; never fails. Call during
  * component initialization. It follows `afterNavigate`, so page changes
  * without a navigation (shallow routing, form results) don't emit — use
  * {@link CurrentPage}'s `changes` for those.
@@ -113,7 +124,8 @@ export function page(): Stream.Stream<PageSnapshot<Page>> {
 /**
  * A `Stream` of SvelteKit's in-flight navigation: `Option.some` with a
  * {@link NavigatingSnapshot} while a navigation is in progress, `Option.none()`
- * when idle. Emits the current state on the next Svelte flush, then on every
+ * when idle. The snapshot's `from`, `to` and `delta` are themselves an
+ * `Option`. Emits the current state on the next Svelte flush, then on every
  * change; never fails. Client-only, but callable anywhere (not only during
  * component initialization).
  *
@@ -158,7 +170,8 @@ export interface CurrentPageInterface extends CurrentPageService<Page> {}
 /**
  * The current SvelteKit page as an Effect service, so any client Effect can read
  * it with `yield* State.CurrentPage` instead of taking it as an argument.
- * `get` snapshots the page when run; `changes` emits the current page on the
+ * `get` snapshots the page when run (a {@link PageSnapshot}, whose `route.id`,
+ * `error` and `shallow` are an `Option`); `changes` emits the current page on the
  * next Svelte flush, then a fresh snapshot whenever any field changes
  * (navigations, but also shallow routing and form results). Neither fails on
  * the client; on the server, Kit's `page` throws outside synchronous component

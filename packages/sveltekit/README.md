@@ -426,15 +426,36 @@ client (not only during component initialization):
 Each stream emits the current value on the next Svelte flush, then on every
 change, and stops watching when it ends or is interrupted. None of them fail.
 
+The snapshots are this package's own plain-data copies, and model absence as an
+`Option` where `$app/state` has `null`:
+
+| Snapshot field                    | Type                             | `None` means                                            |
+| --------------------------------- | -------------------------------- | ------------------------------------------------------- |
+| `PageSnapshot` `route.id`         | `Option<string>`                 | no route is matched                                     |
+| `PageSnapshot` `error`            | `Option<App.Error>`              | the page has not failed                                 |
+| `PageSnapshot` `shallow`          | `Option<{ params, route, url }>` | no shallow navigation has occurred                      |
+| `NavigatingSnapshot` `from`, `to` | `Option<NavigationTarget>`       | SvelteKit's `from` / `to` is `null`                     |
+| `NavigatingSnapshot` `delta`      | `Option<number>`                 | the navigation is not a back / forward (`popstate`) one |
+
+The other fields (`url`, `params`, `status`, `data`, `state`, `form`; `type`,
+`willUnload`, `complete`) are SvelteKit's values, unchanged, as is a
+`NavigationTarget` itself. An `Option` is always truthy, so test it with
+`Option.isSome`: `{#if Option.isSome(nav.to)}{nav.to.value.url.pathname}{/if}`
+in a template, not `{#if nav.to}`. The events of `Navigation.beforeNavigate()`,
+`afterNavigate()` and `onNavigate()` are SvelteKit's own navigation objects,
+not snapshots, and keep its `null`s.
+
 ```ts
 import { State } from "@thomasfosterau/effect-sveltekit/client";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 
 // Any client Effect can read the page once CurrentPage.layer is provided
 // (e.g. in the layer behind your client runtime).
 const logPath = Effect.gen(function* () {
   const page = yield* (yield* State.CurrentPage).get;
-  yield* Effect.logInfo(`at ${page.url.pathname}`);
+  // `route.id` is an Option: None when no route is matched.
+  const route = Option.getOrElse(page.route.id, () => "(no route)");
+  yield* Effect.logInfo(`at ${page.url.pathname} (${route})`);
 }).pipe(Effect.provide(State.CurrentPage.layer));
 ```
 
@@ -613,7 +634,10 @@ a handler. The message may at first name only the services of the handlers
 TypeScript types first (such as an `onError` passed by name, before handlers
 whose parameters are not annotated), and the rest once the runtime provides
 those. Handlers that require no services run on the default runtime, and the
-options may be omitted; an effect typed as requiring `any` or `unknown` is
+options may be omitted. An absent handler, runtime or options argument is left
+out, not passed as `undefined` (`{ onResult: undefined }` and
+`{ runtime: undefined }` do not type-check under `exactOptionalPropertyTypes`);
+an effect typed as requiring `any` or `unknown` is
 treated as requiring no services, so no runtime is demanded. A function that
 wraps `Forms.enhance` for handlers requiring any `R` forwards its options as
 `...options: Forms.EnhanceOptionsArgs<R>`, which keeps them optional exactly
