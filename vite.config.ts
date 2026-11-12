@@ -67,21 +67,12 @@ export default defineConfig({
       suspicious: "error",
     },
     rules: {
-      // Every `as` already gets `effect/casting-awareness` (below) and must
-      // carry a `// SAFETY:` comment (`effect/require-safety-comment-for-type-assertion`);
-      // a second report on the same casts adds nothing. Burning the casts
-      // down is #213's `casting-awareness` work.
-      "typescript/no-unsafe-type-assertion": "off",
       // `_tag` is Effect's discriminant (tagged errors, `Data.TaggedEnum`,
       // `Exit`, `Cause` reasons), which tests and error mappers read.
       "eslint/no-underscore-dangle": ["error", { allow: ["_tag"] }],
       // `SvelteRuntime` and `SvelteKitRuntime` are published static-only
       // namespaces; turning them into modules would break every consumer.
       "typescript/no-extraneous-class": ["error", { allowStaticOnly: true }],
-      // `casting-awareness` is an awareness prompt, not a defect rule — it
-      // fires on every `as`, including the narrowings Svelte's and SvelteKit's
-      // types structurally require. Stays visible as a warning.
-      "effect/casting-awareness": "warn",
       // Cannot apply (owner decision, #213): a React-only rule that matches a
       // call by NAME (`useEffect`, `useState`, …) without checking where it is
       // imported from. effect-svelte's own Svelte rune hook is named
@@ -220,6 +211,23 @@ export default defineConfig({
         files: ["packages/sveltekit/src/adapter/**", "packages/sveltekit/src/vite.ts"],
         rules: {
           "no-restricted-imports": "off",
+        },
+      },
+      // Type assertions are errors everywhere (`effect/casting-awareness`,
+      // `typescript/no-unsafe-type-assertion`) except in this one module.
+      // Cannot apply there: it holds effect-sveltekit's narrowings that
+      // neither the compiler nor a runtime check can verify (an Effect's or a
+      // layer's phantom requirements at the generated-code and
+      // request-context boundaries, conditional types on a signature's own
+      // type parameters, SvelteKit's per-validator overloads, the translator
+      // that returns an `ActionFailure`, a catalogue keyed by `_tag`). Each is
+      // one documented function with a `// SAFETY:` comment; a new one has to
+      // be added to that file, with its reason.
+      {
+        files: ["packages/sveltekit/src/internal/unchecked.ts"],
+        rules: {
+          "effect/casting-awareness": "off",
+          "typescript/no-unsafe-type-assertion": "off",
         },
       },
       // Cannot apply: the rule bans the `node:http` import outright, taking it
