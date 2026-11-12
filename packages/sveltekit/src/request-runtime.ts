@@ -57,6 +57,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as R from "effect/Record";
 import * as Result from "effect/Result";
 import type { SvelteRouteParams } from "./internal/route-params.js";
+import { runPromiseExit } from "./internal/run.js";
 import { SvelteKit } from "./kit.js";
 
 /**
@@ -298,6 +299,42 @@ export const makeRuntimeAdapter = <R>(
 ): RuntimeAdapter<R> => {
   const translateError: ErrorTranslator = opts?.translateError ?? SvelteKit.translate;
 
+  /**
+   * Settle an endpoint's `Exit`: its `Response`, or the translator's verdict
+   * on the failure (default: `SvelteKit.translate`). SvelteKit control-flow
+   * objects (redirect, error, KitRedirect, KitError) fail the Effect with the
+   * thrown value, for the wrapper to rethrow so SvelteKit can handle them.
+   * Anything unrecognised is logged through Effect's default `Console` (the
+   * global console) and becomes a 500 `Response`.
+   */
+  const settleEndpoint = (
+    exit: Exit.Exit<Response, unknown>,
+    options: AdapterEndpointOptions | undefined,
+  ): Effect.Effect<Response, unknown> =>
+    Exit.match(exit, {
+      onSuccess: (response) => Effect.succeed(response),
+      onFailure: (cause) =>
+        Effect.try({
+          try: () => translateError(cause),
+          catch: (thrown) => thrown,
+        }).pipe(
+          Effect.catch((thrown) =>
+            isRedirect(thrown) || isHttpError(thrown)
+              ? Effect.fail(thrown)
+              : Effect.as(
+                  Console.error("Endpoint error:", Cause.pretty(cause)),
+                  // `Response.json` serialises the body and sets `Content-Type: application/json`.
+                  Response.json(
+                    {
+                      error: options?.exposeErrors ? Cause.pretty(cause) : "Internal server error",
+                    },
+                    { status: 500 },
+                  ),
+                ),
+          ),
+        ),
+    });
+
   const runSettle = async <A>(
     event: RequestEvent,
     effect: Effect.Effect<A, unknown, R>,
@@ -341,26 +378,16 @@ export const makeRuntimeAdapter = <R>(
         }),
       );
       const exit = await provider.run(event).runPromiseExit(effect);
-      // Run the translator (default: SvelteKit.translate). SvelteKit
-      // control-flow objects (redirect, error, KitRedirect, KitError) are
-      // thrown so SvelteKit can handle them. Anything unrecognised is wrapped
-      // in an EffectCauseError and becomes a 500 Response below.
-      const settled = Result.try(() => {
-        if (Exit.isSuccess(exit)) return exit.value;
-        const translated = Result.try(() => translateError(exit.cause));
-        return Result.getOrElse(translated, (err) => {
-          if (isRedirect(err) || isHttpError(err)) throw err;
-          Effect.runSync(Console.error("Endpoint error:", Cause.pretty(exit.cause)));
-          const message = options?.exposeErrors
-            ? Cause.pretty(exit.cause)
-            : "Internal server error";
-          // `Response.json` serialises the body and sets `Content-Type: application/json`.
-          return Response.json({ error: message }, { status: 500 });
-        });
-      });
+      // The exit's cause may come from the provider (a layer that failed to
+      // build), not from `effect`, so the failure is settled after the run, as
+      // a second Effect with no services (`settleEndpoint`).
+      const settled = await runPromiseExit(settleEndpoint(exit, options));
       provider.disposeAfterResponse?.(event);
-      return Result.getOrElse(settled, (thrown) => {
-        throw thrown;
+      return Exit.match(settled, {
+        onFailure: (cause) => {
+          throw Cause.squash(cause);
+        },
+        onSuccess: (response) => response,
       });
     },
   };

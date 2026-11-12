@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vite-plus/test";
+import { it } from "@effect/vitest";
+import { assert, describe, expect } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -54,11 +55,11 @@ const collect = (emitter: SignalEmitter<number>, n: number) =>
   );
 
 describe("SignalEmitter", () => {
-  it("delivers values emitted after the stream has started", async () => {
-    const emitter = new SignalEmitter<number>();
+  it.live("delivers values emitted after the stream has started", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>();
 
-    const values = await Effect.runPromise(
-      Effect.gen(function* () {
+      const values = yield* Effect.gen(function* () {
         const { fiber, next } = yield* connect(emitter);
         emitter.emit(1);
         const first = yield* next;
@@ -68,98 +69,102 @@ describe("SignalEmitter", () => {
         const third = yield* next;
         yield* Fiber.interrupt(fiber);
         return [first, second, third];
-      }),
-    );
+      });
 
-    expect(values).toEqual([1, 2, 3]);
-  });
+      expect(values).toEqual([1, 2, 3]);
+    }),
+  );
 
-  it("keeps only the latest value emitted while no run is connected by default", async () => {
-    const emitter = new SignalEmitter<number>();
-    emitter.emit(1);
-    emitter.emit(2);
-    emitter.emit(3);
+  it.live("keeps only the latest value emitted while no run is connected by default", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>();
+      emitter.emit(1);
+      emitter.emit(2);
+      emitter.emit(3);
 
-    const value = await Effect.runPromise(
-      Effect.gen(function* () {
+      const value = yield* Effect.gen(function* () {
         const { fiber, next } = yield* connect(emitter);
         emitter.emit(4);
         const received = [yield* next, yield* next];
         yield* Fiber.interrupt(fiber);
         return received;
-      }),
-    );
+      });
 
-    expect(value).toEqual([3, 4]);
-  });
+      expect(value).toEqual([3, 4]);
+    }),
+  );
 
-  it("delivers values emitted before any run connects to the next run, in order", async () => {
-    const emitter = new SignalEmitter<number>({ bufferSize: 3 });
-    emitter.emit(1);
-    emitter.emit(2);
-    emitter.emit(3);
+  it.live("delivers values emitted before any run connects to the next run, in order", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>({ bufferSize: 3 });
+      emitter.emit(1);
+      emitter.emit(2);
+      emitter.emit(3);
 
-    const values = await Effect.runPromise(collect(emitter, 3));
+      const values = yield* collect(emitter, 3);
 
-    expect(values).toEqual([1, 2, 3]);
-  });
+      expect(values).toEqual([1, 2, 3]);
+    }),
+  );
 
-  it("keeps only the most recent `bufferSize` values while no run is connected", async () => {
-    const emitter = new SignalEmitter<number>({ bufferSize: 2 });
-    Arr.forEach([1, 2, 3, 4], (value) => emitter.emit(value));
+  it.live("keeps only the most recent `bufferSize` values while no run is connected", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>({ bufferSize: 2 });
+      Arr.forEach([1, 2, 3, 4], (value) => emitter.emit(value));
 
-    const values = await Effect.runPromise(collect(emitter, 2));
+      const values = yield* collect(emitter, 2);
 
-    expect(values).toEqual([3, 4]);
-  });
+      expect(values).toEqual([3, 4]);
+    }),
+  );
 
-  it("drops values emitted while no run is connected when `bufferSize` is 0", async () => {
-    const emitter = new SignalEmitter<number>({ bufferSize: 0 });
-    emitter.emit(1);
+  it.live("drops values emitted while no run is connected when `bufferSize` is 0", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>({ bufferSize: 0 });
+      emitter.emit(1);
 
-    const value = await Effect.runPromise(
-      Effect.gen(function* () {
+      const value = yield* Effect.gen(function* () {
         const { fiber, next } = yield* connect(emitter);
         emitter.emit(2);
         const received = yield* next;
         yield* Fiber.interrupt(fiber);
         return received;
-      }),
-    );
+      });
 
-    expect(value).toBe(2);
-  });
+      expect(value).toBe(2);
+    }),
+  );
 
-  it("rounds a fractional `bufferSize` down and treats a negative one as 0", async () => {
-    const fractional = new SignalEmitter<number>({ bufferSize: 2.7 });
-    Arr.forEach([1, 2, 3], (value) => fractional.emit(value));
-    const negative = new SignalEmitter<number>({ bufferSize: -1 });
-    negative.emit(1);
+  it.live("rounds a fractional `bufferSize` down and treats a negative one as 0", () =>
+    Effect.gen(function* () {
+      const fractional = new SignalEmitter<number>({ bufferSize: 2.7 });
+      Arr.forEach([1, 2, 3], (value) => fractional.emit(value));
+      const negative = new SignalEmitter<number>({ bufferSize: -1 });
+      negative.emit(1);
 
-    const values = await Effect.runPromise(
-      Effect.gen(function* () {
+      const values = yield* Effect.gen(function* () {
         const fromFractional = yield* collect(fractional, 2);
         const { fiber, next } = yield* connect(negative);
         negative.emit(2);
         const fromNegative = yield* next;
         yield* Fiber.interrupt(fiber);
         return { fromFractional, fromNegative };
-      }),
-    );
+      });
 
-    expect(values).toEqual({ fromFractional: [2, 3], fromNegative: 2 });
-  });
+      expect(values).toEqual({ fromFractional: [2, 3], fromNegative: 2 });
+    }),
+  );
 
   it("throws a RangeError for a non-finite `bufferSize`", () => {
     expect(() => new SignalEmitter<number>({ bufferSize: Number.NaN })).toThrow(RangeError);
     expect(() => new SignalEmitter<number>({ bufferSize: Infinity })).toThrow(RangeError);
   });
 
-  it("delivers every value to every concurrently running run", async () => {
-    const emitter = new SignalEmitter<number>();
+  it.live("delivers every value to every concurrently running run", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>();
 
-    const values = await Effect.runPromise(
-      Effect.gen(function* () {
+      const values = yield* Effect.gen(function* () {
         const first = yield* connect(emitter);
         const second = yield* connect(emitter);
         Arr.forEach([1, 2, 3], (value) => emitter.emit(value));
@@ -168,43 +173,46 @@ describe("SignalEmitter", () => {
         yield* Fiber.interrupt(first.fiber);
         yield* Fiber.interrupt(second.fiber);
         return { firstValues, secondValues };
-      }),
-    );
+      });
 
-    expect(values).toEqual({ firstValues: [1, 2, 3], secondValues: [1, 2, 3] });
-  });
+      expect(values).toEqual({ firstValues: [1, 2, 3], secondValues: [1, 2, 3] });
+    }),
+  );
 
-  it("releases a run's subscription when it is interrupted, and buffers for the next run", async () => {
-    const emitter = new SignalEmitter<number>();
-    // White-box: an unbounded PubSub retains a published message only while
-    // some subscription has yet to take it, so a leaked subscription shows up
-    // as a non-zero size.
-    const pubsub: PubSub.PubSub<number> = emitter["pubsub"];
-
-    const value = await Effect.runPromise(
+  it.live(
+    "releases a run's subscription when it is interrupted, and buffers for the next run",
+    () =>
       Effect.gen(function* () {
-        const { fiber } = yield* connect(emitter);
-        yield* Fiber.interrupt(fiber);
+        const emitter = new SignalEmitter<number>();
 
-        PubSub.publishUnsafe(pubsub, 99);
-        expect(PubSub.sizeUnsafe(pubsub)).toBe(0);
+        const value = yield* Effect.gen(function* () {
+          const { fiber } = yield* connect(emitter);
+          yield* Fiber.interrupt(fiber);
 
-        // With no run connected, the next emit is buffered for the next run
-        // rather than published to nobody.
-        emitter.emit(5);
-        const [received] = yield* collect(emitter, 1);
-        return received;
+          // White-box: an unbounded PubSub retains a published message only
+          // while some subscription has yet to take it, so a leaked subscription
+          // shows up as a non-zero size. The first run to connect allocated it.
+          const pubsub = emitter["pubsub"];
+          assert(pubsub !== undefined);
+          PubSub.publishUnsafe(pubsub, 99);
+          expect(PubSub.sizeUnsafe(pubsub)).toBe(0);
+
+          // With no run connected, the next emit is buffered for the next run
+          // rather than published to nobody.
+          emitter.emit(5);
+          const [received] = yield* collect(emitter, 1);
+          return received;
+        });
+
+        expect(value).toBe(5);
       }),
-    );
+  );
 
-    expect(value).toBe(5);
-  });
+  it.live("keeps a newer run connected when an older run is interrupted", () =>
+    Effect.gen(function* () {
+      const emitter = new SignalEmitter<number>();
 
-  it("keeps a newer run connected when an older run is interrupted", async () => {
-    const emitter = new SignalEmitter<number>();
-
-    const value = await Effect.runPromise(
-      Effect.gen(function* () {
+      const value = yield* Effect.gen(function* () {
         const older = yield* connect(emitter);
         const newer = yield* connect(emitter);
         // The older run's finalizer must not disconnect the newer run.
@@ -213,9 +221,9 @@ describe("SignalEmitter", () => {
         const received = yield* newer.next;
         yield* Fiber.interrupt(newer.fiber);
         return received;
-      }),
-    );
+      });
 
-    expect(value).toBe(7);
-  });
+      expect(value).toBe(7);
+    }),
+  );
 });

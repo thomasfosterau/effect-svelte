@@ -23,13 +23,14 @@
  */
 
 import type { ClientInit, HandleClientError } from "@sveltejs/kit/hooks";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import { causeToThrowable } from "../internal/error.js";
+import { runPromiseExit } from "../internal/run.js";
 
 /** Run a bare Effect (no request context) and settle it the way a hook expects. */
 const runBareHook = async <A>(effect: Effect.Effect<A, unknown>): Promise<A> =>
-  Exit.match(await Effect.runPromiseExit(effect), {
+  Exit.match(await runPromiseExit(effect), {
     onFailure: (cause) => {
       throw causeToThrowable(cause);
     },

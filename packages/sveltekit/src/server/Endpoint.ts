@@ -51,6 +51,7 @@ import type * as HttpServerResponse from "effect/http/HttpServerResponse";
 import type * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import type * as HttpApiGroup from "effect/http-api/HttpApiGroup";
+import { runPromise } from "../internal/run.js";
 import { encodeRetry, encodeSseFrame, HEARTBEAT_FRAME, SSE_HEADERS } from "../internal/sse.js";
 
 /** A Web `fetch`-style handler, as produced by Effect's `toWebHandler` family. */
@@ -78,7 +79,7 @@ const resolveRequestContext = async <RequestServices>(
 ): Promise<Context.Context<RequestServices> | undefined> => {
   if (context === undefined) return undefined;
   const result = context(request);
-  return Effect.isEffect(result) ? Effect.runPromise(result) : result;
+  return Effect.isEffect(result) ? runPromise(result) : result;
 };
 
 /**

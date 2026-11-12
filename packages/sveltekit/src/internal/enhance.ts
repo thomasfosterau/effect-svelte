@@ -7,6 +7,7 @@ import type { SubmitFunction } from "$app/forms";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import { runPromise } from "./run.js";
 
 /** The input SvelteKit passes to a `SubmitFunction` before the request is sent. */
 export type SubmitInput = Parameters<SubmitFunction>[0];
@@ -186,7 +187,7 @@ const runPromiseWith =
     if (runtime === undefined) {
       // SAFETY: `EnhanceOptionsArgs` makes the runtime optional only when the
       // handlers require no services, so without one `R` is `never`.
-      return Effect.runPromise(effect as Effect.Effect<A, E>);
+      return runPromise(effect as Effect.Effect<A, E>);
     }
     return Context.isContext(runtime)
       ? Effect.runPromiseWith(runtime)(effect)

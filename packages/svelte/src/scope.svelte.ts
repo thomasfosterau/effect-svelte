@@ -1,8 +1,8 @@
 import * as Scope from "effect/Scope";
 import * as Exit from "effect/Exit";
-import * as Effect from "effect/Effect";
 import * as P from "effect/Predicate";
 import { untrack } from "svelte";
+import { runSyncDefault } from "./internal/run.js";
 
 /**
  * What {@link useScope} returns: the component's scope, read through
@@ -40,12 +40,12 @@ export function useScope(): ScopeRef {
 
   $effect(() => {
     // Create the scope when component mounts
-    scope = Effect.runSync(Scope.make());
+    scope = Scope.makeUnsafe();
 
     // Clean up: close the scope when component unmounts
     return () => {
       if (scope) {
-        Effect.runSync(Scope.close(scope, Exit.void));
+        runSyncDefault(Scope.close(scope, Exit.void));
       }
     };
   });
@@ -76,7 +76,7 @@ export function useScope(): ScopeRef {
 export function useScopeCallback(callback: (scope: Scope.Closeable) => void | (() => void)): void {
   $effect(() => {
     // Create the scope when component mounts
-    const scope = Effect.runSync(Scope.make());
+    const scope = Scope.makeUnsafe();
 
     // Execute the callback with the scope. The callback runs untracked so
     // that reactive state it touches does not become a dependency of this
@@ -91,7 +91,7 @@ export function useScopeCallback(callback: (scope: Scope.Closeable) => void | ((
       }
 
       // Close the scope
-      Effect.runSync(Scope.close(scope, Exit.void));
+      runSyncDefault(Scope.close(scope, Exit.void));
     };
   });
 }

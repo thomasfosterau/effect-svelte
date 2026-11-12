@@ -12,9 +12,10 @@
  * @internal
  */
 
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
+import { runSync } from "./run.js";
 
 /**
  * Registers `register`'s callback against a fresh unbounded queue and exposes
@@ -25,7 +26,7 @@ import * as Stream from "effect/Stream";
 export function registeredStream<A>(
   register: (callback: (value: A) => void) => void,
 ): Stream.Stream<A> {
-  const queue = Effect.runSync(Queue.unbounded<A>());
+  const queue = runSync(Queue.unbounded<A>());
   register((value) => {
     Queue.offerUnsafe(queue, value);
   });

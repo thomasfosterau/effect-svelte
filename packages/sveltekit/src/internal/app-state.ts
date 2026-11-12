@@ -18,6 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
+import { runSync } from "./run.js";
 import { failQueueOnSetupError } from "./stream-callback.js";
 
 /**
@@ -90,7 +91,7 @@ export function pageSnapshotStream<P extends ReadonlyPage>(
   registerAfterNavigate: (callback: () => void) => void,
   readPage: () => P,
 ): Stream.Stream<PageSnapshot<P>> {
-  const queue = Effect.runSync(Queue.unbounded<PageSnapshot<P>>());
+  const queue = runSync(Queue.unbounded<PageSnapshot<P>>());
   // Initial value: the current page, so consumers start from a known state.
   Queue.offerUnsafe(queue, snapshotPage(readPage()));
   // afterNavigate fires once on mount too, but emitting up front means a
