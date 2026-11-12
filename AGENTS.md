@@ -46,7 +46,7 @@ Before you report work as done, run the gates below in order and quote each comm
 6. `pnpm audit --audit-level high` (network)
 7. `vp run test:coverage`, then `vp exec fallow audit --format json --quiet --explain --gate-marker agent --base origin/trunk` (the fallow gate below; not a CI step). The audit reads the Istanbul map at `coverage/coverage-final.json` and never refreshes it, so run `test:coverage` first: without the map fallow scores every function as uncovered, and any function with cyclomatic complexity ≥ 5 fails the gate on its own.
 
-Steps 2–6 are the root `ci` task (`vp run ci`, in `vite.config.ts`), which is the one command [ci.yml](.github/workflows/ci.yml) runs, on a Node matrix (`lts` and `latest`); the required check is the `ci` job that needs every leg. `CONTRIBUTING.md` and the PR template link here rather than restating the list.
+Steps 2–6 are the root `ci` task (`vp run ci`, in `vite.config.ts`), which is the one command [ci.yml](.github/workflows/ci.yml) runs, on a Node matrix; the required checks are its legs, `ci (node lts)` and `ci (node latest)`. `CONTRIBUTING.md` and the PR template link here rather than restating the list.
 
 ## Branches and pull requests
 

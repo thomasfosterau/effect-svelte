@@ -6,8 +6,8 @@ name: CI
 # a local `vp run ci` are the same thing. Nothing here needs a database, a
 # stage or a credential, so every PR runs the whole gate.
 #
-# `test` runs it on a Node matrix; `ci` is the one stable check name for a
-# required-check ruleset, green only when every matrix leg is.
+# The one job, `ci`, runs it on a Node matrix; each leg is its own check
+# (`ci (node lts)`, `ci (node latest)`), and a ruleset requires each by name.
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ concurrency:
 permissions: {}
 
 jobs:
-  test:
+  ci:
     name: ci (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -61,18 +61,3 @@ jobs:
 
       - name: CI
         run: vp run ci
-
-  # The required check. `if: always()` so a failed or cancelled matrix leg
-  # fails this job instead of skipping it (a skipped required check passes).
-  ci:
-    name: ci
-    needs: [test]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions: {}
-    steps:
-      - name: Require every matrix leg
-        env:
-          RESULT: ${{ needs.test.result }}
-        run: test "$RESULT" = "success"
