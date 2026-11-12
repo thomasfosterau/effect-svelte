@@ -96,12 +96,6 @@ export default defineConfig({
       // fires on every `as`, including the narrowings Svelte's and SvelteKit's
       // types structurally require. Stays visible as a warning.
       "effect/casting-awareness": "warn",
-      // These packages ARE the runtime boundary the rule asks for: Svelte
-      // components, rune hooks, SvelteKit loads, actions, endpoints and remote
-      // functions are Promise/callback APIs that call into this code, so every
-      // `Effect.runPromise` / `runSync` / `runFork` here is the edge that runs
-      // a caller's Effect (and in tests, the test harness the rule exempts).
-      "effect/effect-run-in-body": "off",
       // React-specific: it fires on the name `useEffect`, which here is this
       // package's own Svelte rune hook (`useEffect` from
       // @thomasfosterau/effect-svelte), not React's.
@@ -119,6 +113,13 @@ export default defineConfig({
       "vitest/expect-expect": [
         "error",
         { assertFunctionNames: ["expect", "expect*", "assert", "assert.*"] },
+      ],
+      // `@effect/vitest`'s testers are test blocks too.
+      "vitest/no-standalone-expect": [
+        "error",
+        {
+          additionalTestBlockFunctions: ["it.effect", "it.effect.each", "it.live", "it.live.each"],
+        },
       ],
     },
     overrides: [
@@ -147,6 +148,16 @@ export default defineConfig({
           "effect/use-filesystem-service": "off",
           "effect/avoid-direct-json": "off",
         },
+      },
+      // The runtime edge. These packages are a runtime boundary: Svelte
+      // (constructors, `$effect` teardowns) and SvelteKit (loads, actions,
+      // endpoints, hooks, `use:enhance` and navigation callbacks) call in
+      // through Promise / callback APIs, so something must run the caller's
+      // Effect when no runtime was supplied. These two modules are the only
+      // place that happens; every other file, tests included, has the rule on.
+      {
+        files: ["packages/svelte/src/internal/run.ts", "packages/sveltekit/src/internal/run.ts"],
+        rules: { "effect/effect-run-in-body": "off" },
       },
       // Import boundaries on EXTERNAL specifiers (AGENTS.md § Common
       // pitfalls); the boundaries between this repo's own files are fallow
