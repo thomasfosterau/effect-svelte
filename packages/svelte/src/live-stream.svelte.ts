@@ -2,7 +2,7 @@ import * as Option from "effect/Option";
 import type * as Stream from "effect/Stream";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import { resultToPromise } from "./internal/await.js";
 import * as LiveStreamCore from "./internal/live-stream.js";
 import type { LiveResultState } from "./internal/live-stream.js";
@@ -117,10 +117,7 @@ export function useLiveStream<A, E, R>(
   stream: () => Stream.Stream<A, E, R>,
   options: UseLiveStreamOptions<A, R> = {},
 ): UseLiveStreamReturn<A, E> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
+  const runtime = options.runtime ?? ambientRuntime<R>();
   // `initial` is declared `?: A` without `| undefined` (and
   // `exactOptionalPropertyTypes` is on), so when the key is present its value
   // is an `A` — possibly `undefined`, if `A` itself admits it.
