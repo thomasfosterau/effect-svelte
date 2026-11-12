@@ -76,7 +76,7 @@ export default defineConfig({
       // parent to move to the outermost scope it could live in. Here that
       // means pulling test helpers out of the `describe` / `it` that owns them,
       // the type-level probes in `tests/client/forms.test.ts` away from the
-      // expected-error directives they sit beside, no-op placeholders for a `let` that is reassigned,
+      // type assertions they sit beside, no-op placeholders for a `let` that is reassigned,
       // and an EventSource listener out of the step that registers it
       // (`src/realtime.ts`): the scoping is deliberate at every site.
       "unicorn/consistent-function-scoping": "off",
