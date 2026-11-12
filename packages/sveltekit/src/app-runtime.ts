@@ -20,6 +20,7 @@ import type * as Fiber from "effect/Fiber";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as R from "effect/Record";
 import * as Result from "effect/Result";
@@ -27,7 +28,11 @@ import * as Scope from "effect/Scope";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import type * as HttpClient from "effect/http/HttpClient";
 import { SvelteKitRequestEvent } from "./runtime.js";
-import type { SvelteRouteParams } from "./internal/route-params.js";
+import type {
+  SvelteLoadInputData,
+  SvelteRouteId,
+  SvelteRouteParams,
+} from "./internal/route-params.js";
 import type { ErrorTranslator } from "./request-runtime.js";
 import { SvelteKit } from "./kit.js";
 import {
@@ -95,14 +100,28 @@ interface RequestRuntimeEntry {
 
 /** `event.locals` as this module sees it: possibly carrying a {@link RequestRuntimeEntry}. */
 interface LocalsWithRequestRuntime {
-  [RequestRuntimeKey]?: RequestRuntimeEntry | undefined;
+  [RequestRuntimeKey]?: RequestRuntimeEntry;
 }
 
-/** Read the per-request runtime entry an event carries, if any. */
-const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefined =>
-  // SAFETY: `RequestRuntimeKey` is this package's namespaced symbol, and the
-  // only value ever stored under it on `locals` is a `RequestRuntimeEntry`.
-  (event.locals as LocalsWithRequestRuntime | undefined)?.[RequestRuntimeKey];
+/**
+ * Whether a value found under {@link RequestRuntimeKey} has the shape of the
+ * {@link RequestRuntimeEntry} a `handle` stores there: an `owner` token and a
+ * `runtime`, both objects.
+ */
+const isRequestRuntimeEntry = (value: unknown): value is RequestRuntimeEntry =>
+  P.hasProperty(value, "owner") &&
+  P.isObject(value.owner) &&
+  P.hasProperty(value, "runtime") &&
+  P.isObject(value.runtime);
+
+/**
+ * The per-request runtime entry an event carries: `None` when no `handle` of
+ * this package stored one on its `locals` (or the event has no `locals`).
+ */
+const requestRuntimeEntry = (event: RequestEvent): Option.Option<RequestRuntimeEntry> =>
+  P.hasProperty(event.locals, RequestRuntimeKey)
+    ? Option.liftPredicate(event.locals[RequestRuntimeKey], isRequestRuntimeEntry)
+    : Option.none();
 
 /** Whether a universal load event is a server-side `RequestEvent` (it carries a `request`). */
 const isRequestEvent = <Event>(event: Event): event is Event & RequestEvent =>
@@ -171,7 +190,7 @@ export interface ServerRuntime<R = never, E = never> {
     Params extends SvelteRouteParams = SvelteRouteParams,
     ParentData extends Record<string, any> = any,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (
       event: RequestEvent<Params, RouteId>,
@@ -184,7 +203,7 @@ export interface ServerRuntime<R = never, E = never> {
   readonly action: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (
       event: RequestEvent<Params, RouteId>,
@@ -197,7 +216,7 @@ export interface ServerRuntime<R = never, E = never> {
   readonly actions: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     actionsMap: Record<
       string,
@@ -248,21 +267,25 @@ export interface ServerRuntime<R = never, E = never> {
 
   /**
    * The per-request {@link RequestRuntime} this runtime's `handle` stored on the
-   * event, or `undefined` when `handle` was not used for the request. Use it to
-   * run your own effects on the same per-request runtime (shared `HttpClient`
-   * and request scope) that `serverLoad` / `action` / `endpoint` use.
+   * event, as an `Option`: `Some` inside a request that went through this
+   * runtime's `handle`, `None` when `handle` was not used for the request (or
+   * the event carries another runtime's). Use it to run your own effects on
+   * the same per-request runtime (shared `HttpClient` and request scope) that
+   * `serverLoad` / `action` / `endpoint` use.
    *
    * @example
    * ```ts
    * // anywhere with the request event, e.g. another `handle` in the sequence
    * const rt = runtime.requestRuntime(event);
-   * await rt?.runPromise(Effect.gen(function* () {
-   *   const user = yield* Auth.currentUser;
-   *   event.locals.user = user;
-   * }));
+   * if (Option.isSome(rt)) {
+   *   await rt.value.runPromise(Effect.gen(function* () {
+   *     const user = yield* Auth.currentUser;
+   *     event.locals.user = user;
+   *   }));
+   * }
    * ```
    */
-  readonly requestRuntime: (event: RequestEvent) => RequestRuntime<R> | undefined;
+  readonly requestRuntime: (event: RequestEvent) => Option.Option<RequestRuntime<R>>;
 
   /**
    * Wraps an Effect-based function as a SvelteKit `+server.ts` endpoint
@@ -270,7 +293,7 @@ export interface ServerRuntime<R = never, E = never> {
    */
   readonly endpoint: <
     Params extends SvelteRouteParams = SvelteRouteParams,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (
       event: RequestEvent<Params, RouteId>,
@@ -370,13 +393,17 @@ export const makeServerRuntime = <R = never, E = never>(
     };
   };
 
-  /** The per-request runtime for this runtime carried by the event, if any. */
-  const requestRuntimeOf = (event: RequestEvent): RequestRuntime<R> | undefined => {
-    const entry = requestRuntimeEntry(event);
-    // SAFETY: an entry tagged with this runtime's `owner` was created by its
-    // `handle`, from `makeRequestRuntime`, so it is a `RequestRuntime<R>`.
-    return entry?.owner === owner ? (entry.runtime as RequestRuntime<R>) : undefined;
-  };
+  /**
+   * The per-request runtime for this runtime carried by the event: `None` when
+   * the event carries none, or one another `ServerRuntime` created.
+   */
+  const requestRuntimeOf = (event: RequestEvent): Option.Option<RequestRuntime<R>> =>
+    Option.map(
+      Option.filter(requestRuntimeEntry(event), (entry) => entry.owner === owner),
+      // SAFETY: an entry tagged with this runtime's `owner` was created by its
+      // `handle`, from `makeRequestRuntime`, so it is a `RequestRuntime<R>`.
+      (entry) => entry.runtime as RequestRuntime<R>,
+    );
 
   const runExit = <A>(
     event: RequestEvent,
@@ -385,7 +412,7 @@ export const makeServerRuntime = <R = never, E = never>(
     // Reuse the per-request runtime `handle` installed, if any; otherwise build
     // the per-request services for this single call.
     const requestRuntime = requestRuntimeOf(event);
-    if (requestRuntime !== undefined) return requestRuntime.runPromiseExit(effect);
+    if (Option.isSome(requestRuntime)) return requestRuntime.value.runPromiseExit(effect);
     // SAFETY: the request layer provides the `SvelteKitServices`, leaving at
     // most `R`; the `Exclude` only stays unresolved while `R` is generic.
     const provided = Effect.provide(effect, requestLayer(event)) as Effect.Effect<A, unknown, R>;
@@ -502,10 +529,10 @@ export interface UniversalRuntime<R = never, E = never> {
    */
   readonly load: <
     Params extends SvelteRouteParams = SvelteRouteParams,
-    InputData extends Record<string, unknown> | null = any,
+    InputData extends SvelteLoadInputData = any,
     ParentData extends Record<string, unknown> = any,
     OutputData extends Record<string, unknown> | void = any,
-    RouteId extends string | null = any,
+    RouteId extends SvelteRouteId = any,
   >(
     fn: (
       event: Parameters<Load<Params, InputData, ParentData, OutputData, RouteId>>[0],

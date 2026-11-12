@@ -8,6 +8,7 @@ import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { makeHandler, type SvelteKitHandlerOptions } from "../src/adapter/handler.js";
@@ -16,11 +17,11 @@ import { makeHandler, type SvelteKitHandlerOptions } from "../src/adapter/handle
  * Fake SvelteKit Server that records init options and echoes request details
  * back as JSON, marking SSR responses with an `x-ssr` header.
  */
-let lastInitOptions: ServerInitOptions | undefined;
+let lastInitOptions: Option.Option<ServerInitOptions> = Option.none();
 
 class FakeServer implements Server {
   async init(options: ServerInitOptions): Promise<void> {
-    lastInitOptions = options;
+    lastInitOptions = Option.some(options);
   }
 
   async respond(request: Request, options: { getClientAddress(): string }): Promise<Response> {
@@ -103,7 +104,9 @@ describe("makeHandler", () => {
   it.live("initialises the SvelteKit server with the provided env", () =>
     Effect.gen(function* () {
       yield* withTestServer(Effect.void);
-      expect(lastInitOptions?.env).toEqual({ FROM_TEST: "yes" });
+      expect(Option.map(lastInitOptions, (options) => options.env)).toEqual(
+        Option.some({ FROM_TEST: "yes" }),
+      );
     }),
   );
 

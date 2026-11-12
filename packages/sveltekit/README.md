@@ -151,14 +151,18 @@ With `handle` wired, every other wrapper for that runtime (`serverLoad`,
 `action`, `endpoint`, ...) runs each request's effects on the same per-request
 runtime — one `HttpClient`, one request scope — instead of rebuilding the request
 services per call. Reach the runtime yourself with `runtime.requestRuntime(event)`
-(for example from another hook in a `sequence`, to populate `event.locals`):
+(for example from another hook in a `sequence`, to populate `event.locals`). It
+returns an `Option` (`effect/Option`): `Some` inside a request that went through
+this runtime's `handle`, `None` otherwise:
 
 ```ts
 // e.g. authenticate once per request
 export const handle = runtime.handle(({ event, resolve }) =>
   Effect.gen(function* () {
-    const rt = runtime.requestRuntime(event)!;
-    event.locals.user = yield* Effect.promise(() => rt.runPromise(Auth.currentUser));
+    const rt = runtime.requestRuntime(event);
+    if (Option.isSome(rt)) {
+      event.locals.user = yield* Effect.promise(() => rt.value.runPromise(Auth.currentUser));
+    }
     return yield* Effect.promise(async () => resolve(event));
   }),
 );

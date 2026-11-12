@@ -20,6 +20,7 @@ import type {
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
@@ -194,13 +195,11 @@ type AppServerWithRequested = Omit<typeof AppServer, "requested"> & {
 const appServerCompat = AppServer as AppServerWithRequested;
 
 function getQueryLive(): typeof AppServer.query.live {
-  const live: typeof AppServer.query.live | undefined = AppServer.query.live;
-
-  if (!P.isFunction(live)) {
-    unavailable("query.live");
-  }
-
-  return live;
+  // An older kit has no `query.live`: reading it there gives `None`.
+  return Option.getOrElse(
+    Option.filter(Option.fromUndefinedOr(AppServer.query.live), (live) => P.isFunction(live)),
+    () => unavailable("query.live"),
+  );
 }
 
 function getRequested(): <Result>(...args: unknown[]) => Result {
@@ -392,12 +391,14 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
   ) => {
     if (isBareHandler<Out, Env>(arg1)) {
       const handler = arg1;
-      return AppServer.prerender(
-        () => run(handler()),
-        // SAFETY: in the bare-handler overload the second argument is the
-        // (optional) options object, never a handler.
-        arg2 as PrerenderOptions<void> | undefined,
-      );
+      // In the bare-handler overload the second argument is the (optional)
+      // options object, never a handler.
+      if (P.isFunction(arg2)) {
+        throw new RemoteFunctionUsageError({
+          message: "prerender takes options, not a second handler, when no schema is provided",
+        });
+      }
+      return AppServer.prerender(() => run(handler()), arg2);
     }
 
     if (!P.isFunction(arg2)) {

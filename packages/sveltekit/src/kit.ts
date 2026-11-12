@@ -107,9 +107,10 @@ export class KitActionFailure<T = undefined> extends Error {
  * failed `Cause` (the typed failure, a defect or an interruption error), so it
  * is `unknown` until the case narrows it, usually with `instanceof`. Throw
  * (e.g. `error()` / `redirect()`) to handle the case; return normally to pass
- * through to the next case.
+ * through to the next case. A case has no result: whatever it returns is
+ * ignored.
  */
-export type KitTranslatorCase = (error: ReturnType<typeof Cause.squash>) => undefined | void;
+export type KitTranslatorCase = (error: ReturnType<typeof Cause.squash>) => void;
 
 /**
  * A boundary translator: turn a failed `Cause` into thrown SvelteKit control

@@ -35,7 +35,9 @@ import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
+import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
@@ -64,20 +66,20 @@ type WebHandlerWithContext = (
 ) => Promise<Response>;
 
 /**
- * Resolve a request-scoped service context, if a resolver was given. The
- * resolver may return a `Context` directly or an `Effect` producing one (run
- * with no requirements), so a consumer can read the request to build
- * session-aware services per dispatch.
+ * Resolves a request-scoped service context. The resolver may return a
+ * `Context` directly or an `Effect` producing one (run with no requirements),
+ * so a consumer can read the request to build session-aware services per
+ * dispatch.
  */
 export type RequestContext<RequestServices> = (
   request: Request,
 ) => Context.Context<RequestServices> | Effect.Effect<Context.Context<RequestServices>>;
 
+/** Run `context` for `request`; a failing or dying resolver Effect rejects. */
 const resolveRequestContext = async <RequestServices>(
   request: Request,
-  context: RequestContext<RequestServices> | undefined,
-): Promise<Context.Context<RequestServices> | undefined> => {
-  if (context === undefined) return undefined;
+  context: RequestContext<RequestServices>,
+): Promise<Context.Context<RequestServices>> => {
   const result = context(request);
   return Effect.isEffect(result) ? runPromise(result) : result;
 };
@@ -125,16 +127,23 @@ const stripPrefix = (request: Request, prefix: string): Request => {
   return new Request(url, request);
 };
 
+/** What {@link make} reads from a `from*` helper's options. */
+interface MakeOptions<RequestServices> extends EndpointOptions {
+  /** Resolves the request-scoped services passed to the Web handler on each dispatch. */
+  readonly context?: RequestContext<RequestServices>;
+}
+
 /**
- * Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler. A
- * {@link WebHandler} is a {@link WebHandlerWithContext} that ignores the context.
+ * Wrap a Web handler (and its dispose) as a SvelteKit endpoint handler, reading
+ * `prefix` and `context` from the helper's own `options`. A {@link WebHandler}
+ * is a {@link WebHandlerWithContext} that ignores the context.
  */
 const make = <RequestServices = never>(
   webHandler: WebHandlerWithContext,
   dispose: () => Promise<void>,
-  prefix: string | undefined,
-  context?: RequestContext<RequestServices>,
+  options: MakeOptions<RequestServices> = {},
 ): EndpointHandler => {
+  const { prefix, context } = options;
   const handler: RequestHandler = async (event) => {
     const request = prefix === undefined ? event.request : stripPrefix(event.request, prefix);
     if (context === undefined) return webHandler(request);
@@ -215,7 +224,7 @@ export const fromApi = <
     appLayer as Layer.Layer<never, E, HttpRouter.HttpRouter>,
     { disableLogger: options?.logger !== true },
   );
-  return make<RequestServices>(handler, dispose, options?.prefix, options?.context);
+  return make<RequestServices>(handler, dispose, options);
 };
 
 /**
@@ -269,8 +278,7 @@ export const fromRouter = <
     // handler's conditional type only stays unresolved while `R` is generic.
     handler as WebHandlerWithContext,
     dispose,
-    options?.prefix,
-    options?.context,
+    options,
   );
 };
 
@@ -308,7 +316,7 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
     // SAFETY: `options.layer` provides `R` and the web handler provides the
     // request and scope, so no per-request context is needed; the conditional
     // type only stays unresolved while `R` is generic.
-    return make(handler as WebHandler, dispose, options.prefix);
+    return make(handler as WebHandler, dispose, options);
   }
   const handler = HttpEffect.toWebHandler(
     // SAFETY: without `options.layer` nothing can provide `R`, so the route
@@ -319,25 +327,29 @@ export const fromHttpEffect = <E, R = never, ProvidedE = never>(
       HttpServerRequest.HttpServerRequest | Scope.Scope
     >,
   );
-  return make(handler, noopDispose, options?.prefix);
+  return make(handler, noopDispose, options);
 };
 
 /** Options for {@link fromStream}: how to frame each element as an SSE event. */
 export interface FromStreamOptions<A, R = never> {
   /**
    * The event name (`event:` field). A string applies to every element, or a
-   * function derives it per element (return `undefined` for an unnamed event).
-   * Omit for the default unnamed `message` events.
+   * function derives it per element as an `Option`: `Some(name)` names the
+   * event, `None` omits the field (an unnamed `message` event). Omit for the
+   * default unnamed `message` events.
    */
-  readonly event?: string | ((value: A) => string | undefined);
+  readonly event?: string | ((value: A) => Option.Option<string>);
   /**
    * Encode an element into the `data:` payload. Defaults to JSON (an element
    * JSON cannot represent, such as a `bigint`, ends the stream with a defect).
    * Multi-line output is split across multiple `data:` lines automatically.
    */
   readonly data?: (value: A) => string;
-  /** Derive an event id (`id:` field) the browser echoes on reconnect. */
-  readonly id?: (value: A) => string | undefined;
+  /**
+   * Derive an event id (`id:` field) the browser echoes on reconnect, as an
+   * `Option`: `Some(id)` sends the field, `None` omits it for that element.
+   */
+  readonly id?: (value: A) => Option.Option<string>;
   /**
    * The client reconnection delay in milliseconds, sent once as a leading
    * `retry:` field. The browser's `EventSource` reconnects automatically after
@@ -368,8 +380,9 @@ const encodeJson: <A>(value: A) => string = Schema.encodeSync(
  * (`text/event-stream`). Consume it client-side with `Realtime.fromEventSource`
  * (from `@thomasfosterau/effect-sveltekit/client`) or the native `EventSource`.
  *
- * Each element is framed as one SSE event (`event` / `id` optional, `data`
- * defaults to JSON). A `retry` sets the reconnect delay; a `heartbeat` keeps
+ * Each element is framed as one SSE event (`event` / `id` optional — their
+ * per-element callbacks return an `Option`, `None` omitting the field — and
+ * `data` defaults to JSON). A `retry` sets the reconnect delay; a `heartbeat` keeps
  * idle connections alive. The response closes when the stream ends; the stream
  * is interrupted (running its finalizers) when the client disconnects.
  *
@@ -393,10 +406,13 @@ export const fromStream = <A, E, R = never>(
   options?: FromStreamOptions<A, R>,
 ): RequestHandler => {
   const encodeData = options?.data ?? encodeJson;
-  const eventOf = (value: A): string | undefined => {
+  // The element's `event:` name and `id:`: `None` leaves the field out.
+  const eventOf = (value: A): Option.Option<string> => {
     const name = options?.event;
-    return P.isFunction(name) ? name(value) : name;
+    return P.isFunction(name) ? name(value) : Option.fromUndefinedOr(name);
   };
+  const idOf = (value: A): Option.Option<string> =>
+    Option.flatMap(Option.fromUndefinedOr(options?.id), (id) => id(value));
 
   return (event) => {
     // Frame each element, then encode the resulting strings to bytes.
@@ -404,8 +420,7 @@ export const fromStream = <A, E, R = never>(
       Stream.map((value) =>
         encodeSseFrame({
           data: encodeData(value),
-          event: eventOf(value),
-          id: options?.id?.(value),
+          ...R.getSomes({ event: eventOf(value), id: idOf(value) }),
         }),
       ),
     );

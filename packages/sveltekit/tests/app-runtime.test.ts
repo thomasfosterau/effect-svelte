@@ -4,6 +4,7 @@ import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
@@ -228,13 +229,13 @@ describe("per-request runtime", () => {
     );
 
     const event = mockEvent();
-    expect(runtime.requestRuntime(event)).toBeUndefined();
+    expect(Option.isNone(runtime.requestRuntime(event))).toBe(true);
 
     let installedDuringResolve = false;
     const response = await handle({
       event,
       resolve: async (resolveEvent: RequestEvent) => {
-        installedDuringResolve = runtime.requestRuntime(resolveEvent) !== undefined;
+        installedDuringResolve = Option.isSome(runtime.requestRuntime(resolveEvent));
         const data = await load(toServerLoadEvent(resolveEvent));
         return Response.json(data);
       },
@@ -249,9 +250,9 @@ describe("per-request runtime", () => {
     const handle = runtime.handle(({ event, resolve }) =>
       Effect.gen(function* () {
         const rt = runtime.requestRuntime(event);
-        assert(rt !== undefined, "expected handle to install a per-request runtime");
+        assert(Option.isSome(rt), "expected handle to install a per-request runtime");
         const greeting = yield* Effect.tryPromise(() =>
-          rt.runPromise(
+          rt.value.runPromise(
             Effect.map(Effect.zip(Greeter, SvelteKitRequestEvent), ([greeter, ev]) =>
               greeter.greet(ev.url.pathname),
             ),
@@ -288,7 +289,7 @@ describe("per-request runtime", () => {
       event,
       resolve: async (resolveEvent: RequestEvent) => {
         // locals carries runtime A's per-request runtime, not B's.
-        runtimeBInstalled = runtimeB.requestRuntime(resolveEvent) !== undefined;
+        runtimeBInstalled = Option.isSome(runtimeB.requestRuntime(resolveEvent));
         resultB = await loadB(toServerLoadEvent(resolveEvent));
         return new Response();
       },
@@ -298,6 +299,31 @@ describe("per-request runtime", () => {
     expect(runtimeBInstalled).toBe(false);
     expect(resultB).toEqual({ who: "B" });
   });
+
+  it.each([
+    ["a string", "not an entry"],
+    ["an owner that is not an object", { owner: "token", runtime: {} }],
+    ["no runtime", { owner: {} }],
+    ["a runtime that is not an object", { owner: {}, runtime: "runtime" }],
+  ])(
+    "requestRuntime is None when the locals key holds %s, and wrappers fall back",
+    async (_label, foreign) => {
+      const runtime = makeServerRuntime(greeterLayer);
+      const load = runtime.serverLoad(() =>
+        Effect.map(Greeter, (greeter) => ({ message: greeter.greet("x") })),
+      );
+      const locals: App.Locals = {};
+      Object.defineProperty(locals, Symbol.for("@thomasfosterau/effect-sveltekit/requestRuntime"), {
+        value: foreign,
+        enumerable: true,
+      });
+      const event = mockEvent({ locals });
+
+      expect(Option.isNone(runtime.requestRuntime(event))).toBe(true);
+      // The wrappers build the request services themselves instead.
+      expect(await load(event)).toEqual({ message: "hello x" });
+    },
+  );
 });
 
 describe("makeUniversalRuntime", () => {
