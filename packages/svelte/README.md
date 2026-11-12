@@ -88,6 +88,16 @@ return `UseReactiveQueryReturn`, `UseReactiveStreamReturn` and
 `useAtomResult` take `UseAtomOptions` and return `UseAtomReturn`
 (`UseWritableAtomReturn` for a writable atom).
 
+`useEffect` is this package's Svelte hook, not React's. If you lint with
+[`@enfect/oxlint`](https://www.npmjs.com/package/@enfect/oxlint), its
+`effect/avoid-react-hooks` rule matches the call by name, so turn that rule off
+in an app that has no React:
+
+```ts
+// vite.config.ts (Vite+) or your oxlint config
+rules: { "effect/avoid-react-hooks": "off" }
+```
+
 `reactiveQuery`, `reactiveStream` and `reactiveMutation` are deprecated
 aliases of the `useReactive*` hooks, and `ReactiveOptions`,
 `ReactiveQueryReturn`, `ReactiveStreamReturn`, `ReactiveMutationReturn` and

@@ -96,9 +96,11 @@ export default defineConfig({
       // fires on every `as`, including the narrowings Svelte's and SvelteKit's
       // types structurally require. Stays visible as a warning.
       "effect/casting-awareness": "warn",
-      // React-specific: it fires on the name `useEffect`, which here is this
-      // package's own Svelte rune hook (`useEffect` from
-      // @thomasfosterau/effect-svelte), not React's.
+      // Cannot apply (owner decision, #213): a React-only rule that matches a
+      // call by NAME (`useEffect`, `useState`, …) without checking where it is
+      // imported from. effect-svelte's own Svelte rune hook is named
+      // `useEffect`, and there is no React in this repo. Apps that call the
+      // hook under this preset need the same line.
       "effect/avoid-react-hooks": "off",
       // Its only fix contradicts the workspace's `exactOptionalPropertyTypes`
       // convention (AGENTS.md): an optional member a caller may forward
