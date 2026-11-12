@@ -54,12 +54,13 @@ const data = await runServerLoad(
 );
 ```
 
-| Option           | What it is                                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `layer`          | The `Layer` providing the handler's services. Omit it when the handler requires none                                                                       |
-| `translateError` | Translates a failed `Cause` at the boundary. Defaults to `SvelteKit.translate`: Kit control flow passes through and anything else is an `EffectCauseError` |
+| Option                 | What it is                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layer`                | The `Layer` providing the handler's services. Omit it when the handler requires none                                                                                                               |
+| `translateError`       | Translates a failed `Cause` at the boundary by throwing. Defaults to `SvelteKit.translate`: Kit control flow passes through and anything else is an `EffectCauseError`                             |
+| `translateActionError` | `runAction` only: the action's own translator, which may also return `fail()` ([action failures](sveltekit-server.md#action-failures-fail-and-translateactionerror)). Defaults to `translateError` |
 
-The handler runs through `makeRuntimeAdapter` on `RequestRuntime.fromLayer(layer)`, so its services are exactly what `layer` provides, and a failure rejects the promise with what the translator throws (SvelteKit's `redirect` / `error`, or the `EffectCauseError`).
+The handler runs through `makeRuntimeAdapter` on `RequestRuntime.fromLayer(layer)`, so its services are exactly what `layer` provides, and a failure rejects the promise with what the translator throws (SvelteKit's `redirect` / `error`, or the `EffectCauseError`). `runAction` resolves with the `ActionFailure` for a `SvelteKit.fail()` failure in the handler's error type, or one `translateActionError` returns; both are part of its result type.
 
 ## Remote-function handlers (`runRemote`)
 

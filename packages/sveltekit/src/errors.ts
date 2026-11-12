@@ -51,7 +51,7 @@
  * @module
  */
 
-import { redirect as kitRedirect } from "@sveltejs/kit";
+import { redirect as kitRedirect, type ActionFailure } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
@@ -82,8 +82,12 @@ export type ErrorStatus = number;
  *   non-3xx status becomes `303`.
  * - a function — full control: throw any SvelteKit primitive (`error`,
  *   `redirect`, `invalid`, …) or anything else.
+ *
+ * `Returned` is what a function entry may return instead of throwing: nothing
+ * by default (`never`), and `fail()`'s `ActionFailure` in the catalogue of a
+ * form action's translator (see {@link toSvelteKit}).
  */
-export type CatalogueEntry<E> =
+export type CatalogueEntry<E, Returned extends ActionFailure<unknown> = never> =
   | ErrorStatus
   | {
       readonly status: ErrorStatus;
@@ -91,30 +95,35 @@ export type CatalogueEntry<E> =
     }
   | "status"
   | "redirect"
-  | ((error: E) => never);
+  | ((error: E) => Returned);
 
 /**
  * A tag-keyed catalogue. With an explicit error union `E`, keys are limited to
  * `E`'s tags and each entry's functions receive the matching member.
+ * `Returned` is what its function entries may return ({@link CatalogueEntry}).
  */
-export type Catalogue<E extends Tagged> = {
-  readonly [K in E["_tag"]]?: CatalogueEntry<Extract<E, { readonly _tag: K }>>;
+export type Catalogue<E extends Tagged, Returned extends ActionFailure<unknown> = never> = {
+  readonly [K in E["_tag"]]?: CatalogueEntry<Extract<E, { readonly _tag: K }>, Returned>;
 };
 
-/** Options for {@link toSvelteKit}. */
-export interface ToSvelteKitOptions {
+/**
+ * Options for {@link toSvelteKit}. `Returned` is what the catalogue's
+ * translator may return ({@link CatalogueEntry}).
+ */
+export interface ToSvelteKitOptions<Returned extends ActionFailure<unknown> = never> {
   /**
    * What to do with a cause whose error is not in the catalogue. Defaults to
    * {@link SvelteKit.translate}: the Kit control-flow errors
-   * (`SvelteKit.redirect` / `.error` / `.fail`) and SvelteKit's own thrown
+   * (`SvelteKit.redirect` / `.error`) and SvelteKit's own thrown
    * `redirect()` / `error()` pass through, anything else becomes an
    * `EffectCauseError` (a 500 whose `cause` is the full Effect `Cause`).
    *
    * Pass {@link rethrowSquashed} to rethrow the squashed error unchanged
    * instead, so `handleError` sees the original value. Omit the key for the
-   * default.
+   * default. A throw-only translator is a fallback for any catalogue, so an
+   * action catalogue can fall back to the translator the loads use.
    */
-  readonly fallback?: KitErrorTranslator;
+  readonly fallback?: KitErrorTranslator<Returned>;
 }
 
 /** A {@link ToSvelteKitOptions.fallback} that rethrows `Cause.squash(cause)` unchanged. */
@@ -165,7 +174,10 @@ const locationField = (error: Tagged): Option.Option<string | URL> =>
     isLocation,
   );
 
-const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
+const apply = <Returned extends ActionFailure<unknown>>(
+  entry: CatalogueEntry<Tagged, Returned>,
+  error: Tagged,
+): Returned => {
   if (P.isNumber(entry)) return throwError(entry, defaultBody(error));
   if (P.isFunction(entry)) return entry(error);
   const status = statusField(error);
@@ -201,10 +213,18 @@ const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
  * member's fields); without it any tag is a key, and a callback receives only
  * a {@link Tagged}.
  *
+ * The translator is throw-only, so it fits every wrapper's `translateError`:
+ * a function entry returns `never`. For a form action's translator
+ * (`translateActionError`, which only the action wrappers accept) give the
+ * `ActionFailure` its function entries may return as the second type argument;
+ * such an entry returns `fail(status, data)` and the translator is a
+ * `KitActionErrorTranslator`. It never fails as an Effect: it throws, or
+ * returns that `ActionFailure`.
+ *
  * @example
  * ```ts
  * import { Errors } from "@thomasfosterau/effect-sveltekit/server";
- * import { error } from "@sveltejs/kit";
+ * import { error, fail, type ActionFailure } from "@sveltejs/kit";
  * import type { AppError } from "$lib/errors"; // your tagged-error union
  *
  * const translateError = Errors.toSvelteKit<AppError>({
@@ -216,12 +236,22 @@ const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
  *   // Full control for anything bespoke, e.g. a JSON:API error document:
  *   JsonapiError: (e) => error(e.status, JSON.stringify(e.toDocument())),
  * });
+ *
+ * // For form actions: an entry may return `fail()`; everything else goes to
+ * // the translator the loads use.
+ * const translateActionError = Errors.toSvelteKit<AppError, ActionFailure<{ message: string }>>(
+ *   { Invalid: (e) => fail(422, { message: e.message }) },
+ *   { fallback: translateError },
+ * );
  * ```
  */
-export const toSvelteKit = <E extends Tagged = Tagged>(
-  catalogue: Catalogue<E>,
-  options: ToSvelteKitOptions = {},
-): KitErrorTranslator => {
+export const toSvelteKit = <
+  E extends Tagged = Tagged,
+  Returned extends ActionFailure<unknown> = never,
+>(
+  catalogue: Catalogue<E, Returned>,
+  options: ToSvelteKitOptions<Returned> = {},
+): KitErrorTranslator<Returned> => {
   // The lookup below goes through `R.get` (own keys only), so an absent key
   // reads `None`.
   const entries = catalogueEntries(catalogue);

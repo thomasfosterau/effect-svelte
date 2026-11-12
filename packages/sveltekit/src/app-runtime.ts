@@ -12,7 +12,7 @@
  * deduplication, relative URLs) keep working as expected.
  */
 
-import type { Action, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type { Action, ActionFailure, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import type { Handle, HandleFetch, HandleServerError, ServerInit } from "@sveltejs/kit/hooks";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -35,7 +35,7 @@ import type {
   SvelteRouteParams,
 } from "./internal/route-params.js";
 import type { ErrorTranslator } from "./request-runtime.js";
-import { SvelteKit } from "./kit.js";
+import { SvelteKit, type ActionFailureOf, type KitErrorTranslator } from "./kit.js";
 import {
   SvelteKitCookies,
   SvelteKitLocals,
@@ -108,10 +108,13 @@ const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> => {
 const fetchLayer = (fetchFn: typeof globalThis.fetch): Layer.Layer<HttpClient.HttpClient> =>
   FetchHttpClient.layer.pipe(Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFn)));
 
-/** Build a settle that returns a success value or throws via the translator. */
+/**
+ * Build a settle that returns a success value or throws via the translator
+ * (or returns what a form action's translator returns, `Returned`).
+ */
 const makeSettle =
-  (translate: ErrorTranslator) =>
-  <A>(exit: Exit.Exit<A, unknown>): A =>
+  <Returned = never>(translate: KitErrorTranslator<Returned>) =>
+  <A>(exit: Exit.Exit<A, unknown>): A | Returned =>
     Exit.match(exit, {
       onFailure: (cause) => translate(cause),
       onSuccess: (value) => value,
@@ -121,19 +124,29 @@ const makeSettle =
 const settle = makeSettle(SvelteKit.translate);
 
 /**
- * Options for {@link makeServerRuntime}.
+ * Options for {@link makeServerRuntime}. `Returned` is the `ActionFailure` its
+ * `translateActionError` may return (none by default).
  */
-export interface ServerRuntimeOptions {
+export interface ServerRuntimeOptions<Returned extends ActionFailure<unknown> = never> {
   /**
    * Translate a failed `Cause` into SvelteKit control flow at the boundary of
    * every wrapper (`serverLoad`, `action`, `actions`, `endpoint`, `handle`,
    * `handleFetch`, `handleError`, `init`). It may throw `redirect()` /
    * `error()` so a domain error catalogue surfaces as SvelteKit control flow
-   * instead of a generic 500. Defaults to the package passthrough: SvelteKit's
-   * own `redirect()` / `error()` are rethrown, anything else becomes an
-   * `EffectCauseError` (a 500).
+   * instead of a generic 500, and never returns. Defaults to the package
+   * passthrough: SvelteKit's own `redirect()` / `error()` are rethrown,
+   * anything else becomes an `EffectCauseError` (a 500).
    */
   readonly translateError?: ErrorTranslator;
+  /**
+   * Translate a failed `Cause` at the boundary of `action` / `actions`, in
+   * place of `translateError`. Unlike it, this translator may return
+   * `fail(status, data)`: the action returns that `ActionFailure` to
+   * SvelteKit, and its type is part of the action's result (so the route's
+   * `ActionData` includes `data`). A throw-only translator fits here too.
+   * Defaults to `translateError`.
+   */
+  readonly translateActionError?: KitErrorTranslator<Returned>;
 }
 
 /**
@@ -142,9 +155,15 @@ export interface ServerRuntimeOptions {
  * Produced by {@link makeServerRuntime}. The wrapper methods mirror the
  * standalone helpers in `@thomasfosterau/effect-sveltekit/server`, but
  * effects additionally have access to the services `R` of the application
- * layer.
+ * layer. `Returned` is the `ActionFailure` the runtime's
+ * `translateActionError` may return, which `action` / `actions` carry in their
+ * result.
  */
-export interface ServerRuntime<R = never, E = never> {
+export interface ServerRuntime<
+  R = never,
+  E = never,
+  Returned extends ActionFailure<unknown> = never,
+> {
   /** The underlying managed runtime for the application layer. */
   readonly runtime: ManagedRuntime.ManagedRuntime<R, E>;
 
@@ -163,33 +182,39 @@ export interface ServerRuntime<R = never, E = never> {
   ) => ServerLoad<Params, ParentData, OutputData, RouteId>;
 
   /**
-   * Wraps an Effect-based function as a SvelteKit form action.
+   * Wraps an Effect-based function as a SvelteKit form action. A
+   * `SvelteKit.fail(status, data)` failure in the Effect's error type
+   * `Failure`, or a `fail()` the runtime's `translateActionError` returns, is
+   * the action's result (an `ActionFailure`); any other failure goes to the
+   * translator, which throws.
    */
   readonly action: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends SvelteRouteId = any,
+    Failure = unknown,
   >(
     fn: (
       event: RequestEvent<Params, RouteId>,
-    ) => Effect.Effect<OutputData, unknown, R | SvelteKitServices>,
-  ) => Action<Params, OutputData, RouteId>;
+    ) => Effect.Effect<OutputData, Failure, R | SvelteKitServices>,
+  ) => Action<Params, OutputData | ActionFailureOf<Failure> | Returned, RouteId>;
 
   /**
-   * Wraps an object of Effect-based form actions.
+   * Wraps an object of Effect-based form actions, each as `action` does.
    */
   readonly actions: <
     Params extends SvelteRouteParams = SvelteRouteParams,
     OutputData extends Record<string, any> | void = any,
     RouteId extends SvelteRouteId = any,
+    Failure = unknown,
   >(
     actionsMap: Record<
       string,
       (
         event: RequestEvent<Params, RouteId>,
-      ) => Effect.Effect<OutputData, unknown, R | SvelteKitServices>
+      ) => Effect.Effect<OutputData, Failure, R | SvelteKitServices>
     >,
-  ) => Actions<Params, OutputData, RouteId>;
+  ) => Actions<Params, OutputData | ActionFailureOf<Failure> | Returned, RouteId>;
 
   /**
    * Wraps an Effect-based function as a SvelteKit `handle` hook.
@@ -337,34 +362,41 @@ export interface ServerRuntime<R = never, E = never> {
  * `HttpClient`. Request-specific data should be passed to service methods as
  * arguments instead.
  */
-export function makeServerRuntime<R, E>(
+export function makeServerRuntime<R, E, Returned extends ActionFailure<unknown> = never>(
   layer: Layer.Layer<R, E>,
-  options?: ServerRuntimeOptions,
-): ServerRuntime<R, E>;
+  options?: ServerRuntimeOptions<Returned>,
+): ServerRuntime<R, E, Returned>;
 /**
  * Creates a {@link ServerRuntime} with no application layer: its wrappers run
  * effects that need only the per-request {@link SvelteKitServices}.
  */
-export function makeServerRuntime(layer?: undefined, options?: ServerRuntimeOptions): ServerRuntime;
-export function makeServerRuntime<R, E>(
+export function makeServerRuntime<Returned extends ActionFailure<unknown> = never>(
+  layer?: undefined,
+  options?: ServerRuntimeOptions<Returned>,
+): ServerRuntime<never, never, Returned>;
+export function makeServerRuntime<R, E, Returned extends ActionFailure<unknown>>(
   layer?: Layer.Layer<R, E>,
-  options?: ServerRuntimeOptions,
-): ServerRuntime<R, E> | ServerRuntime {
+  options?: ServerRuntimeOptions<Returned>,
+): ServerRuntime<R, E, Returned> | ServerRuntime<never, never, Returned> {
   return layer === undefined
     ? serverRuntimeOver(Layer.empty, options)
     : serverRuntimeOver(layer, options);
 }
 
 /** The {@link ServerRuntime} over an application layer (see {@link makeServerRuntime}). */
-const serverRuntimeOver = <R, E>(
+const serverRuntimeOver = <R, E, Returned extends ActionFailure<unknown>>(
   layer: Layer.Layer<R, E>,
-  options?: ServerRuntimeOptions,
-): ServerRuntime<R, E> => {
+  options?: ServerRuntimeOptions<Returned>,
+): ServerRuntime<R, E, Returned> => {
   const runtime = ManagedRuntime.make(layer);
 
   // The boundary translator for this runtime's wrappers (defaults to the
   // package passthrough: SvelteKit control flow through, anything else a 500).
   const settleRequest = options?.translateError ? makeSettle(options.translateError) : settle;
+  // The actions' own translator, which may return an `ActionFailure`
+  // (defaults to the one above).
+  const settleAction: <A>(exit: Exit.Exit<A, unknown>) => A | Returned =
+    options?.translateActionError ? makeSettle(options.translateActionError) : settleRequest;
 
   /**
    * The `event.locals` entry: a per-request runtime this runtime's `handle`
@@ -428,20 +460,21 @@ const serverRuntimeOver = <R, E>(
     effect: Effect.Effect<A, unknown, R | SvelteKitServices>,
   ): Promise<A> => runExit(event, effect).then(settleRequest);
 
-  const action: ServerRuntime<R, E>["action"] = (fn) => (event) =>
-    run(
+  const action: ServerRuntime<R, E, Returned>["action"] = (fn) => (event) =>
+    runExit(
       event,
       fn(event).pipe(
         Effect.withSpan(`action ${event.route.id ?? "(unknown)"}`, { kind: "server" }),
+        SvelteKit.failuresReturned,
       ),
-    );
+    ).then(settleAction);
 
   /**
    * The `handle` hook: build a per-request runtime, store it on `event.locals`
    * so every other wrapper (and the user's own code) runs on it, run the user's
    * effect, then close the request scope.
    */
-  const handle: ServerRuntime<R, E>["handle"] = (fn) => async (input) => {
+  const handle: ServerRuntime<R, E, Returned>["handle"] = (fn) => async (input) => {
     const { event } = input;
     const scope = Scope.makeUnsafe();
     const requestServices: Context.Context<SvelteKitServices> = await runtime.runPromise(

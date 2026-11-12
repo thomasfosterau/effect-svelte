@@ -132,6 +132,8 @@ export const { serverLoad, action, actions, endpoint } = makeRuntimeAdapter(
 
 Pass `translateError` to `makeRuntimeAdapter`, `makeServerRuntime` or `RemoteFunction.withRuntime` to map a failed `Cause` to SvelteKit control flow (`error(404)`, `redirect()`, remote-form `invalid()`) instead of a generic 500. Without one, SvelteKit's own `error()` / `redirect()` pass through and anything else is a 500.
 
+A translator stands where the wrapper would otherwise throw, so it only throws: its type is `KitErrorTranslator`, a function from the `Cause` to `never`. A form action is the one place SvelteKit has a _returned_ failure, `fail()`, so `action` / `actions` take their own translator, [`translateActionError`](#action-failures-fail-and-translateactionerror), which may return one.
+
 ### From a catalogue (`Errors.toSvelteKit`)
 
 Rather than hand-writing that switch, pass your tagged error catalogue as data — keyed by `_tag` — and the app's `kit.ts` becomes one call:
@@ -165,7 +167,70 @@ The squashed cause is matched, so a tagged error that surfaced as a defect is tr
 
 ### Failing with SvelteKit control flow (`SvelteKit`)
 
-The `SvelteKit` namespace has Effect-native versions of SvelteKit's control-flow calls: `SvelteKit.redirect`, `SvelteKit.error` and `SvelteKit.fail` fail the Effect with a tagged `KitRedirect`, `KitError` or `KitActionFailure` instead of throwing, and `SvelteKit.translate` turns those failures into the matching SvelteKit call at the request boundary. `SvelteKit.makeTranslator(cases)` composes `translate` with your own cases, which run first.
+The `SvelteKit` namespace has Effect-native versions of SvelteKit's control-flow calls: `SvelteKit.redirect`, `SvelteKit.error` and `SvelteKit.fail` fail the Effect with a tagged `KitRedirect`, `KitError` or `KitActionFailure` instead of throwing. `SvelteKit.translate`, the default translator, throws the first two as SvelteKit's `redirect()` / `error()` at the request boundary. `SvelteKit.makeTranslator(cases)` composes `translate` with your own cases, which run first; a case handles an error by throwing, and what it returns is ignored.
+
+### Action failures (`fail()` and `translateActionError`)
+
+An action reports a failure by returning `fail(status, data)`, which SvelteKit hands to the page as `form`. In an action wrapper (`action`, `actions`, the [Vite plugin](sveltekit-vite-plugin.md)'s auto-wrapped `actions`, and `runAction` in tests), a `SvelteKit.fail(status, data)` failure in the Effect's error type becomes that return value, and its `data` is part of the action's result type, so the route's `ActionData` includes it:
+
+```ts
+// src/routes/signup/+page.server.ts
+import { actions as kitActions, SvelteKit } from "@thomasfosterau/effect-sveltekit/server";
+import { Effect } from "effect";
+
+export const actions = kitActions({
+  // (event) => Promise<{ created: true } | ActionFailure<{ email: string }>>
+  default: (event) =>
+    Effect.gen(function* () {
+      const email = yield* readEmail(event);
+      if (yield* isTaken(email)) yield* SvelteKit.fail(422, { email: "already taken" });
+      return { created: true as const };
+    }),
+});
+```
+
+Only a failure in the error channel is returned (the type is read from the Effect's error type). Outside a form action nothing can return a `fail()`: in a load, a hook, an endpoint or a remote function, a `KitActionFailure` is a 500 like any other untranslated failure.
+
+To map _domain_ errors to `fail()`, give the actions their own translator, `translateActionError`. It is a `KitActionErrorTranslator<Data>`: a translator that may return `ActionFailure<Data>` as well as throw. `Errors.toSvelteKit` builds one when you name the failure as its second type argument (a function entry may then return `fail()`), and `SvelteKit.makeActionTranslator<Data>(cases, fallback)` builds one from cases that may return `fail()`:
+
+```ts
+// src/lib/server/effect/kit.ts
+import {
+  Errors,
+  makeRuntimeAdapter,
+  RequestRuntime,
+} from "@thomasfosterau/effect-sveltekit/server";
+import { fail, type ActionFailure } from "@sveltejs/kit";
+import type { AppError } from "#lib/errors.ts";
+
+// Throw-only: for loads and endpoints (and for actions, as the fallback below).
+const translateError = Errors.toSvelteKit<AppError>({ NotFound: 404, Forbidden: 403 });
+
+// Actions only: Invalid becomes fail(); everything else goes to translateError.
+const translateActionError = Errors.toSvelteKit<AppError, ActionFailure<{ message: string }>>(
+  { Invalid: (e) => fail(422, { message: e.message }) },
+  { fallback: translateError },
+);
+
+export const { serverLoad, action, actions, endpoint } = makeRuntimeAdapter(
+  RequestRuntime.fromLocals((event) => event.locals.runtime),
+  { translateError, translateActionError },
+);
+```
+
+Every action of that adapter then returns `… | ActionFailure<{ message: string }>`. `makeServerRuntime(layer, { translateError, translateActionError })` takes the same pair. Without `translateActionError` the actions use `translateError`: a throw-only translator is an action translator too, so one translator can serve loads and actions as long as it never returns.
+
+`translateError` itself cannot return a `fail()`: passing a translator that does (to `translateError`, to `RemoteFunction.withRuntime`, or as a function entry of a catalogue without the second type argument) is a type error.
+
+#### Migrating a shared translator that returned `fail()`
+
+Before this change the translator type was `never`-returning but a translator could return `fail()` anyway, and one translator was shared by loads and actions. Split it:
+
+1. Keep the throwing cases in the shared translator (`translateError`), and remove the `fail()` ones from it.
+2. Put the `fail()` cases in an action translator that falls back to the shared one: `Errors.toSvelteKit<AppError, ActionFailure<Data>>({ … }, { fallback: translateError })`, or `SvelteKit.makeActionTranslator<Data>([…cases], translateError)`. A hand-written one is a function `(cause) => ActionFailure<Data>` that returns `fail()` or calls `translateError(cause)`.
+3. Pass it as `translateActionError` beside `translateError`.
+
+An action that only yields `SvelteKit.fail()` needs none of this.
 
 ## Endpoints backed by Effect
 

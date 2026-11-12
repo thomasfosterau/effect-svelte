@@ -40,7 +40,7 @@
  * ```
  */
 
-import type { Cookies, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type { ActionFailure, Cookies, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Arr from "effect/Array";
 import * as Layer from "effect/Layer";
@@ -53,7 +53,7 @@ import {
   type RequestRuntimeProvider,
 } from "./request-runtime.js";
 import * as RequestRuntimeModule from "./request-runtime.js";
-import { SvelteKit } from "./kit.js";
+import { SvelteKit, type ActionFailureOf, type KitErrorTranslator } from "./kit.js";
 import * as RemoteRun from "./internal/remote-run.js";
 import type { FormErrorMapper, RunHelpers } from "./internal/remote-run.js";
 
@@ -268,9 +268,25 @@ export interface TestRunOptions<R> {
   /**
    * Translate a failed `Cause` at the boundary. Defaults to
    * {@link SvelteKit.translate} (Kit control-flow through; anything else
-   * becomes an `EffectCauseError`).
+   * becomes an `EffectCauseError`). It never returns.
    */
   readonly translateError?: ErrorTranslator;
+}
+
+/**
+ * Options for {@link runAction}: {@link TestRunOptions}, plus the action's own
+ * translator. `Returned` is the `ActionFailure` it may return.
+ */
+export interface TestActionOptions<
+  R,
+  Returned extends ActionFailure<unknown> = never,
+> extends TestRunOptions<R> {
+  /**
+   * Translate a failed `Cause` at the action's boundary, in place of
+   * `translateError`. It may return `fail(status, data)`, which
+   * {@link runAction} then resolves with. Defaults to `translateError`.
+   */
+  readonly translateActionError?: KitErrorTranslator<Returned>;
 }
 
 /**
@@ -294,35 +310,65 @@ export interface RunRemoteOptions<R> {
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
-/** An Effect-based handler under test, as the `run*` helpers take it. */
-type TestHandler<A, R> = (event: RequestEvent) => Effect.Effect<A, unknown, R>;
+/**
+ * An Effect-based handler under test, as the `run*` helpers take it. It fails
+ * with `E`, which only {@link runAction} reads.
+ */
+type TestHandler<A, R, E = unknown> = (event: RequestEvent) => Effect.Effect<A, E, R>;
 
-/** {@link TestRunOptions} without a layer, for a handler that requires no services. */
-type TestRunOptionsWithoutLayer = TestRunOptions<never> & { readonly layer?: never };
+/** The options a `run*` helper takes without a layer, for a handler that requires no services. */
+type WithoutLayer<Options> = Options & { readonly layer?: never };
 
-/** {@link TestRunOptions} with the layer that provides the handler's services `R`. */
-type TestRunOptionsWithLayer<R> = TestRunOptions<R> & { readonly layer: Layer.Layer<R> };
+/** The options a `run*` helper takes with the layer that provides the handler's services `R`. */
+type WithLayer<Options, R> = Options & { readonly layer: Layer.Layer<R> };
 
 /**
  * The two ways a `run*` helper is called, as its overloads spell them: with a
  * handler that requires no services, or with a handler and the layer that
- * provides the services `R` it requires.
+ * provides the services `R` it requires. `Options` is the helper's options
+ * type for a handler that requires `R`, or nothing.
  */
-type TestRunArgs<A, R> =
-  | readonly [fn: TestHandler<A, never>, event: RequestEvent, opts?: TestRunOptionsWithoutLayer]
-  | readonly [fn: TestHandler<A, R>, event: RequestEvent, opts: TestRunOptionsWithLayer<R>];
+type RunArgs<A, R, E, Options, OptionsWithoutLayer> =
+  | readonly [fn: TestHandler<A, never, E>, event: RequestEvent, opts?: OptionsWithoutLayer]
+  | readonly [fn: TestHandler<A, R, E>, event: RequestEvent, opts: WithLayer<Options, R>];
+
+/** {@link RunArgs} of {@link runServerLoad} and {@link runEndpoint}. */
+type TestRunArgs<A, R> = RunArgs<
+  A,
+  R,
+  unknown,
+  TestRunOptions<R>,
+  WithoutLayer<TestRunOptions<never>>
+>;
+
+/** {@link RunArgs} of {@link runAction}. */
+type TestActionArgs<A, R, E, Returned extends ActionFailure<unknown>> = RunArgs<
+  A,
+  R,
+  E,
+  TestActionOptions<R, Returned>,
+  WithoutLayer<TestActionOptions<never, Returned>>
+>;
 
 /** Whether a `run*` helper was called with a layer. */
-const hasLayer = <A, R>(
-  args: TestRunArgs<A, R>,
-): args is Extract<TestRunArgs<A, R>, readonly [unknown, unknown, TestRunOptionsWithLayer<R>]> =>
-  args[2]?.layer !== undefined;
+const hasLayer = <A, R, E, Options, OptionsWithoutLayer extends { readonly layer?: never }>(
+  args: RunArgs<A, R, E, Options, OptionsWithoutLayer>,
+): args is Extract<
+  RunArgs<A, R, E, Options, OptionsWithoutLayer>,
+  readonly [unknown, unknown, WithLayer<Options, R>]
+> => args[2]?.layer !== undefined;
 
 /** The adapter whose wrappers run a handler on `layer`. */
-const adapterOn = <R>(layer: Layer.Layer<R>, opts?: Pick<TestRunOptions<R>, "translateError">) =>
-  RequestRuntimeModule.makeRuntimeAdapter(RequestRuntime.fromLayer(layer), {
-    translateError: opts?.translateError ?? SvelteKit.translate,
+const adapterOn = <R, Returned extends ActionFailure<unknown> = never>(
+  layer: Layer.Layer<R>,
+  opts?: Pick<TestActionOptions<R, Returned>, "translateError" | "translateActionError">,
+) => {
+  const translateError = opts?.translateError ?? SvelteKit.translate;
+  return RequestRuntimeModule.makeRuntimeAdapter(RequestRuntime.fromLayer(layer), {
+    translateError,
+    translateActionError: opts?.translateActionError ?? translateError,
   });
+};
 
 /** A server `load`'s event for `event`: no parent data, and nothing tracked. */
 const serverLoadEvent = (event: RequestEvent): Parameters<ServerLoad>[0] => ({
@@ -343,11 +389,11 @@ const loadOn = <A extends Record<string, any> | void, R>(
   Promise.resolve(adapter.serverLoad(() => fn(event))(serverLoadEvent(event)));
 
 /** Runs `fn` as the adapter's form action for `event`. */
-const actOn = <A extends Record<string, any> | void, R>(
-  adapter: RequestRuntimeModule.RuntimeAdapter<R>,
-  fn: TestHandler<A, R>,
+const actOn = <A extends Record<string, any> | void, R, E, Returned extends ActionFailure<unknown>>(
+  adapter: RequestRuntimeModule.RuntimeAdapter<R, Returned>,
+  fn: TestHandler<A, R, E>,
   event: RequestEvent,
-): Promise<A> => Promise.resolve(adapter.action(fn)(event));
+): Promise<A | ActionFailureOf<E> | Returned> => Promise.resolve(adapter.action(fn)(event));
 
 /** Runs `fn` as the adapter's endpoint for `event`. */
 const respondOn = <R>(
@@ -414,40 +460,63 @@ export function runServerLoad<R, A extends Record<string, any> | void>(
 /**
  * Run an Effect-based form action handler under test.
  *
+ * Resolves with what the action returns to SvelteKit: the handler's value, or
+ * an `ActionFailure` for a `SvelteKit.fail(status, data)` failure in the
+ * handler's error type (or one `opts.translateActionError` returns). Any other
+ * failure rejects with what `opts.translateActionError` throws (defaults to
+ * `opts.translateError`, then {@link SvelteKit.translate}).
+ *
  * @example
  * ```ts
  * const result = await runAction(
  *   (_event) => Effect.succeed({ success: true }),
  *   TestRequestEvent({ method: "POST" }),
  * );
- * expect((result as any).success).toBe(true);
+ * expect(result).toEqual({ success: true });
  * ```
  */
-export function runAction<R, A extends Record<string, any> | void = void>(
-  fn: (event: RequestEvent) => Effect.Effect<A, unknown, R>,
+export function runAction<
+  R,
+  A extends Record<string, any> | void = void,
+  E = unknown,
+  Returned extends ActionFailure<unknown> = never,
+>(
+  fn: (event: RequestEvent) => Effect.Effect<A, E, R>,
   event: RequestEvent,
-  opts: TestRunOptions<R> & { readonly layer: Layer.Layer<R> },
-): Promise<A>;
+  opts: TestActionOptions<R, Returned> & { readonly layer: Layer.Layer<R> },
+): Promise<A | ActionFailureOf<E> | Returned>;
 /**
  * Run an Effect-based form action handler that requires no services under
- * test, with no layer. Errors are translated by `opts.translateError`.
+ * test, with no layer. A `SvelteKit.fail()` failure resolves as an
+ * `ActionFailure`; other errors are translated by `opts.translateActionError`
+ * (which may return one too), else `opts.translateError`, and reject with what
+ * it throws.
  */
-export function runAction<A extends Record<string, any> | void = void>(
-  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+export function runAction<
+  A extends Record<string, any> | void = void,
+  E = unknown,
+  Returned extends ActionFailure<unknown> = never,
+>(
+  fn: (event: RequestEvent) => Effect.Effect<A, E>,
   event: RequestEvent,
-  opts: TestRunOptions<never> & { readonly layer?: never },
-): Promise<A>;
+  opts: TestActionOptions<never, Returned> & { readonly layer?: never },
+): Promise<A | ActionFailureOf<E> | Returned>;
 /**
  * Run an Effect-based form action handler that requires no services under
- * test, with no layer. Errors are translated by {@link SvelteKit.translate}.
+ * test, with no layer. A `SvelteKit.fail()` failure resolves as an
+ * `ActionFailure`; other errors reject with what {@link SvelteKit.translate}
+ * throws.
  */
-export function runAction<A extends Record<string, any> | void = void>(
-  fn: (event: RequestEvent) => Effect.Effect<A, unknown>,
+export function runAction<A extends Record<string, any> | void = void, E = unknown>(
+  fn: (event: RequestEvent) => Effect.Effect<A, E>,
   event: RequestEvent,
-): Promise<A>;
-export function runAction<R, A extends Record<string, any> | void>(
-  ...args: TestRunArgs<A, R>
-): Promise<A> {
+): Promise<A | ActionFailureOf<E>>;
+export function runAction<
+  R,
+  A extends Record<string, any> | void,
+  E,
+  Returned extends ActionFailure<unknown>,
+>(...args: TestActionArgs<A, R, E, Returned>): Promise<A | ActionFailureOf<E> | Returned> {
   return hasLayer(args)
     ? actOn(adapterOn(args[2].layer, args[2]), args[0], args[1])
     : actOn(adapterOn(Layer.empty, args[2]), args[0], args[1]);

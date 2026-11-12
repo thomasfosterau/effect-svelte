@@ -5,6 +5,7 @@ import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import type { SvelteKitServices } from "./app-runtime.js";
+import type { ActionFailureOf } from "./kit.js";
 import type { SvelteRouteId, SvelteRouteParams } from "./internal/route-params.js";
 import { defaultServerRuntime as runtime } from "./internal/default-runtime.js";
 
@@ -55,6 +56,12 @@ export function serverLoad<
  * The effect has access to platform services (HttpClient, the RequestEvent, etc.)
  * via the SvelteKit runtime.
  *
+ * A `SvelteKit.fail(status, data)` failure in the Effect's error type is the
+ * action's result, as the `ActionFailure` SvelteKit's `fail()` builds (so the
+ * route's `ActionData` includes `data`). SvelteKit control flow (`redirect()`,
+ * `error()`) is passed through to SvelteKit, and any other failure is thrown
+ * as an `EffectCauseError` (a 500).
+ *
  * @example
  * ```ts
  * import { action } from '@thomasfosterau/effect-sveltekit/server';
@@ -75,17 +82,18 @@ export function action<
   Params extends SvelteRouteParams = SvelteRouteParams,
   OutputData extends Record<string, any> | void = any,
   RouteId extends SvelteRouteId = any,
+  E = unknown,
 >(
-  fn: (
-    event: RequestEvent<Params, RouteId>,
-  ) => Effect.Effect<OutputData, unknown, SvelteKitServices>,
-): Action<Params, OutputData, RouteId> {
+  fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, E, SvelteKitServices>,
+): Action<Params, OutputData | ActionFailureOf<E>, RouteId> {
   return runtime().action(fn);
 }
 
 /**
  * Creates SvelteKit actions from an object of Effect-based action handlers.
- * Each action will have access to platform services via the SvelteKit runtime.
+ * Each action will have access to platform services via the SvelteKit runtime,
+ * and settles as {@link action} does: a `SvelteKit.fail()` failure is its
+ * result, any other failure is thrown.
  *
  * @example
  * ```ts
@@ -102,12 +110,13 @@ export function actions<
   Params extends SvelteRouteParams = SvelteRouteParams,
   OutputData extends Record<string, any> | void = any,
   RouteId extends SvelteRouteId = any,
+  E = unknown,
 >(
   actionsMap: Record<
     string,
-    (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, unknown, SvelteKitServices>
+    (event: RequestEvent<Params, RouteId>) => Effect.Effect<OutputData, E, SvelteKitServices>
   >,
-): Actions<Params, OutputData, RouteId> {
+): Actions<Params, OutputData | ActionFailureOf<E>, RouteId> {
   return runtime().actions(actionsMap);
 }
 
@@ -277,10 +286,17 @@ export { defer } from "./streamed-load.js";
  * - `SvelteKit.redirect` / `SvelteKit.error` / `SvelteKit.fail` — yield typed
  *   Effect failures instead of throwing SvelteKit control-flow objects.
  * - `SvelteKit.translate` — the default `translateError` wired into every
- *   server wrapper; maps the Kit error types to `redirect()` / `error()` /
- *   `fail()` at the request boundary.
+ *   server wrapper; throws the Kit error types as `redirect()` / `error()` at
+ *   the request boundary.
+ * - `SvelteKit.failuresReturned` — what the action wrappers apply: a
+ *   `SvelteKit.fail()` failure becomes the Effect's result, as `fail()`'s
+ *   `ActionFailure`.
  * - `SvelteKit.makeTranslator([...cases])` — compose `translate` with your own
  *   domain-error matchers (consumer cases run before the Kit base cases).
+ * - `KitErrorTranslator` — the translator contract (throw-only);
+ *   `KitActionErrorTranslator` — a form action's, which may return `fail()`.
+ * - `ActionFailureOf` — the `ActionFailure` an action returns for the
+ *   `SvelteKit.fail()` failures in an Effect's error type.
  * - `KitRedirect`, `KitError`, `KitActionFailure` — the tagged error classes
  *   for use with `Effect.catchTag`, `instanceof`, etc.
  * - `KitTranslatorCase` — the argument type for `makeTranslator`.
@@ -293,6 +309,8 @@ export {
   KitActionFailure,
   type KitTranslatorCase,
   type KitErrorTranslator,
+  type KitActionErrorTranslator,
+  type ActionFailureOf,
 } from "./kit.js";
 export type { KitErrorBody } from "./internal/error.js";
 
