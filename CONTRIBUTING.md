@@ -54,7 +54,7 @@ vp run fallow:audit                            # change-set review (not a CI gat
 
 [ci.yml](.github/workflows/ci.yml) runs one job, `ci`, on the latest stable Node for every push to and pull request against `trunk`: the gates in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `pnpm install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `trunk` under the protected `release` environment ([PUBLISHING.md](PUBLISHING.md)).
 
-The workflows are hardened for Dependabot PRs: `permissions: {}` at the top with per-job grants, every action pinned to a commit SHA, `persist-credentials: false` on every checkout (the Release workflow pushes through the GitHub API), no secrets or OIDC in anything a PR can trigger (the release job also skips `dependabot[bot]`), and `uvx zizmor --offline .github` clean (its config is `.github/zizmor.yml`). CI calls the dev bins through `pnpm exec` instead of writing to `GITHUB_PATH`.
+The workflows are hardened for Dependabot PRs: `permissions: {}` at the top with per-job grants, every action locked to its commit by `.github/workflows/actions.lock` (exact release tags in `uses:`; regenerate it with `gh actions-lock` after changing a workflow, and the `Lockfile` workflow runs `gh actions-lock --verify`), `persist-credentials: false` on every checkout (the Release workflow pushes through the GitHub API), no secrets or OIDC in anything a PR can trigger (the release job also skips `dependabot[bot]`), and `uvx zizmor --offline .github` clean (its config is `.github/zizmor.yml`). CI calls the dev bins through `pnpm exec` instead of writing to `GITHUB_PATH`.
 
 ## Changesets
 
