@@ -107,12 +107,6 @@ export type EnhanceOptionsArgs<R> = [R] extends [never]
 export type EnhanceHandlerKey = keyof EnhanceHandlers;
 
 /**
- * Records which handlers a handlers object names: `Keys` is inferred from the
- * object's keys, which TypeScript knows before it types any handler.
- */
-export type HandlerKeys<Keys extends EnhanceHandlerKey> = { readonly [Key in Keys]?: unknown };
-
-/**
  * The default of a handler's error (`ESubmit` / `EResult`) while TypeScript
  * has not inferred it: for a handler it types after `onError`, for one it
  * skips in its first inference pass (a handler whose parameters are not
@@ -130,16 +124,11 @@ export type ErrorNotInferred = any;
 export type IsErrorNotInferred<Errors> = 0 extends 1 & Errors ? true : false;
 
 /**
- * The default of a handler's requirements (`RSubmit` / `RResult` / `RError`)
- * while TypeScript has not inferred them: `unknown`, which every handler's
- * requirements are assignable to (see {@link ErrorNotInferred} for why), and
- * which {@link RequiredServices} counts as none.
- */
-export type ServicesNotInferred = unknown;
-
-/**
- * The services a handler requires: `R`, or none while it is not inferred
- * ({@link ServicesNotInferred}), as for an absent handler.
+ * The services a handler requires: `R`, or none while it is not inferred, as
+ * for an absent handler. The default of a handler's requirements (`RSubmit` /
+ * `RResult` / `RError` of {@link makeSubmitFunction}) while TypeScript has not
+ * inferred them is `unknown`, which every handler's requirements are
+ * assignable to (see {@link ErrorNotInferred} for why).
  *
  * Since `unknown` must count as none, so does every requirements type that
  * `unknown` is assignable to: an effect typed as requiring `any` or `unknown`
@@ -214,8 +203,10 @@ export type EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E> = P
  *
  * The type parameters are inferred, never written. `RSubmit`, `RResult` and
  * `RError` are the services each handler requires (see
- * {@link EnhanceHandlersBy}). `Keys` names the handlers present, and `E` (the
- * error `onError` receives) is computed from their errors, or inferred from
+ * {@link EnhanceHandlersBy}). `Keys` names the handlers present: it is
+ * inferred from the keys of the handlers object, which TypeScript knows before
+ * it types any handler, through the `Pick` of those handlers in the parameter
+ * type (which adds nothing else to it). `E` (the error `onError` receives) is computed from their errors, or inferred from
  * `onError`'s parameter annotation and then checked against them, so a
  * handlers object type-checks whatever its property order (see
  * {@link EnhanceHandlers.onError}). The options argument, and its `runtime`,
@@ -224,21 +215,21 @@ export type EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E> = P
  *
  * When a call does not type-check, TypeScript may report it against its first
  * inference pass, which skips handlers whose parameters are not annotated. The
- * defaults of the handler parameters ({@link ErrorNotInferred},
- * {@link ServicesNotInferred}) accept any handler, so a missing or wrong
+ * defaults of the handler parameters ({@link ErrorNotInferred} for the
+ * errors, `unknown` for the requirements) accept any handler, so a missing or wrong
  * runtime is reported on the call or on the runtime, never on a handler.
  */
 export const makeSubmitFunction = <
-  RSubmit = ServicesNotInferred,
-  RResult = ServicesNotInferred,
-  RError = ServicesNotInferred,
+  RSubmit = unknown,
+  RResult = unknown,
+  RError = unknown,
   ESubmit = ErrorNotInferred,
   EResult = ErrorNotInferred,
   Keys extends EnhanceHandlerKey = never,
   E = OnErrorInput<HandlerErrors<Keys, ESubmit, EResult>>,
 >(
   handlers: EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E> &
-    HandlerKeys<Keys> &
+    Pick<EnhanceHandlersBy<RSubmit, RResult, RError, ESubmit, EResult, E>, Keys> &
     NoInfer<OnErrorAccepts<RError, HandlerErrors<Keys, ESubmit, EResult>, E>>,
   // The requirements are inferred from the handlers alone; the runtime is
   // then checked against their union.

@@ -102,6 +102,20 @@ describe("Forms.applyAction", () => {
   );
 });
 
+describe("Forms.deserialize", () => {
+  it("has the type parameters of $app/forms' deserialize: both or neither", () => {
+    // With neither, each is its constraint: any result `applyAction` accepts.
+    expectTypeOf(Forms.deserialize("{}")).toEqualTypeOf<
+      Effect.Effect<Parameters<typeof Forms.applyAction>[0], unknown>
+    >();
+    expectTypeOf(Forms.deserialize<{ id: string }, { message: string }>("{}")).toEqualTypeOf<
+      Effect.Effect<ActionResult<{ id: string }, { message: string }>, unknown>
+    >();
+    // @ts-expect-error: `Failure` has no default, as in `$app/forms`
+    Forms.deserialize<{ id: string }>("{}");
+  });
+});
+
 describe("Forms.enhance with failing handlers", () => {
   class Invalid extends Schema.TaggedError<Invalid>()("Invalid", { field: Schema.String }) {}
 

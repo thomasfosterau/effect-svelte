@@ -36,14 +36,22 @@ import { runPromiseExit } from "./run.js";
 type AnyEffect = Effect.Effect<unknown, unknown>;
 
 /**
- * The function form of a user export: called with the hook / load argument, it
- * returns an Effect to run or a plain SvelteKit value to pass through. Its
- * result is only known at runtime (`Effect.isEffect` tells the two apart).
+ * An Effect a user function returns. Its requirements are open: whatever the
+ * configured runtime does not provide surfaces as a missing-service defect
+ * when it runs.
  */
-type UserFn<Arg> = (arg: Arg) => unknown;
+type ReturnedEffect = Effect.Effect<unknown, unknown, unknown>;
+
+/**
+ * The function form of a user export: called with the hook / load argument, it
+ * returns an Effect to run or `Plain`, what SvelteKit's own signature for that
+ * export returns, to pass through. `Effect.isEffect` tells the two apart at
+ * runtime.
+ */
+type UserFn<Arg, Plain> = (arg: Arg) => ReturnedEffect | Plain;
 
 /** The argument-less function form of a user `init` export (see {@link UserFn}). */
-type UserThunk = () => unknown;
+type UserThunk = () => ReturnedEffect | void | Promise<void>;
 
 type AnyRuntime = ServerRuntime<any, any> | UniversalRuntime<any, any>;
 
@@ -105,10 +113,14 @@ async function runBare<A, E>(effect: Effect.Effect<A, E>, runtime?: AnyRuntime):
 const isUserEffect = (value: unknown): value is AnyEffect => Effect.isEffect(value);
 
 /** A user export's Effect form as is, or the result of calling its function form with `arg`. */
-const resolveExport = <Arg>(value: AnyEffect | UserFn<Arg>, arg: Arg) =>
+const resolveExport = <Arg, Plain>(value: AnyEffect | UserFn<Arg, Plain>, arg: Arg) =>
   Effect.isEffect(value) ? value : value(arg);
 
-type LoadLikeInput = undefined | AnyEffect | UserFn<any>;
+/**
+ * A user export called with a load / request event: absent, an Effect, or a
+ * function returning an Effect or `Plain`.
+ */
+type LoadLikeInput<Plain> = undefined | AnyEffect | UserFn<any, Plain>;
 
 /** The page data a universal `load` resolves to. */
 type LoadData = Awaited<ReturnType<Load>>;
@@ -117,7 +129,7 @@ type LoadData = Awaited<ReturnType<Load>>;
  * Wraps a value intended to be a SvelteKit universal `load` export.
  * Used by the Vite plugin for `+page.ts` / `+layout.ts`.
  */
-export function wrapLoad<T extends LoadLikeInput>(
+export function wrapLoad<T extends LoadLikeInput<ReturnType<Load>>>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Load {
@@ -145,7 +157,7 @@ export function wrapLoad<T extends LoadLikeInput>(
 }
 
 /** Shared implementation for server-side, event-based wrappers. */
-function wrapServerEvent(value: LoadLikeInput, runtimeMod?: RuntimeModule) {
+function wrapServerEvent<Plain>(value: LoadLikeInput<Plain>, runtimeMod?: RuntimeModule) {
   if (value === undefined) return undefined;
 
   return async (event: RequestEvent) => {
@@ -160,7 +172,7 @@ function wrapServerEvent(value: LoadLikeInput, runtimeMod?: RuntimeModule) {
  * Wraps a value intended to be a SvelteKit server `load` export.
  * Used by the Vite plugin for `+page.server.ts` / `+layout.server.ts`.
  */
-export function wrapServerLoad<T extends LoadLikeInput>(
+export function wrapServerLoad<T extends LoadLikeInput<ReturnType<ServerLoad>>>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : ServerLoad {
@@ -173,7 +185,7 @@ export function wrapServerLoad<T extends LoadLikeInput>(
 /**
  * Wraps a single SvelteKit action handler.
  */
-export function wrapAction<T extends LoadLikeInput>(
+export function wrapAction<T extends LoadLikeInput<ReturnType<Action>>>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Action {
@@ -186,10 +198,9 @@ export function wrapAction<T extends LoadLikeInput>(
 /**
  * Wraps a SvelteKit `actions` object, individually wrapping each entry.
  */
-export function wrapActions<T extends Record<string, LoadLikeInput> | undefined>(
-  value: T,
-  runtimeMod?: RuntimeModule,
-): T extends undefined ? undefined : Actions {
+export function wrapActions<
+  T extends Record<string, LoadLikeInput<ReturnType<Action>>> | undefined,
+>(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : Actions {
   if (value === undefined || !P.isObjectOrArray(value)) {
     // SAFETY: `undefined` and non-objects pass through untouched, as before;
     // an object becomes a record of wrapped actions (entries that are
@@ -208,10 +219,9 @@ export function wrapActions<T extends Record<string, LoadLikeInput> | undefined>
 /**
  * Wraps a SvelteKit `handle` hook export.
  */
-export function wrapHandle<T extends undefined | AnyEffect | UserFn<Parameters<Handle>[0]>>(
-  value: T,
-  runtimeMod?: RuntimeModule,
-): T extends undefined ? undefined : Handle {
+export function wrapHandle<
+  T extends undefined | AnyEffect | UserFn<Parameters<Handle>[0], ReturnType<Handle>>,
+>(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : Handle {
   if (value === undefined) {
     // SAFETY: `undefined` in, `undefined` out; anything else becomes the
     // `Handle` below, matching the conditional return.
@@ -220,11 +230,9 @@ export function wrapHandle<T extends undefined | AnyEffect | UserFn<Parameters<H
 
   const handle: Handle = (input) => {
     const result = resolveExport(value, input);
-    if (!Effect.isEffect(result)) {
-      // SAFETY: a non-Effect result is the user's own `handle` return value
-      // (a `Response` or a promise of one), passed through unchanged.
-      return result as Response | Promise<Response>;
-    }
+    // A non-Effect result is the user's own `handle` return value (a
+    // `Response` or a promise of one), passed through unchanged.
+    if (!Effect.isEffect(result)) return result;
 
     // Route through `handle` so the per-request runtime is installed on
     // `event.locals` for the rest of the request, like the explicit wrapper.
@@ -242,7 +250,7 @@ export function wrapHandle<T extends undefined | AnyEffect | UserFn<Parameters<H
  * Wraps a SvelteKit `handleFetch` hook export.
  */
 export function wrapHandleFetch<
-  T extends undefined | AnyEffect | UserFn<Parameters<HandleFetch>[0]>,
+  T extends undefined | AnyEffect | UserFn<Parameters<HandleFetch>[0], ReturnType<HandleFetch>>,
 >(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : HandleFetch {
   if (value === undefined) {
     // SAFETY: `undefined` in, `undefined` out; anything else becomes the
@@ -252,11 +260,9 @@ export function wrapHandleFetch<
 
   const handleFetch: HandleFetch = async (args) => {
     const result = resolveExport(value, args);
-    if (!Effect.isEffect(result)) {
-      // SAFETY: a non-Effect result is the user's own `handleFetch` return value
-      // (a `Response` or a promise of one), passed through unchanged.
-      return result as Response | Promise<Response>;
-    }
+    // A non-Effect result is the user's own `handleFetch` return value (a
+    // `Response` or a promise of one), passed through unchanged.
+    if (!Effect.isEffect(result)) return result;
 
     // SAFETY: the effect is the user's `handleFetch`, which resolves to the
     // `Response`.
@@ -273,10 +279,9 @@ type HandleErrorOutput = ReturnType<AnyHandleError>;
 /**
  * Wraps a SvelteKit `handleError` hook export.
  */
-export function wrapHandleError<T extends undefined | AnyEffect | UserFn<HandleErrorInput>>(
-  value: T,
-  runtimeMod?: RuntimeModule,
-): T extends undefined ? undefined : AnyHandleError {
+export function wrapHandleError<
+  T extends undefined | AnyEffect | UserFn<HandleErrorInput, HandleErrorOutput>,
+>(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : AnyHandleError {
   if (value === undefined) {
     // SAFETY: `undefined` in, `undefined` out; anything else becomes the
     // async `handleError` below, matching the conditional return.
@@ -313,7 +318,9 @@ export function wrapHandleError<T extends undefined | AnyEffect | UserFn<HandleE
  * error-handling pipeline (i.e. they are not silently swallowed). Use the
  * explicit `endpoint()` helper if you need the `exposeErrors` toggle.
  */
-export function wrapEndpoint<T extends undefined | AnyEffect | UserFn<RequestEvent>>(
+export function wrapEndpoint<
+  T extends undefined | AnyEffect | UserFn<RequestEvent, Response | Promise<Response>>,
+>(
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : (event: RequestEvent) => Response | Promise<Response> {
@@ -330,10 +337,9 @@ type RerouteEvent = Parameters<Reroute>[0];
  * universal runtime with an `HttpClient` backed by the event's `fetch`, on both
  * the server and the client.
  */
-export function wrapReroute<T extends undefined | AnyEffect | UserFn<RerouteEvent>>(
-  value: T,
-  runtimeMod?: RuntimeModule,
-): T extends undefined ? undefined : Reroute {
+export function wrapReroute<
+  T extends undefined | AnyEffect | UserFn<RerouteEvent, ReturnType<Reroute>>,
+>(value: T, runtimeMod?: RuntimeModule): T extends undefined ? undefined : Reroute {
   if (value === undefined) {
     // SAFETY: `undefined` in, `undefined` out; anything else becomes the
     // `reroute` below, matching the conditional return.
@@ -342,11 +348,9 @@ export function wrapReroute<T extends undefined | AnyEffect | UserFn<RerouteEven
 
   const reroute = (event: RerouteEvent) => {
     const result = resolveExport(value, event);
-    if (!Effect.isEffect(result)) {
-      // SAFETY: a non-Effect result is the user's own `reroute` return value
-      // (a pathname, a promise of one, or nothing), passed through unchanged.
-      return result as ReturnType<Reroute>;
-    }
+    // A non-Effect result is the user's own `reroute` return value (a
+    // pathname, a promise of one, or nothing), passed through unchanged.
+    if (!Effect.isEffect(result)) return result;
 
     // SAFETY: the effect is the user's `reroute`, which resolves to the
     // pathname (or nothing).
