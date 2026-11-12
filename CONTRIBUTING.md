@@ -4,7 +4,7 @@ This monorepo publishes `@thomasfosterau/effect-svelte` (`packages/svelte`) and 
 
 ## Development setup
 
-- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs the latest stable Node ([setup-vp](https://github.com/voidzero-dev/setup-vp) with `node-version: "*"`, a semver range, which never matches a pre-release; `latest` would take whatever heads nodejs.org's dist index, pre-releases included).
+- Node.js 22 or later (the root `engines.node`; each published package's own `engines` states its floor); CI runs on a Node matrix, the newest LTS and the newest release ([setup-vp](https://github.com/voidzero-dev/setup-vp) with `node-version: lts` and `latest`, which Vite+ resolves to released versions, never a pre-release; the other workflows use `"*"`, a semver range, which never matches one either).
 - [pnpm](https://pnpm.io) 11 — the repo pins a version in the `packageManager` field, so `corepack enable` provisions the right one.
 - Optionally the global [Vite+](https://viteplus.dev) CLI (`curl -fsSL https://vite.plus | bash`). Without it, run `./node_modules/.bin/vp`.
 
@@ -41,6 +41,7 @@ Hooks are managed by Vite+ (`vp config`, run by the root `prepare`); the editabl
 - `vp run check` — the type gate: svelte-check over every package's `src`, `tests` and `.svelte` fixtures.
 - `vp run -r test:unit` — every package's Vitest suite; `vp test run` inside one package.
 - `vp run -r build` — `vp pack` (tsdown) into each package's `dist/`.
+- `vp run ci` — what CI runs: the five commands above that gate a merge (`vp check`, `vp run check`, `vp run -r test:unit`, `vp run -r build`, `pnpm audit --audit-level high`), in that order, stopping at the first failure.
 - `vp run test:coverage` — every package's suite under one Istanbul map at `coverage/coverage-final.json`, which `fallow audit` reads for exact per-function CRAP scores.
 - `vp exec fallow dead-code` / `vp exec fallow audit` (also `vp run fallow` / `vp run fallow:audit`) — unused code and dependencies, boundaries, and the change-set gate (not a CI step).
 - `pnpm changeset` — add a changeset.
@@ -57,7 +58,7 @@ vp test run tests/some.test.ts                 # single file (from inside the pa
 
 ## CI expectations
 
-[ci.yml](.github/workflows/ci.yml) runs one job, `ci`, on the latest stable Node for every push to and pull request against `trunk`: the gates in [AGENTS.md § Verification](AGENTS.md#verification), in that order, after a `vp install --frozen-lockfile` (the composite action in `.github/actions/setup`). [release.yml](.github/workflows/release.yml) runs the Changesets action on `trunk` under the protected `release` environment ([PUBLISHING.md](PUBLISHING.md)).
+[ci.yml](.github/workflows/ci.yml) is the one CI workflow. For every pull request, every push to `trunk` and on manual dispatch it runs one command, `vp run ci` (steps 2–6 of [AGENTS.md § Verification](AGENTS.md#verification), in that order), after a `vp install --frozen-lockfile` (the composite action in `.github/actions/setup`), once per Node version in its matrix: the check runs `ci (node lts)` and `ci (node latest)`. There is no aggregate job: a ruleset requires each leg by name. Because the task stops at the first failing gate, a red run names one gate, not all that would fail. [release.yml](.github/workflows/release.yml) runs the Changesets action on `trunk` under the protected `release` environment ([PUBLISHING.md](PUBLISHING.md)).
 
 The workflows are hardened for Dependabot PRs: `permissions: {}` at the top with per-job grants, every action pinned to a commit SHA (setup-vp to an exact release tag, as its README asks; the Actions lockfile in #250 pins its commit), `persist-credentials: false` on every checkout (the Release workflow pushes through the GitHub API), no secrets or OIDC in anything a PR can trigger (the release job also skips `dependabot[bot]`), and `uvx zizmor --offline .github` clean (its config is `.github/zizmor.yml`). setup-vp installs Vite+ at the catalog's `vite-plus` pin with the Node.js and pnpm it manages, and puts `vp` on PATH, so no workflow step writes to `GITHUB_PATH`.
 

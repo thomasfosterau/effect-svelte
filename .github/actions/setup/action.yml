@@ -11,10 +11,10 @@ name: Setup toolchain
 description: Set up Vite+ with its managed Node.js and pnpm, restore the package cache and install dependencies against the lockfile.
 inputs:
   node-version:
-    # CI tests one Node version, the latest stable release (#114). `*` is a
-    # semver range, and a range never matches a pre-release: `latest` would
-    # take whatever heads nodejs.org's dist index, and on 2026-10-29 that
-    # became `v27.0.0-alpha.0.0.0`, on which file responses hang (#214).
+    # The default is the latest stable release: `*` is a semver range, and a
+    # range never matches a pre-release (#114, #214). ci.yml passes its matrix
+    # value instead (`lts`, `latest`), which Vite+ resolves to released
+    # versions.
     description: The Node.js version (a semver range) to set up.
     required: false
     default: "*"

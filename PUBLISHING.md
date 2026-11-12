@@ -25,7 +25,7 @@ Releases are automated with [Changesets](https://github.com/changesets/changeset
    Then remove any classic automation tokens for the package. A trusted publisher can only be added to a package that already exists, so a brand-new package's first version is published by hand once (`vp run -r build && pnpm --filter <name> publish --access public` with a short-lived granular token) before OIDC takes over ([npm/cli#8544](https://github.com/npm/cli/issues/8544)).
 
 3. **Protect the `release` environment.** **Settings → Environments → `release`** → enable **Required reviewers** (yourself) and restrict deployment to `trunk`, so every publish pauses for manual approval (refreshing the version PR runs outside the environment and does not). (If the environment does not exist, GitHub creates it unprotected on the first run.)
-4. **Protect `trunk`.** Require pull requests and the passing `ci` check before merge, and disallow direct pushes, so a release can only be triggered by merging the reviewed version PR.
+4. **Protect `trunk`.** Require pull requests and the passing CI checks (`ci (node lts)` and `ci (node latest)`, one per leg of the CI matrix) before merge, and disallow direct pushes, so a release can only be triggered by merging the reviewed version PR.
 
 ## Manual fallback
 

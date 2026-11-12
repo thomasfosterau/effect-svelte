@@ -39,6 +39,15 @@ export default defineConfig({
         ],
         cache: false,
       },
+      // CI, as one task: what `.github/workflows/ci.yml` runs after the
+      // install, and what a contributor runs to see the same verdict
+      // (AGENTS.md § Verification, steps 2–6, in that order). It stops at the
+      // first failing gate. Not cached itself; the tasks it runs are.
+      ci: {
+        command:
+          "vp check && vp run check && vp run -r test:unit && vp run -r build && pnpm audit --audit-level high",
+        cache: false,
+      },
       // Every package's suite under one Istanbul coverage map
       // (`coverage/coverage-final.json`), which `fallow audit` reads for exact
       // per-function CRAP scores (`health.coverage` in .fallowrc.json).
