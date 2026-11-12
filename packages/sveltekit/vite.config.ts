@@ -1,9 +1,7 @@
-import { fileURLToPath } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite-plus";
 
-const fixture = (path: string): string =>
-  fileURLToPath(new URL(`./tests/client/fixtures/${path}`, import.meta.url));
+const fixture = (path: string): string => `${import.meta.dirname}/tests/client/fixtures/${path}`;
 
 export default defineConfig({
   /**
