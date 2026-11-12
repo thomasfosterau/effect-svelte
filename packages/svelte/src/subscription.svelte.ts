@@ -1,3 +1,4 @@
+import type * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
@@ -70,9 +71,10 @@ export interface UsePubSubReturn<A> {
   readonly values: ReadonlyArray<A>;
 
   /**
-   * The most recent value (undefined if none)
+   * The most recent message: `None` until the first one arrives, then `Some`
+   * with the last one.
    */
-  readonly latest: A | undefined;
+  readonly latest: Option.Option<A>;
 }
 
 /**
@@ -85,13 +87,13 @@ export interface UsePubSubReturn<A> {
  * ```svelte
  * <script lang="ts">
  *   import { usePubSub } from '@thomasfosterau/effect-svelte';
- *   import { PubSub } from 'effect';
+ *   import { Option, PubSub } from 'effect';
  *
  *   // Assume messagePubSub is a PubSub<string>
  *   const messages = usePubSub(messagePubSub);
  * </script>
  *
- * <p>Latest: {messages.latest}</p>
+ * <p>Latest: {Option.getOrElse(messages.latest, () => '')}</p>
  * <ul>
  *   {#each messages.values as msg}
  *     <li>{msg}</li>

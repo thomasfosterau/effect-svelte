@@ -1,6 +1,7 @@
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
@@ -28,17 +29,17 @@ export interface UseDebouncedSearchOptions<T, E, R> {
    */
   readonly search: (query: string) => Effect.Effect<ReadonlyArray<T>, E, R>;
   /** Quiet period after the last query change before searching. Defaults to 150 ms. */
-  readonly debounce?: Duration.Input | undefined;
+  readonly debounce?: Duration.Input;
   /**
    * Turn a failure into the `error` message. Defaults to an `Error`'s `message`,
    * else `"Search failed."`.
    */
-  readonly errorMessage?: ((error: E) => string) | undefined;
+  readonly errorMessage?: (error: E) => string;
   /**
    * Run against this runtime instead of the ambient context. When provided, the
    * search's `R` is constrained to what the runtime provides.
    */
-  readonly runtime?: RuntimeLike<R> | undefined;
+  readonly runtime?: RuntimeLike<R>;
 }
 
 /** The controller returned by {@link useDebouncedSearch}. */
@@ -149,7 +150,7 @@ export function useDebouncedSearch<T, E = never, R = never>(
       Queue.offerUnsafe(queries, query);
     },
     get current() {
-      return view.latest ?? empty;
+      return Option.getOrElse(view.latest, () => empty);
     },
   };
 }

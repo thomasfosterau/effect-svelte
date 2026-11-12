@@ -115,6 +115,32 @@ The hooks (`useEffect`, `useQuery`, `useDerived`, `useStream`, `useLiveStream`,
 its combinators (`match`, `isSuccess`, `isWaiting`, `getOrElse`, ...) are
 re-exported from the package root.
 
+Absence is an `Option` (`effect/Option`), never `null` or `undefined`:
+
+| Where                                                                 | Type                | `None` means                      |
+| --------------------------------------------------------------------- | ------------------- | --------------------------------- |
+| `latest` of `useStream`, `usePubSub`, `useReactiveStream`             | `Option<A>`         | nothing has been emitted yet      |
+| `previous` passed to a `setData` updater (`useEffect`, `useQuery`)    | `Option<A>`         | the result holds no value yet     |
+| `context` passed to `useMutation`'s `onSuccess`/`onError`/`onSettled` | `Option<C>`         | no `onMutate` was given           |
+| `useScope().current`                                                  | `Option<Closeable>` | the component has not mounted yet |
+
+```svelte
+<script lang="ts">
+  import { useQuery, useStream } from "@thomasfosterau/effect-svelte";
+  import { Option } from "effect";
+
+  const ticks = useStream(tickStream);
+  const todos = useQuery(loadTodos);
+  const add = (todo: Todo) =>
+    todos.setData((previous) => [...Option.getOrElse(previous, () => []), todo]);
+</script>
+
+{#if Option.isSome(ticks.latest)}<p>Tick {ticks.latest.value}</p>{/if}
+```
+
+An option a caller has no value for is omitted, not passed as `undefined`
+(`{ runtime: undefined }` is a type error under `exactOptionalPropertyTypes`).
+
 Every hook also accepts `options.runtime` to run against an explicit runtime
 instead of the ambient context. Unlike the shared `provideRuntime`/`getRuntime`
 context (which is untyped — `RuntimeLike<never>`), passing `options.runtime`

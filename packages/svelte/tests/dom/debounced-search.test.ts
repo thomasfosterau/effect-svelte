@@ -9,6 +9,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import DebouncedSearch from "./DebouncedSearch.svelte";
 import { flush, makeMounter, text } from "./helpers.js";
@@ -64,7 +65,7 @@ describe("useDebouncedSearch", () => {
     await expect
       .poll(() => results(target), { timeout: 3000 })
       .toEqual(["Parent Issue alpha", "Parent Issue beta"]);
-    expect(text(target, "pending")).toBe("idle");
+    expect(text(target, "pending")).toEqual(Option.some("idle"));
     await runtime.dispose();
   });
 
@@ -91,14 +92,14 @@ describe("useDebouncedSearch", () => {
     await expect.poll(() => results(target)).toEqual(["Parent Issue alpha"]);
 
     emit("beta");
-    await expect.poll(() => text(target, "pending")).toBe("pending");
+    await expect.poll(() => text(target, "pending")).toEqual(Option.some("pending"));
     expect(results(target)).toEqual(["Parent Issue alpha"]);
     release();
     await expect.poll(() => results(target)).toEqual(["Parent Issue beta"]);
 
     emit("   ");
     await expect.poll(() => results(target)).toEqual([]);
-    expect(text(target, "pending")).toBe("idle");
+    expect(text(target, "pending")).toEqual(Option.some("idle"));
     await runtime.dispose();
   });
 
@@ -112,7 +113,7 @@ describe("useDebouncedSearch", () => {
     await expect.poll(() => results(target)).toEqual(["Parent Issue alpha"]);
     emit("boom");
 
-    await expect.poll(() => text(target, "error")).toBe("search exploded");
+    await expect.poll(() => text(target, "error")).toEqual(Option.some("search exploded"));
     expect(results(target)).toEqual([]);
     await runtime.dispose();
   });

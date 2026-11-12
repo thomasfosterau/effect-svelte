@@ -48,7 +48,9 @@ export interface UseMutationReturn<A, E, I> {
  * callbacks.
  *
  * Optimistic updates follow the TanStack model — apply the change in `onMutate`
- * and return a snapshot as `context`, then roll back in `onError`. `invalidates`
+ * and return a snapshot, then roll back in `onError`, which receives it as
+ * `context`: an `Option`, `Some` with what `onMutate` returned and `None` when
+ * there is no `onMutate`. `invalidates`
  * re-runs any reactive queries depending on the given keys after success (this
  * requires the runtime to include `Reactivity.layer`).
  *

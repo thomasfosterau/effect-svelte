@@ -31,8 +31,12 @@ import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
+import * as PubSub from "effect/PubSub";
+import * as Scope from "effect/Scope";
+import * as Stream from "effect/Stream";
 import { Reactivity } from "effect/reactivity";
-import type * as AsyncResult from "effect/reactivity/AsyncResult";
+import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { flushSync, mount, unmount } from "svelte";
 import { it } from "@effect/vitest";
 import { afterEach, assert, describe, expect } from "vite-plus/test";
@@ -41,6 +45,9 @@ import { useEffect } from "../../src/effect.svelte.js";
 import { makeResult } from "../../src/internal/result.svelte.js";
 import { useQuery } from "../../src/query.svelte.js";
 import { useMutation } from "../../src/mutation.svelte.js";
+import { useScope, type ScopeRef } from "../../src/scope.svelte.js";
+import { useStream } from "../../src/stream.svelte.js";
+import { usePubSub } from "../../src/subscription.svelte.js";
 import {
   useReactiveQuery,
   useReactiveStream,
@@ -118,9 +125,9 @@ describe("useEffect({ immediate: true })", () => {
     });
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "waiting")).toBe("false");
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
+    expect(text(target, "value")).toEqual(Option.some("1"));
   });
 
   it("settles a synchronous failure once", () => {
@@ -137,7 +144,7 @@ describe("useEffect({ immediate: true })", () => {
     });
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
   });
 
   it.effect("runs an asynchronous Effect once, then settles to Success", () =>
@@ -158,16 +165,16 @@ describe("useEffect({ immediate: true })", () => {
       });
 
       expect(starts).toBe(1);
-      expect(text(target, "tag")).toBe("Initial");
-      expect(text(target, "waiting")).toBe("true");
+      expect(text(target, "tag")).toEqual(Option.some("Initial"));
+      expect(text(target, "waiting")).toEqual(Option.some("true"));
 
       yield* Deferred.succeed(gate, 42);
       expect(yield* Effect.tryPromise(() => success.promise)).toBe(42);
       flushSync();
 
       expect(starts).toBe(1);
-      expect(text(target, "tag")).toBe("Success");
-      expect(text(target, "waiting")).toBe("false");
+      expect(text(target, "tag")).toEqual(Option.some("Success"));
+      expect(text(target, "waiting")).toEqual(Option.some("false"));
     }),
   );
 
@@ -216,13 +223,13 @@ describe("useEffect({ immediate: true })", () => {
           { immediate: true, runtime },
         ),
     });
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "value")).toEqual(Option.some("1"));
 
     box.n = 2;
     flushSync();
 
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "value")).toEqual(Option.some("1"));
   });
 });
 
@@ -234,16 +241,165 @@ describe("useEffect setData", () => {
         const hook = useEffect(Effect.succeed(0), { runtime });
         $effect(() => {
           writes++;
-          hook.setData((previous) => (previous ?? 0) + 1);
+          hook.setData((previous) => Option.getOrElse(previous, () => 0) + 1);
         });
         return hook;
       },
     });
 
     expect(writes).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("1"));
   });
+});
+
+describe("setData updater", () => {
+  it("receives None before the first value, then Some with the current one", () => {
+    const seen: Array<Option.Option<number>> = [];
+    const record = (previous: Option.Option<number>): number => {
+      seen.push(previous);
+      return Option.getOrElse(previous, () => 10) + 1;
+    };
+    let setData: (updater: (previous: Option.Option<number>) => number) => void = () => {};
+    const target = mountProbe({
+      use: () => {
+        // Not `immediate`: the result stays `Initial` until `setData` writes it.
+        const hook = useEffect(Effect.succeed(0), { runtime });
+        setData = hook.setData;
+        return hook;
+      },
+    });
+    expect(text(target, "tag")).toEqual(Option.some("Initial"));
+
+    setData(record);
+    setData(record);
+    flushSync();
+
+    expect(seen).toEqual([Option.none(), Option.some(11)]);
+    expect(text(target, "value")).toEqual(Option.some("12"));
+  });
+
+  it("useQuery's updater receives Some with the fetched value", () => {
+    const seen: Array<Option.Option<number>> = [];
+    let setData: (updater: (previous: Option.Option<number>) => number) => void = () => {};
+    const target = mountProbe({
+      use: () => {
+        const hook = useQuery(Effect.succeed(5), { runtime });
+        setData = hook.setData;
+        return hook;
+      },
+    });
+    expect(text(target, "value")).toEqual(Option.some("5"));
+
+    setData((previous) => {
+      seen.push(previous);
+      return Option.getOrElse(previous, () => 0) * 2;
+    });
+    flushSync();
+
+    expect(seen).toEqual([Option.some(5)]);
+    expect(text(target, "value")).toEqual(Option.some("10"));
+  });
+});
+
+describe("latest", () => {
+  it("useStream: None until the first emission, then Some with the last one", async () => {
+    const log = successLog<ReadonlyArray<number>>();
+    const seen: Array<Option.Option<number>> = [];
+    mountProbe({
+      use: () => {
+        const hook = useStream(Stream.make(1, 2, 3), { runtime });
+        // Read outside an effect: the stream has not started.
+        seen.push(hook.latest);
+        $effect(() => {
+          seen.push(hook.latest);
+        });
+        return hook;
+      },
+      onSuccess: log.onSuccess,
+    });
+    await log.until((values) => values.length === 3);
+    flushSync();
+
+    expect(seen[0]).toEqual(Option.none());
+    expect(Arr.last(seen)).toEqual(Option.some(Option.some(3)));
+  });
+
+  it("useStream: stays None for a stream that never emits", () => {
+    const seen: Array<Option.Option<number>> = [];
+    mountProbe({
+      use: () => {
+        const hook = useStream(Stream.never, { runtime });
+        $effect(() => {
+          seen.push(hook.latest);
+        });
+        return hook;
+      },
+    });
+
+    expect(seen).toEqual([Option.none()]);
+  });
+
+  it.effect("usePubSub: None until a message arrives, then Some with the last one", () =>
+    Effect.gen(function* () {
+      // `replay` hands the subscriber the message published before it connected.
+      const pubsub = yield* PubSub.unbounded<string>({ replay: 1 });
+      const seen: Array<Option.Option<string>> = [];
+      mountProbe({
+        use: () => {
+          const hook = usePubSub(pubsub, { runtime });
+          seen.push(hook.latest);
+          $effect(() => {
+            seen.push(hook.latest);
+          });
+          return { current: AsyncResult.initial() };
+        },
+      });
+      expect(seen[0]).toEqual(Option.none());
+
+      PubSub.publishUnsafe(pubsub, "first");
+      yield* Effect.tryPromise(async () => {
+        await expect.poll(() => Arr.last(seen)).toEqual(Option.some(Option.some("first")));
+      });
+      PubSub.publishUnsafe(pubsub, "second");
+      yield* Effect.tryPromise(async () => {
+        await expect.poll(() => Arr.last(seen)).toEqual(Option.some(Option.some("second")));
+      });
+    }),
+  );
+});
+
+describe("useScope", () => {
+  it.effect(
+    "is None during initialisation, Some once mounted, and closes that scope on unmount",
+    () =>
+      Effect.gen(function* () {
+        let ref: ScopeRef = { current: Option.none() };
+        const duringInit: Array<Option.Option<unknown>> = [];
+        mountProbe({
+          use: () => {
+            ref = useScope();
+            duringInit.push(ref.current);
+            return { current: AsyncResult.initial() };
+          },
+        });
+        expect(duringInit).toEqual([Option.none()]);
+
+        const scope = ref.current;
+        assert(Option.isSome(scope));
+        let closed = false;
+        yield* Scope.addFinalizer(
+          scope.value,
+          Effect.sync(() => {
+            closed = true;
+          }),
+        );
+        expect(closed).toBe(false);
+
+        mounter.cleanup();
+        expect(closed).toBe(true);
+      }),
+  );
 });
 
 describe("useQuery", () => {
@@ -258,8 +414,8 @@ describe("useQuery", () => {
     });
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("1"));
   });
 });
 
@@ -282,14 +438,14 @@ describe("useDerived", () => {
     });
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("10");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("10"));
 
     box.n = 2;
     flushSync();
 
     expect(starts).toBe(2);
-    expect(text(target, "value")).toBe("20");
+    expect(text(target, "value")).toEqual(Option.some("20"));
   });
 
   it("restarts for state the thunk reads, not state the Effect reads while it starts", () => {
@@ -310,19 +466,19 @@ describe("useDerived", () => {
         ),
     });
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("101");
+    expect(text(target, "value")).toEqual(Option.some("101"));
 
     // Read only inside the Effect: not a dependency, so no restart.
     inner.n = 200;
     flushSync();
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("101");
+    expect(text(target, "value")).toEqual(Option.some("101"));
 
     // Read by the thunk: a dependency, so the run restarts (and sees `inner`).
     dep.n = 2;
     flushSync();
     expect(starts).toBe(2);
-    expect(text(target, "value")).toBe("202");
+    expect(text(target, "value")).toEqual(Option.some("202"));
   });
 });
 
@@ -346,8 +502,8 @@ describe("useReactiveQuery", () => {
     flushSync();
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     mounter.cleanup();
     await managed.dispose();
@@ -385,7 +541,7 @@ describe("useReactiveQuery", () => {
     inner.n = 200;
     flushSync();
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("101");
+    expect(text(target, "value")).toEqual(Option.some("101"));
 
     // Read by the thunks: a dependency, so the query restarts (and sees `inner`).
     dep.n = 2;
@@ -393,9 +549,9 @@ describe("useReactiveQuery", () => {
     expect(starts).toBe(2);
     await log.until((value) => value === 202);
     flushSync();
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "waiting")).toBe("false");
-    expect(text(target, "value")).toBe("202");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
+    expect(text(target, "value")).toEqual(Option.some("202"));
 
     mounter.cleanup();
     await managed.dispose();
@@ -486,8 +642,8 @@ describe("useReactiveQuery", () => {
     flushSync();
 
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     mounter.cleanup();
     await managed.dispose();
@@ -528,8 +684,8 @@ describe("useReactiveStream", () => {
       onSuccess: log.onSuccess,
     });
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("1"));
 
     // A re-run's value reaches the stream after an async boundary.
     reactivity.invalidate(["probe"]);
@@ -537,7 +693,39 @@ describe("useReactiveStream", () => {
     await log.until((value) => String(value) === "1,2");
     flushSync();
     expect(starts).toBe(2);
-    expect(text(target, "value")).toBe("1,2");
+    expect(text(target, "value")).toEqual(Option.some("1,2"));
+
+    await reactivity.dispose();
+  });
+
+  it("exposes the most recent value as `latest`: None before the run starts, then Some", async () => {
+    const reactivity = await makeReactivity();
+    const log = successLog();
+    const seen: Array<Option.Option<number>> = [];
+    let starts = 0;
+    mountProbe({
+      use: () => {
+        const hook = useReactiveStream(
+          () => ["latest"],
+          () => Effect.sync(() => ++starts),
+          { runtime: reactivity.runtime },
+        );
+        // Read outside an effect: the stream has not started.
+        seen.push(hook.latest);
+        $effect(() => {
+          seen.push(hook.latest);
+        });
+        return hook;
+      },
+      onSuccess: log.onSuccess,
+    });
+    expect(seen[0]).toEqual(Option.none());
+    expect(Arr.last(seen)).toEqual(Option.some(Option.some(1)));
+
+    reactivity.invalidate(["latest"]);
+    await log.until((value) => String(value) === "1,2");
+    flushSync();
+    expect(Arr.last(seen)).toEqual(Option.some(Option.some(2)));
 
     await reactivity.dispose();
   });
@@ -558,13 +746,13 @@ describe("useReactiveStream", () => {
       onSuccess: log.onSuccess,
     });
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "value")).toEqual(Option.some("1"));
 
     dep.n = 2;
     flushSync();
     // A fresh run: the values emitted under the old keys are dropped.
     expect(starts).toBe(2);
-    expect(text(target, "value")).toBe("2");
+    expect(text(target, "value")).toEqual(Option.some("2"));
 
     // The new run listens on the new keys, and the old one has stopped.
     reactivity.invalidate(["probe-2"]);
@@ -595,12 +783,12 @@ describe("useReactiveStream", () => {
         ),
     });
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("10");
+    expect(text(target, "value")).toEqual(Option.some("10"));
 
     dep.n = 2;
     flushSync();
     expect(starts).toBe(2);
-    expect(text(target, "value")).toBe("20");
+    expect(text(target, "value")).toEqual(Option.some("20"));
 
     await reactivity.dispose();
   });
@@ -624,12 +812,12 @@ describe("useReactiveStream", () => {
       onSuccess: log.onSuccess,
     });
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("100");
+    expect(text(target, "value")).toEqual(Option.some("100"));
 
     inner.n = 200;
     flushSync();
     expect(starts).toBe(1);
-    expect(text(target, "value")).toBe("100");
+    expect(text(target, "value")).toEqual(Option.some("100"));
 
     // An invalidation still re-runs it, and the re-run sees the new state.
     reactivity.invalidate(["probe"]);
@@ -658,8 +846,8 @@ describe("useReactiveStream", () => {
         ),
     });
     expect(starts).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     // The failure ended the stream, so an invalidation no longer re-runs it.
     reactivity.invalidate(["probe"]);
@@ -668,8 +856,8 @@ describe("useReactiveStream", () => {
     dep.n = 2;
     flushSync();
     expect(starts).toBe(2);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("2");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("2"));
 
     await reactivity.dispose();
   });
@@ -784,16 +972,16 @@ describe("useReactiveMutation", () => {
     });
     expect(queries).toBe(1);
     expect(mutations).toBe(0);
-    expect(text(target, "tag")).toBe("Initial");
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "tag")).toEqual(Option.some("Initial"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     mutation.run();
     flushSync();
     expect(mutations).toBe(1);
     expect(queries).toBe(2);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "waiting")).toBe("false");
-    expect(text(target, "value")).toBe("1");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
+    expect(text(target, "value")).toEqual(Option.some("1"));
 
     mounter.cleanup();
     await managed.dispose();
@@ -820,8 +1008,8 @@ describe("useReactiveMutation", () => {
     mutation.run();
     flushSync();
     expect(queries).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
-    expect(text(target, "waiting")).toBe("false");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
+    expect(text(target, "waiting")).toEqual(Option.some("false"));
 
     mounter.cleanup();
     await managed.dispose();
@@ -872,8 +1060,8 @@ describe("useReactiveMutation", () => {
     expect(runs).toBe(1);
     expect(mutations).toBe(1);
     expect(queries).toBe(2);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("2");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("2"));
 
     // Read by the keys thunk, the effect thunk, the mutation Effect and the
     // re-run query: none of them is the caller's dependency.
@@ -938,8 +1126,8 @@ describe("useMutation", () => {
     expect(runs).toBe(1);
     expect(mutations).toBe(1);
     expect(queries).toBe(2);
-    expect(text(target, "tag")).toBe("Success");
-    expect(text(target, "value")).toBe("3");
+    expect(text(target, "tag")).toEqual(Option.some("Success"));
+    expect(text(target, "value")).toEqual(Option.some("3"));
 
     // Read by `fn`, the mutation Effect, the callbacks and the re-run query:
     // none of them is the caller's dependency.
@@ -972,7 +1160,7 @@ describe("useMutation", () => {
       },
     });
     expect(runs).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
 
     dep.n++;
     flushSync();
@@ -998,6 +1186,6 @@ describe("makeResult", () => {
     });
 
     expect(runs).toBe(1);
-    expect(text(target, "tag")).toBe("Failure");
+    expect(text(target, "tag")).toEqual(Option.some("Failure"));
   });
 });
