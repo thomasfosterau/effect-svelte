@@ -117,13 +117,6 @@ export default defineConfig({
       // to Svelte templates (`{#if x}`), where an `Option` would be a breaking
       // API change for every consumer.
       "effect/prefer-option-over-null": "off",
-      // It flags any imported `make*` function as an Effect service constructor
-      // that should come in through a Layer. Every `make*` these packages
-      // import is a plain factory with no Layer behind it — a rune state
-      // holder (`makeResult`, `makeMutation`, `makeLiveStream`), a runtime
-      // builder (`makeServerRuntime`, `makeUniversalRuntime`) or a test
-      // helper (`makeRunHelpers`) — so the rule has no service to point at.
-      "effect/no-service-constructor-imports": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
       // The suites assert through their own helpers (`expectFailsWith`,
       // `expectFailure`, ...) as well as `expect` / `assert`.

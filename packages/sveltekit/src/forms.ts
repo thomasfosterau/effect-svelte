@@ -33,7 +33,7 @@ import { applyAction as kitApplyAction, deserialize as kitDeserialize } from "$a
 import type { ActionResult } from "$app/forms";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
-import { makeSubmitFunction } from "./internal/enhance.js";
+import * as Enhance from "./internal/enhance.js";
 
 export type {
   EnhanceHandlers,
@@ -82,7 +82,7 @@ export type {
  * });
  * ```
  */
-export const enhance = makeSubmitFunction;
+export const enhance = Enhance.makeSubmitFunction;
 
 /**
  * {@link applyAction} rejected or threw. `cause` is SvelteKit's original

@@ -7,7 +7,7 @@ import { Reactivity } from "effect/reactivity";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, runSync, type RuntimeLike } from "./internal/run.js";
-import { makeResult } from "./internal/result.svelte.js";
+import * as ResultState from "./internal/result.svelte.js";
 import { streamState } from "./internal/subscribe.js";
 
 /** The handle {@link useReactiveQuery} returns. */
@@ -80,7 +80,7 @@ export function useReactiveQuery<A, E, R>(
   // supplied every service `R` names plus `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
-  const state = makeResult<A, E>();
+  const state = ResultState.makeResult<A, E>();
   let fiber: Fiber.Fiber<void> | null = null;
 
   $effect(() => {
@@ -282,7 +282,7 @@ export function useReactiveMutation<A, E, R>(
   // supplied every service `R` names plus `Reactivity`.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R | Reactivity.Reactivity>);
 
-  const state = makeResult<A, E>();
+  const state = ResultState.makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   // Untracked: the thunks run here, `runFork` runs the mutation synchronously

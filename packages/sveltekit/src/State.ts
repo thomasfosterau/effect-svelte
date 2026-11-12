@@ -68,11 +68,11 @@ import {
   type PageSnapshot,
   type UpdateCheckError,
   checkForUpdateWith,
-  makeCurrentPage,
   pageSnapshotStream,
   snapshotNavigating,
   watchedStream,
 } from "./internal/app-state.js";
+import * as AppState from "./internal/app-state.js";
 import { watch } from "./internal/watch.svelte.js";
 
 /** A shallow snapshot of SvelteKit's `page` — see {@link page}. */
@@ -188,6 +188,6 @@ export class CurrentPage extends Context.Service<CurrentPage, CurrentPageInterfa
    */
   static readonly layer: Layer.Layer<CurrentPage> = Layer.succeed(
     CurrentPage,
-    makeCurrentPage(() => kitPage, watch),
+    AppState.makeCurrentPage(() => kitPage, watch),
   );
 }

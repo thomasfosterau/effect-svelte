@@ -2,9 +2,10 @@ import type * as Effect from "effect/Effect";
 import { untrack } from "svelte";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { getRuntime } from "./context.svelte.js";
-import { makeMutation, type MutationCallbacks } from "./internal/mutation.js";
+import * as MutationCore from "./internal/mutation.js";
+import type { MutationCallbacks } from "./internal/mutation.js";
 import type { RuntimeLike } from "./internal/run.js";
-import { makeResult } from "./internal/result.svelte.js";
+import * as ResultState from "./internal/result.svelte.js";
 
 export type { MutationCallbacks } from "./internal/mutation.js";
 
@@ -81,8 +82,8 @@ export function useMutation<A, E, I, R, C = unknown>(
   // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
   // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
-  const state = makeResult<A, E>();
-  const core = makeMutation(runtime, state, fn, options);
+  const state = ResultState.makeResult<A, E>();
+  const core = MutationCore.makeMutation(runtime, state, fn, options);
 
   // Interrupt any in-flight mutation when the component unmounts.
   $effect(() => () => core.interrupt());

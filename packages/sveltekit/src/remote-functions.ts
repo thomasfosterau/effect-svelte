@@ -27,9 +27,9 @@ import {
   isBareHandler as isBareHandlerValue,
   toStandardValidator,
 } from "./internal/remote-validators.js";
+import * as RemoteRun from "./internal/remote-run.js";
 import {
   defaultTranslate,
-  makeRunHelpers,
   type FormErrorMapper,
   type RunHelpers,
   type Runner,
@@ -41,7 +41,7 @@ export type { FormErrorMapper } from "./internal/remote-run.js";
 type SvelteKitEffectEnv = HttpClient.HttpClient | SvelteKitRequestEvent;
 
 /** The default helpers: a fresh SvelteKit per-request runtime, passthrough translation. */
-const defaultHelpers: RunHelpers = makeRunHelpers(() => {
+const defaultHelpers: RunHelpers = RemoteRun.makeRunHelpers(() => {
   const event = AppServer.getRequestEvent();
   return { runExit: (effect) => SvelteKitRuntime.forRequest(event).runPromiseExit(effect) };
 }, defaultTranslate);
@@ -52,7 +52,7 @@ const helpersFromProvider = (
   translate: ErrorTranslator,
   formError?: FormErrorMapper,
 ): RunHelpers =>
-  makeRunHelpers(
+  RemoteRun.makeRunHelpers(
     () => {
       const event = AppServer.getRequestEvent();
       return {

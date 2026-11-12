@@ -5,7 +5,7 @@ import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { interruptFiber, runFork, type RuntimeLike } from "./internal/run.js";
-import { makeResult } from "./internal/result.svelte.js";
+import * as ResultState from "./internal/result.svelte.js";
 
 /** Options for {@link useDerived}. */
 export interface UseDerivedOptions<R = never> {
@@ -85,7 +85,7 @@ export function useDerived<A, E, R>(
   // supplied every service `R` names.
   const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
 
-  const state = makeResult<A, E>();
+  const state = ResultState.makeResult<A, E>();
   let currentFiber: Fiber.Fiber<A, E> | null = null;
 
   $effect(() => {

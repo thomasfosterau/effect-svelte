@@ -4,7 +4,8 @@ import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { untrack } from "svelte";
 import { getRuntime } from "./context.svelte.js";
 import { resultToPromise } from "./internal/await.js";
-import { makeLiveStream, type LiveResultState } from "./internal/live-stream.js";
+import * as LiveStreamCore from "./internal/live-stream.js";
+import type { LiveResultState } from "./internal/live-stream.js";
 import type { RuntimeLike } from "./internal/run.js";
 
 /** Options for {@link useLiveStream}. */
@@ -127,7 +128,7 @@ export function useLiveStream<A, E, R>(
     "initial" in options ? Option.some(options.initial) : Option.none();
 
   const state = makeLiveResult<A, E>(seed);
-  const core = makeLiveStream(runtime, state);
+  const core = LiveStreamCore.makeLiveStream(runtime, state);
 
   $effect(() => {
     // Calling the thunk inside `$effect` tracks the reactive inputs it reads;

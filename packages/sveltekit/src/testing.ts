@@ -47,13 +47,14 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Rec from "effect/Record";
 import {
-  makeRuntimeAdapter,
   RequestRuntime,
   type ErrorTranslator,
   type RequestRuntimeProvider,
 } from "./request-runtime.js";
+import * as RequestRuntimeModule from "./request-runtime.js";
 import { SvelteKit } from "./kit.js";
-import { makeRunHelpers, type FormErrorMapper, type RunHelpers } from "./internal/remote-run.js";
+import * as RemoteRun from "./internal/remote-run.js";
+import type { FormErrorMapper, RunHelpers } from "./internal/remote-run.js";
 
 export type { RunHelpers, FormErrorMapper } from "./internal/remote-run.js";
 
@@ -266,9 +267,12 @@ export interface RunRemoteOptions<R> {
 // (`R` is `never`, as `TestRunOptions.layer` documents), and then `Layer.empty`
 // provides all of `R`.
 const makeAdapter = <R>(opts: TestRunOptions<R> | undefined) =>
-  makeRuntimeAdapter(RequestRuntime.fromLayer((opts?.layer ?? Layer.empty) as Layer.Layer<R>), {
-    translateError: opts?.translateError ?? SvelteKit.translate,
-  });
+  RequestRuntimeModule.makeRuntimeAdapter(
+    RequestRuntime.fromLayer((opts?.layer ?? Layer.empty) as Layer.Layer<R>),
+    {
+      translateError: opts?.translateError ?? SvelteKit.translate,
+    },
+  );
 
 // ─── runServerLoad ────────────────────────────────────────────────────────────
 
@@ -378,7 +382,7 @@ export const runRemote = <R = never>(
   // (`R = never`, the default), and then `Layer.empty` provides all of `R`.
   const layer = (opts?.layer ?? Layer.empty) as Layer.Layer<R>;
   const provider: RequestRuntimeProvider<R> = RequestRuntime.fromLayer(layer);
-  return makeRunHelpers(
+  return RemoteRun.makeRunHelpers(
     () => ({ runExit: (effect) => provider.run(event).runPromiseExit(effect) }),
     translate,
     opts?.formError,
