@@ -345,7 +345,9 @@ export default defineConfig({
 
   /** `vp check` (Oxfmt) */
   fmt: {
-    ignorePatterns: ["**/dist/**", "**/coverage/**"],
+    // CHANGELOG.md is written by `changeset version`: left as generated, so a
+    // "chore: version packages" PR can never fail the format check.
+    ignorePatterns: ["**/dist/**", "**/coverage/**", "**/CHANGELOG.md"],
   },
 
   test: {
