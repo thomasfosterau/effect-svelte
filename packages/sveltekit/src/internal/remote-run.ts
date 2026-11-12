@@ -54,7 +54,7 @@ export type ExitResolver = () => {
  * the optional teardown, whether settling returned or threw; a throw becomes
  * the returned promise's rejection.
  */
-const settleThenDispose = <A>(settle: () => A, dispose: (() => void) | undefined): Promise<A> =>
+const settleThenDispose = <A>(settle: () => A, dispose?: () => void): Promise<A> =>
   new Promise<A>((resolve) => resolve(settle())).finally(() => dispose?.());
 
 /** Build the `run` / `runForm` helpers from an exit resolver and a translator. */

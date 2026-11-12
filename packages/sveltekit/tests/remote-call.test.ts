@@ -3,6 +3,7 @@ import { assert, describe, expect } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import {
@@ -55,11 +56,11 @@ const resolving = <A>(value: A, updatesCalls: Array<Array<unknown>> = []) =>
 describe("Remote call helpers: success", () => {
   it.effect("callQuery / callCommand / callPrerender succeed with the remote output", () =>
     Effect.gen(function* () {
-      const inputs: Array<string | undefined> = [];
+      const inputs: Array<Option.Option<string>> = [];
       // SAFETY: `callQuery` / `callCommand` / `callPrerender` only call the remote
       // function and await its result, which `resolving` provides.
       const remote = ((input?: string) => {
-        inputs.push(input);
+        inputs.push(Option.fromUndefinedOr(input));
         return resolving(42);
       }) as never;
 
@@ -69,7 +70,14 @@ describe("Remote call helpers: success", () => {
       expect(yield* callCommand(remote, "c")).toBe(42);
       expect(yield* callPrerender(remote)).toBe(42);
       expect(yield* callPrerender(remote, "p")).toBe(42);
-      expect(inputs).toEqual([undefined, "q", undefined, "c", undefined, "p"]);
+      expect(inputs).toEqual([
+        Option.none(),
+        Option.some("q"),
+        Option.none(),
+        Option.some("c"),
+        Option.none(),
+        Option.some("p"),
+      ]);
     }),
   );
 

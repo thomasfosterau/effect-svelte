@@ -36,18 +36,14 @@ const makeMockCookies = (store: MockCookieStore = MutableHashMap.empty()): Cooki
   serialize: (name, value) => `${name}=${encodeURIComponent(value)}`,
 });
 
-const makeMockEvent = (
-  opts: {
-    cookies?: MockCookieStore;
-    locals?: App.Locals;
-    setHeaders?: (h: Record<string, string>) => void;
-  } = {},
-): RequestEvent =>
-  mockEvent({
-    cookies: makeMockCookies(opts.cookies),
-    locals: opts.locals,
-    setHeaders: opts.setHeaders,
-  });
+const makeMockEvent = ({
+  cookies,
+  ...options
+}: {
+  cookies?: MockCookieStore;
+  locals?: App.Locals;
+  setHeaders?: (h: Record<string, string>) => void;
+} = {}): RequestEvent => mockEvent({ ...options, cookies: makeMockCookies(cookies) });
 
 /** `locals` a test lets an effect write a flag on. */
 interface MutableLocals {
