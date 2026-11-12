@@ -35,7 +35,6 @@
 
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import type { Adapter } from "@sveltejs/kit";
-import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { writeBuild } from "./build.js";
 
@@ -94,11 +93,11 @@ export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
       // The build hook is a runtime boundary: SvelteKit calls it as a Promise
       // API, so the build runs on a runtime this call owns.
       const runtime = ManagedRuntime.make(NodeFileSystem.layer);
-      return runtime.runPromise(
-        writeBuild(builder, { out, precompress, envPrefix, target }).pipe(
-          Effect.ensuring(runtime.disposeEffect),
-        ),
-      );
+      // Disposed once the run has settled, not from inside it: on effect
+      // 4.0.0 a runtime disposed by the program it is running never settles.
+      return runtime
+        .runPromise(writeBuild(builder, { out, precompress, envPrefix, target }))
+        .finally(() => runtime.dispose());
     },
 
     supports: {
