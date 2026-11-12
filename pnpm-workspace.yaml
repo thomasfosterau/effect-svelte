@@ -26,7 +26,7 @@ catalogMode: strict
 catalog:
   "@changesets/cli": ^3.0.3
   "@effect/language-service": ^0.87.5
-  "@effect/platform-node": 4.1.2
+  "@effect/platform-node": 4.1.3
   # The Effect lint preset (`effect/*` rules, anti-slop included), run as a
   # JS plugin inside vite-plus's oxlint. Not in the `toolchain` group: it takes
   # `@oxlint/plugins` at a caret range.
@@ -38,7 +38,7 @@ catalog:
   # Must equal the vitest that vite-plus bundles (see `vitest` below); vite-plus
   # refuses to run coverage on a mismatch.
   "@vitest/coverage-istanbul": 5.1.0
-  effect: 4.1.2
+  effect: 4.1.3
   fallow: 3.42.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
