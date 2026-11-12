@@ -5,8 +5,8 @@ import { build, parseAst } from "vite-plus";
 import * as Arr from "effect/Array";
 import * as Match from "effect/Match";
 import * as Order from "effect/Order";
-import * as Predicate from "effect/Predicate";
-import * as Rec from "effect/Record";
+import * as P from "effect/Predicate";
+import * as R from "effect/Record";
 
 /**
  * `package.json` declares `"sideEffects": false`, which lets a consumer's
@@ -63,10 +63,10 @@ const effectful: ReadonlyArray<string> = [
 const effectsIn = (values: ReadonlyArray<unknown>): ReadonlyArray<string> =>
   Arr.flatMap(values, (value): ReadonlyArray<string> => {
     if (Arr.isArray(value)) return effectsIn(value);
-    if (!Predicate.isObject(value)) return [];
-    const type = Predicate.isString(value["type"]) ? value["type"] : "";
+    if (!P.isObject(value)) return [];
+    const type = P.isString(value["type"]) ? value["type"] : "";
     if (Arr.contains(deferred, type)) return [];
-    const nested = effectsIn(Rec.values(value));
+    const nested = effectsIn(R.values(value));
     return Arr.contains(effectful, type) ? [type, ...nested] : nested;
   });
 
@@ -143,7 +143,7 @@ const bundledModules = async (
   const outputs = Array.isArray(result) ? result : [result];
   const modules = outputs
     .flatMap((output) => ("output" in output ? output.output : []))
-    .flatMap((chunk) => (chunk.type === "chunk" ? Rec.toEntries(chunk.modules) : []))
+    .flatMap((chunk) => (chunk.type === "chunk" ? R.toEntries(chunk.modules) : []))
     // A module whose every binding was shaken away is still listed, with no code.
     .flatMap(([id, module]) => (module.renderedLength > 0 && id.startsWith(pkgRoot) ? [id] : []))
     .map((id) => id.slice(pkgRoot.length));
@@ -159,14 +159,14 @@ const bundleTimeout = 60_000;
 
 describe('"sideEffects": false', () => {
   it("finds the source modules", () => {
-    expect(Rec.keys(sources)).toContain("../src/index.ts");
+    expect(R.keys(sources)).toContain("../src/index.ts");
     expect(topLevelEffects("globalThis.x = 1;\nimport './polyfill.js';\nawait f();")).toHaveLength(
       3,
     );
   });
 
   it("no source module does anything at load beyond declaring", () => {
-    const offenders = Rec.toEntries(sources).flatMap(([file, source]) =>
+    const offenders = R.toEntries(sources).flatMap(([file, source]) =>
       topLevelEffects(source).map((effect) => `${file}: ${effect}`),
     );
     expect(offenders).toEqual([]);

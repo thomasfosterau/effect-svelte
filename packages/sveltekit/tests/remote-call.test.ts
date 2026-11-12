@@ -2,7 +2,7 @@ import { assert, describe, expect, it } from "vite-plus/test";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import {
   callCommand,
@@ -139,7 +139,7 @@ describe("Remote call helpers: a rejected call fails on the error channel", () =
 
   it("reaches an Effect.catch handler", async () => {
     const recovered = await Effect.runPromise(
-      callQuery(reject).pipe(Effect.catchIf(Predicate.isError, (error) => Effect.succeed(error))),
+      callQuery(reject).pipe(Effect.catchIf(P.isError, (error) => Effect.succeed(error))),
     );
     expect(recovered).toBe(boom);
   });

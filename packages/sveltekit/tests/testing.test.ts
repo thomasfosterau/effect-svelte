@@ -3,7 +3,7 @@ import { isActionFailure, isHttpError, isRedirect } from "@sveltejs/kit";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import {
   TestRequestEvent,
   runServerLoad,
@@ -51,7 +51,7 @@ describe("TestRequestEvent", () => {
       locals: { user: { id: "u1" } },
     });
     expect(event.params.id).toBe("99");
-    assert(Predicate.hasProperty(event.locals, "user"), "expected locals.user");
+    assert(P.hasProperty(event.locals, "user"), "expected locals.user");
     expect(event.locals.user).toEqual({ id: "u1" });
   });
 

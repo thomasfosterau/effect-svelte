@@ -5,7 +5,7 @@
  */
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 
 /**
@@ -17,11 +17,11 @@ import * as Schema from "effect/Schema";
  * mistaken for handler functions.
  */
 export const isStandardSchema = <V>(value: V): value is V & StandardSchemaV1 =>
-  Predicate.hasProperty(value, "~standard");
+  P.hasProperty(value, "~standard");
 
 /** True when the argument is the no-validation (bare handler) overload. */
 export const isBareHandler = <V>(value: V): boolean =>
-  Predicate.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
+  P.isFunction(value) && !isStandardSchema(value) && !Schema.isSchema(value);
 
 /**
  * True for an Effect `Schema` that carries no Standard Schema adapter of its

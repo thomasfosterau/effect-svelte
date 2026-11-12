@@ -4,7 +4,7 @@ import * as Arr from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import * as Order from "effect/Order";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 import { markerTransporter, transport, transporter } from "../src/transport.js";
 
@@ -25,7 +25,7 @@ const entry = (t: Transport, label: string): Transporter => {
 };
 
 /** The labels of `t`, sorted. */
-const labels = (t: Transport): ReadonlyArray<string> => Arr.sort(Rec.keys(t), Order.String);
+const labels = (t: Transport): ReadonlyArray<string> => Arr.sort(R.keys(t), Order.String);
 
 describe("transporter", () => {
   it("encodes a matching value to a truthy tuple and decodes it back", () => {

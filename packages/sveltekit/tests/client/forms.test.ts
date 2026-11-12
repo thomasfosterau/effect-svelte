@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { afterEach, assert, describe, expect, expectTypeOf, it } from "vite-plus/test";
 import * as Forms from "../../src/forms.js";
@@ -125,7 +125,7 @@ describe("Forms.enhance with failing handlers", () => {
    */
   const runEnhanced = async (submit: SubmitFunction, result: ActionResult): Promise<number> => {
     const callback = await submit(submitInput().input);
-    if (!Predicate.isFunction(callback)) throw new Error("expected a result callback");
+    if (!P.isFunction(callback)) throw new Error("expected a result callback");
     let updates = 0;
     const update = () => {
       updates++;

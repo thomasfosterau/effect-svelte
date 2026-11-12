@@ -14,7 +14,7 @@
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import { Atom } from "effect/reactivity";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
 import { tick } from "svelte";
@@ -131,7 +131,7 @@ describe("useAtomResult", () => {
     let key = $state("first");
     const target = mounter.mount(AtomProbe, {
       select: (k: string) => {
-        const atom = Option.getOrUndefined(Rec.get<string, ProbeAtom>(atoms, k));
+        const atom = Option.getOrUndefined(R.get<string, ProbeAtom>(atoms, k));
         assert.isDefined(atom);
         return atom;
       },

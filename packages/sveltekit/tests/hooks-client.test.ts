@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { NavigationEvent } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import { handleError, init } from "../src/client/Hooks.js";
 import { EffectCauseError } from "../src/internal/error.js";
 
@@ -15,7 +15,7 @@ describe("client Hooks.handleError", () => {
   it("runs an effect and returns the App.Error shape", async () => {
     const hook = handleError(({ error, event }) =>
       Effect.succeed({
-        message: `${Predicate.isError(error) ? error.message : String(error)} @ ${event.url.pathname}`,
+        message: `${P.isError(error) ? error.message : String(error)} @ ${event.url.pathname}`,
       }),
     );
     const result = await hook({

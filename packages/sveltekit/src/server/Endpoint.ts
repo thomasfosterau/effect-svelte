@@ -35,7 +35,7 @@ import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
@@ -394,7 +394,7 @@ export const fromStream = <A, E, R = never>(
   const encodeData = options?.data ?? encodeJson;
   const eventOf = (value: A): string | undefined => {
     const name = options?.event;
-    return Predicate.isFunction(name) ? name(value) : name;
+    return P.isFunction(name) ? name(value) : name;
   };
 
   return (event) => {

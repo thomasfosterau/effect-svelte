@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
 import { Reactivity } from "effect/reactivity";
@@ -215,8 +215,8 @@ export function useReactiveStream<A, E, R>(
   // change builds a fresh subscriber, which the readers re-subscribe to, and
   // the old one's fiber is interrupted once its last reader has moved on.
   const source = $derived.by(() => {
-    const currentKeys = Predicate.isFunction(keys) ? keys() : keys;
-    const currentEffect = Predicate.isFunction(effect) ? effect() : effect;
+    const currentKeys = P.isFunction(keys) ? keys() : keys;
+    const currentEffect = P.isFunction(effect) ? effect() : effect;
     return streamState(runtime, () => Reactivity.stream(currentEffect, currentKeys));
   });
 
@@ -295,8 +295,8 @@ export function useReactiveMutation<A, E, R>(
         interruptFiber(currentFiber);
       }
 
-      const currentKeys = Predicate.isFunction(keys) ? keys() : keys;
-      const currentEffect = Predicate.isFunction(effect) ? effect() : effect;
+      const currentKeys = P.isFunction(keys) ? keys() : keys;
+      const currentEffect = P.isFunction(effect) ? effect() : effect;
 
       state.startWaiting();
 

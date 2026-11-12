@@ -4,7 +4,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import {
   makeSubmitFunction,
@@ -37,7 +37,7 @@ const resultOptions = (): ResultOptions => ({
 
 /** Asserts the submit function returned a result callback, then runs it. */
 const runResult = async (callback: Awaited<ReturnType<SubmitFunction>>): Promise<void> => {
-  assert(Predicate.isFunction(callback), "expected a result callback");
+  assert(P.isFunction(callback), "expected a result callback");
   await callback(resultOptions());
 };
 

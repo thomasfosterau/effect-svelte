@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 import type { RequestEvent } from "@sveltejs/kit";
 import { SvelteKitRequestEvent } from "../src/runtime.js";
@@ -149,7 +149,7 @@ describe("decodeFormData", () => {
 
   const makeFormEvent = (fields: Record<string, string>): RequestEvent => {
     const form = new FormData();
-    Arr.forEach(Rec.toEntries(fields), ([key, value]) => form.append(key, value));
+    Arr.forEach(R.toEntries(fields), ([key, value]) => form.append(key, value));
     return TestRequestEvent({ method: "POST", body: form });
   };
 

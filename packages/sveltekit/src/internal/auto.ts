@@ -25,8 +25,8 @@ import type {
 } from "@sveltejs/kit/hooks";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
-import * as Predicate from "effect/Predicate";
-import * as Rec from "effect/Record";
+import * as P from "effect/Predicate";
+import * as R from "effect/Record";
 import * as Result from "effect/Result";
 import { type ServerRuntime, type UniversalRuntime } from "../app-runtime.js";
 import * as AppRuntime from "../app-runtime.js";
@@ -189,14 +189,14 @@ export function wrapActions<T extends Record<string, LoadLikeInput> | undefined>
   value: T,
   runtimeMod?: RuntimeModule,
 ): T extends undefined ? undefined : Actions {
-  if (value === undefined || !Predicate.isObjectOrArray(value)) {
+  if (value === undefined || !P.isObjectOrArray(value)) {
     // SAFETY: `undefined` and non-objects pass through untouched, as before;
     // an object becomes a record of wrapped actions (entries that are
     // `undefined` are dropped), which is an `Actions`.
     return value as never;
   }
 
-  const wrapped = Rec.filterMap(value, (fn) => {
+  const wrapped = R.filterMap(value, (fn) => {
     const wrappedAction = wrapServerEvent(fn, runtimeMod);
     return wrappedAction === undefined ? Result.fail(undefined) : Result.succeed(wrappedAction);
   });

@@ -5,7 +5,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 import { mockEvent } from "./fixtures/request-event.js";
 
@@ -20,7 +20,7 @@ interface RuntimeLocals {
 
 /** Whether `locals` carries a runtime (see {@link RuntimeLocals}). */
 const hasRuntime = (locals: App.Locals): locals is RuntimeLocals =>
-  Predicate.hasProperty(locals, "runtime") && ManagedRuntime.isManagedRuntime(locals.runtime);
+  P.hasProperty(locals, "runtime") && ManagedRuntime.isManagedRuntime(locals.runtime);
 
 const greeterLayer = Layer.succeed(Greeter, { greet: (name) => `hello ${name}` });
 

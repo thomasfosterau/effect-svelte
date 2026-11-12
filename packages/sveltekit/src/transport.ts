@@ -26,7 +26,7 @@
  */
 
 import type { Transport, Transporter } from "@sveltejs/kit/hooks";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Schema from "effect/Schema";
 
 /**
@@ -103,4 +103,4 @@ export type TransportEntry = Schema.Codec<any, any> | Transporter;
  * labels (they only need to be stable between server and client).
  */
 export const transport = (entries: Record<string, TransportEntry>): Transport =>
-  Rec.map(entries, (entry): Transporter => (Schema.isSchema(entry) ? transporter(entry) : entry));
+  R.map(entries, (entry): Transporter => (Schema.isSchema(entry) ? transporter(entry) : entry));

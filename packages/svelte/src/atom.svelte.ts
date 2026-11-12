@@ -24,7 +24,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -76,7 +76,7 @@ export class AtomRegistryUnavailable extends Schema.TaggedError<AtomRegistryUnav
 export const makeAtomRegistry = (options: MakeAtomRegistryOptions = {}): AtomRegistry =>
   Registry.make(options);
 
-const isBrowser = (): boolean => !Predicate.isUndefined(globalThis.window);
+const isBrowser = (): boolean => !P.isUndefined(globalThis.window);
 
 /** The implicit browser registry, once built. `None` is "not created yet". */
 let browserRegistry: Option.Option<AtomRegistry> = Option.none();

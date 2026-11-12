@@ -32,7 +32,7 @@
 
 import * as Arr from "effect/Array";
 import * as Option from "effect/Option";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import * as Result from "effect/Result";
 import { MagicString } from "magic-string";
 import type { Plugin } from "vite";
@@ -293,7 +293,7 @@ export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
       const wrappers = wrapperByKind[kind];
 
       const masked = maskCommentsAndStrings(code);
-      const found = findExports(masked, (name) => Rec.has(wrappers, name));
+      const found = findExports(masked, (name) => R.has(wrappers, name));
       if (Arr.isReadonlyArrayEmpty(found)) return null;
 
       const s = new MagicString(code);
@@ -303,7 +303,7 @@ export function effectKit(options: EffectKitPluginOptions = {}): Plugin {
       });
 
       const wrapperImports = Arr.dedupe(
-        Arr.filterMap(found, (m) => Result.fromOption(Rec.get(wrappers, m.name), () => m.name)),
+        Arr.filterMap(found, (m) => Result.fromOption(R.get(wrappers, m.name), () => m.name)),
       );
 
       // Server-only files get the server runtime module; universal/client

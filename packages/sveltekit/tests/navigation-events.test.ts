@@ -1,6 +1,6 @@
 import { assert, describe, expect, it } from "vite-plus/test";
 import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { onNavigateWith, registeredStream } from "../src/internal/navigation-events.js";
 
@@ -66,7 +66,7 @@ describe("onNavigateWith", () => {
     );
 
     const cleanup = await captured("/a");
-    assert(Predicate.isFunction(cleanup), "expected a cleanup function");
+    assert(P.isFunction(cleanup), "expected a cleanup function");
     cleanup();
     expect(cleanedUp).toBe(true);
   });

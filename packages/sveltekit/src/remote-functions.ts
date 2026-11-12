@@ -20,7 +20,7 @@ import type {
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import {
@@ -196,7 +196,7 @@ const appServerCompat = AppServer as AppServerWithRequested;
 function getQueryLive(): typeof AppServer.query.live {
   const live: typeof AppServer.query.live | undefined = AppServer.query.live;
 
-  if (!Predicate.isFunction(live)) {
+  if (!P.isFunction(live)) {
     unavailable("query.live");
   }
 
@@ -206,7 +206,7 @@ function getQueryLive(): typeof AppServer.query.live {
 function getRequested(): <Result>(...args: unknown[]) => Result {
   const requestedFn = appServerCompat.requested;
 
-  if (!Predicate.isFunction(requestedFn)) {
+  if (!P.isFunction(requestedFn)) {
     unavailable("requested");
   }
 
@@ -400,7 +400,7 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
       );
     }
 
-    if (!Predicate.isFunction(arg2)) {
+    if (!P.isFunction(arg2)) {
       throw new RemoteFunctionUsageError({
         message: "prerender requires a handler function when a schema is provided",
       });

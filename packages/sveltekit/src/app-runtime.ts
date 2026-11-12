@@ -20,8 +20,8 @@ import type * as Fiber from "effect/Fiber";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import * as Predicate from "effect/Predicate";
-import * as Rec from "effect/Record";
+import * as P from "effect/Predicate";
+import * as R from "effect/Record";
 import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
@@ -106,7 +106,7 @@ const requestRuntimeEntry = (event: RequestEvent): RequestRuntimeEntry | undefin
 
 /** Whether a universal load event is a server-side `RequestEvent` (it carries a `request`). */
 const isRequestEvent = <Event>(event: Event): event is Event & RequestEvent =>
-  Predicate.hasProperty(event, "request") && Boolean(event.request);
+  P.hasProperty(event, "request") && Boolean(event.request);
 
 /** Layer with the per-request services for a server-side request. */
 const requestLayer = (event: RequestEvent): Layer.Layer<SvelteKitServices> => {
@@ -452,7 +452,7 @@ export const makeServerRuntime = <R = never, E = never>(
         ),
       ),
     action,
-    actions: (actionsMap) => Rec.map(actionsMap, (fn) => action(fn)),
+    actions: (actionsMap) => R.map(actionsMap, (fn) => action(fn)),
     handle,
     handleFetch: (fn) => (args) =>
       run(

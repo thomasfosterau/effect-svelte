@@ -96,10 +96,6 @@ export default defineConfig({
       // fires on every `as`, including the narrowings Svelte's and SvelteKit's
       // types structurally require. Stays visible as a warning.
       "effect/casting-awareness": "warn",
-      // Hard-codes abbreviations (`Arr`, `P`, `R`, …) with no options, so it is
-      // unsatisfiable under the full-name convention (`import * as Option from
-      // "effect/Option"`) this family shares with its consumers.
-      "effect/prefer-namespace-imports": "off",
       // These packages ARE the runtime boundary the rule asks for: Svelte
       // components, rune hooks, SvelteKit loads, actions, endpoints and remote
       // functions are Promise/callback APIs that call into this code, so every

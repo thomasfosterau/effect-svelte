@@ -45,7 +45,7 @@ import * as Effect from "effect/Effect";
 import * as Arr from "effect/Array";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Rec from "effect/Record";
+import * as R from "effect/Record";
 import {
   RequestRuntime,
   type ErrorTranslator,
@@ -78,7 +78,7 @@ class TestCookies {
   private store: ReadonlyArray<TestCookie>;
 
   constructor(initial: Readonly<Record<string, string>> = {}) {
-    this.store = Arr.map(Rec.toEntries(initial), ([name, value]) => ({ name, value }));
+    this.store = Arr.map(R.toEntries(initial), ([name, value]) => ({ name, value }));
   }
 
   get(name: string, _opts?: CookieParseOptions): string | undefined {

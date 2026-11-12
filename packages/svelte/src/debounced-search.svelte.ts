@@ -1,10 +1,10 @@
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Match from "effect/Match";
-import * as Predicate from "effect/Predicate";
+import * as P from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
-import * as String from "effect/String";
+import * as Str from "effect/String";
 import { getRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { useStream } from "./stream.svelte.js";
@@ -57,7 +57,7 @@ type Phase<T> =
   | { readonly kind: "error"; readonly error: string };
 
 const defaultErrorMessage = <E>(error: E): string =>
-  Predicate.isError(error) ? error.message : "Search failed.";
+  P.isError(error) ? error.message : "Search failed.";
 
 /**
  * Debounced, latest-wins typeahead search on {@link useStream}.
@@ -126,7 +126,7 @@ export function useDebouncedSearch<T, E = never, R = never>(
     Stream.debounce(debounce),
     Stream.switchMap((raw): Stream.Stream<Phase<T>, never, R> => {
       const query = raw.trim();
-      if (String.isEmpty(query)) return Stream.succeed<Phase<T>>({ kind: "empty" });
+      if (Str.isEmpty(query)) return Stream.succeed<Phase<T>>({ kind: "empty" });
       return Stream.concat(
         Stream.succeed<Phase<T>>({ kind: "pending" }),
         Stream.fromEffect(
