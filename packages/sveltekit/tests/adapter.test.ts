@@ -1,13 +1,15 @@
 import { it } from "@effect/vitest";
 import { describe, expect } from "vite-plus/test";
-import { writeFileSync } from "node:fs";
 import type { Builder } from "@sveltejs/kit";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import type * as PlatformError from "effect/PlatformError";
+import * as Layer from "effect/Layer";
+import * as PlatformError from "effect/PlatformError";
+import { type BuildOptions, writeBuild } from "../src/adapter/build.js";
 import { effectAdapter } from "../src/adapter/index.js";
+import { ForeignError } from "./fixtures/foreign-error.js";
 
 interface BuilderCall {
   readonly method: string;
@@ -29,10 +31,14 @@ type AdaptBuilder = Pick<
   readonly prerendered: Pick<Builder["prerendered"], "paths">;
 };
 
-/** A minimal mock of SvelteKit's Builder that records calls and creates real directories. */
+/**
+ * A minimal mock of SvelteKit's Builder that records calls and writes nothing.
+ * `compress` returns what `compressed` gives.
+ */
 const mockBuilder = (
   calls: BuilderCall[],
   base: Builder["config"]["paths"]["base"] = "",
+  compressed: () => ReturnType<Builder["compress"]> = () => Promise.resolve([]),
 ): Builder => {
   const record =
     <R>(method: string, result: R) =>
@@ -60,11 +66,13 @@ const mockBuilder = (
     writeClient: record("writeClient", []),
     writePrerendered: record("writePrerendered", []),
     writeServer: record("writeServer", []),
-    compress: record("compress", Promise.resolve([])),
+    compress: (directory) => {
+      calls.push({ method: "compress", args: [directory] });
+      return compressed();
+    },
     getAppPath: () => "_app",
     generateServerInstance: (dest, opts) => {
       calls.push({ method: "generateServerInstance", args: [dest, opts] });
-      writeFileSync(dest, "export const server = {};");
     },
   };
   // SAFETY: `effectAdapter`'s `adapt` reads only the `AdaptBuilder` members of
@@ -88,6 +96,31 @@ const withOutDir = <A, E>(
 /** Runs the adapter's `adapt` against `builder`; a rejection fails the effect. */
 const adapt = (adapter: ReturnType<typeof effectAdapter>, builder: Builder) =>
   Effect.tryPromise(() => Promise.resolve(adapter.adapt(builder)));
+
+/**
+ * A `FileSystem` that performs nothing and records `remove`, `makeDirectory`
+ * and `writeFileString` in `calls`, beside the builder's own calls.
+ */
+const recordingFileSystem = (calls: BuilderCall[]): Layer.Layer<FileSystem.FileSystem> => {
+  const record =
+    (method: string) =>
+    (path: string): Effect.Effect<void> =>
+      Effect.sync(() => {
+        calls.push({ method, args: [path] });
+      });
+  return FileSystem.layerNoop({
+    remove: record("fs.remove"),
+    makeDirectory: record("fs.makeDirectory"),
+    writeFileString: record("fs.writeFileString"),
+  });
+};
+
+const buildOptions: BuildOptions = {
+  out: "out",
+  precompress: true,
+  envPrefix: "",
+  target: "node",
+};
 
 describe("effectAdapter", () => {
   it("has a name and supports read()", () => {
@@ -120,8 +153,6 @@ describe("effectAdapter", () => {
   it.effect("generates server.js from the server output", () =>
     withOutDir(
       Effect.fn("generatesServer")(function* (out) {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
         const calls: BuilderCall[] = [];
         const adapter = effectAdapter({ out, precompress: false });
 
@@ -129,7 +160,102 @@ describe("effectAdapter", () => {
 
         const generate = calls.find((call) => call.method === "generateServerInstance");
         expect(generate?.args).toEqual([`${out}/server.js`, { serverDirectory: `${out}/server` }]);
-        expect(yield* fs.exists(path.join(out, "server.js"))).toBe(true);
+      }),
+    ),
+  );
+
+  it.effect("empties the output directory before it writes anything into it", () =>
+    withOutDir(
+      Effect.fn("emptiesOut")(function* (out) {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        yield* fs.writeFileString(path.join(out, "stale.js"), "stale");
+
+        yield* adapt(effectAdapter({ out, precompress: false }), mockBuilder([]));
+
+        expect(yield* fs.exists(path.join(out, "stale.js"))).toBe(false);
+        expect(yield* fs.exists(path.join(out, "manifest.js"))).toBe(true);
+      }),
+    ),
+  );
+
+  // SvelteKit's `generateServerInstance` writes `server.js` synchronously, so
+  // it must run after the output directory is emptied, or the file is lost.
+  it.effect("runs every build step in order, one after another", () =>
+    Effect.gen(function* () {
+      const calls: BuilderCall[] = [];
+
+      yield* writeBuild(mockBuilder(calls), buildOptions).pipe(
+        Effect.provide(recordingFileSystem(calls)),
+      );
+
+      expect(calls.map((call) => [call.method, call.args[0]])).toEqual([
+        ["fs.remove", "out"],
+        ["fs.makeDirectory", "out"],
+        ["log.minor", "Copying assets"],
+        ["writeClient", "out/client"],
+        ["writePrerendered", "out/prerendered"],
+        ["log.minor", "Compressing assets"],
+        ["compress", "out/client"],
+        ["compress", "out/prerendered"],
+        ["log.minor", "Building server"],
+        ["writeServer", "out/server"],
+        ["generateServerInstance", "out/server.js"],
+        ["fs.writeFileString", "out/manifest.js"],
+        ["log.minor", "Writing server entry"],
+        ["fs.writeFileString", "out/handler.js"],
+        ["fs.writeFileString", "out/index.js"],
+      ]);
+    }),
+  );
+
+  it.effect("fails with the PlatformError of a file operation that failed", () =>
+    Effect.gen(function* () {
+      const calls: BuilderCall[] = [];
+      const denied = PlatformError.systemError({
+        _tag: "PermissionDenied",
+        module: "FileSystem",
+        method: "makeDirectory",
+      });
+
+      const error = yield* writeBuild(mockBuilder(calls), buildOptions).pipe(
+        Effect.provide(FileSystem.layerNoop({ makeDirectory: () => Effect.fail(denied) })),
+        Effect.flip,
+      );
+
+      expect(error).toBe(denied);
+      // Nothing is written once a step has failed.
+      expect(calls).toEqual([]);
+    }),
+  );
+
+  it.effect("rejects with the PlatformError when the output directory cannot be made", () =>
+    withOutDir(
+      Effect.fn("rejectsPlatformError")(function* (dir) {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const file = path.join(dir, "file");
+        yield* fs.writeFileString(file, "not a directory");
+        const calls: BuilderCall[] = [];
+        const adapter = effectAdapter({ out: path.join(file, "out"), precompress: false });
+
+        const error = yield* Effect.flip(adapt(adapter, mockBuilder(calls)));
+
+        expect(error.cause).toMatchObject({ _tag: "PlatformError" });
+        expect(calls).toEqual([]);
+      }),
+    ),
+  );
+
+  it.effect("rejects with what the builder's compress rejected with", () =>
+    withOutDir(
+      Effect.fn("rejectsCompress")(function* (out) {
+        const failure = new ForeignError("compress failed");
+        const builder = mockBuilder([], "", () => Promise.reject(failure));
+
+        const error = yield* Effect.flip(adapt(effectAdapter({ out }), builder));
+
+        expect(error.cause).toBe(failure);
       }),
     ),
   );

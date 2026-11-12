@@ -33,8 +33,10 @@
  * `@effect/platform-node`).
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import type { Adapter } from "@sveltejs/kit";
+import * as ManagedRuntime from "effect/ManagedRuntime";
+import { writeBuild } from "./build.js";
 
 /** Options for {@link effectAdapter}. */
 export interface EffectAdapterOptions {
@@ -72,129 +74,30 @@ export interface EffectAdapterOptions {
   readonly target?: "node" | "fetch";
 }
 
-const PACKAGE = "@thomasfosterau/effect-sveltekit";
-
-/** Template for the generated `<out>/handler.js`. */
-const handlerTemplate = (envPrefix: string): string => `\
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import process from "node:process";
-import { makeHandler } from "${PACKAGE}/adapter/handler";
-import { server } from "./server.js";
-import { prerendered, base, appPath } from "./manifest.js";
-
-const dir = dirname(fileURLToPath(import.meta.url));
-
-/**
- * The SvelteKit application as a composable Effect HTTP handler.
- *
- * Serve it with the generated index.js, or mount it inside any
- * \`effect/http\` HTTP server.
- */
-export const handler = makeHandler({
-  server,
-  appPath,
-  prerendered,
-  base,
-  dir,
-  env: process.env,
-  envPrefix: ${JSON.stringify(envPrefix)},
-});
-`;
-
-/** Template for the generated Node `<out>/index.js`. */
-const nodeEntryTemplate = (envPrefix: string): string => `\
-import { serve } from "${PACKAGE}/adapter/serve";
-import { handler } from "./handler.js";
-
-serve(handler, { envPrefix: ${JSON.stringify(envPrefix)} });
-`;
-
-/**
- * Template for the generated Cloudflare Workers `<out>/index.js`.
- *
- * Exports a module worker (`default { fetch }`). Static client assets and
- * prerendered pages are served from the `ASSETS` binding; everything else is
- * server-side rendered by the SvelteKit `HttpApp`.
- */
-const fetchEntryTemplate = (envPrefix: string): string => `\
-import * as Layer from "effect/Layer";
-import { makeHandlerWith, AssetSource, toWebHandler } from "${PACKAGE}/adapter/handler";
-import { server } from "./server.js";
-
-let fetchHandler;
-
-export default {
-  /** @param {Request} request @param {Record<string, any>} env @param {any} ctx */
-  fetch(request, env, ctx) {
-    fetchHandler ??= toWebHandler(
-      makeHandlerWith({
-        server,
-        env,
-        envPrefix: ${JSON.stringify(envPrefix)},
-        // Static assets come from the Workers ASSETS binding (configure it to
-        // serve the uploaded \`client/\` + \`prerendered/\` output).
-        assets: AssetSource.cloudflareAssets(env.ASSETS),
-        // \`read()\` from \`$app/server\` is not backed by a file system on workerd.
-        read: (file) => {
-          throw new Error(\`read() is not supported on this deployment (\${file})\`);
-        },
-      }),
-      Layer.empty,
-    );
-    return fetchHandler(request);
-  },
-};
-`;
-
 /**
  * Creates the Effect SvelteKit adapter.
+ *
+ * Its `adapt` hook writes the build with Effect's `FileSystem` service on
+ * Node's file system (`@effect/platform-node`, which must be installed for
+ * either target), on a runtime it creates for the build and disposes when the
+ * build ends. The promise it returns rejects with the `PlatformError` of a
+ * file operation that failed, or with whatever SvelteKit's builder threw.
  */
 export function effectAdapter(options: EffectAdapterOptions = {}): Adapter {
   const { out = "build", precompress = true, envPrefix = "", target = "node" } = options;
 
   return {
-    name: `${PACKAGE}/adapter`,
+    name: "@thomasfosterau/effect-sveltekit/adapter",
 
-    async adapt(builder) {
-      const base = builder.config.paths.base;
-
-      rmSync(out, { recursive: true, force: true });
-      mkdirSync(out, { recursive: true });
-
-      builder.log.minor("Copying assets");
-      builder.writeClient(`${out}/client${base}`);
-      builder.writePrerendered(`${out}/prerendered${base}`);
-
-      if (precompress) {
-        builder.log.minor("Compressing assets");
-        await Promise.all([
-          builder.compress(`${out}/client`),
-          builder.compress(`${out}/prerendered`),
-        ]);
-      }
-
-      builder.log.minor("Building server");
-      builder.writeServer(`${out}/server`);
-      // `<out>/server.js` exports the SvelteKit `server` instance, with the
-      // manifest of the (non-prerendered) routes baked in.
-      builder.generateServerInstance(`${out}/server.js`, { serverDirectory: `${out}/server` });
-
-      writeFileSync(
-        `${out}/manifest.js`,
-        [
-          `export const prerendered = new Set(${JSON.stringify(builder.prerendered.paths)});`,
-          `export const base = ${JSON.stringify(base)};`,
-          `export const appPath = ${JSON.stringify(builder.getAppPath())};`,
-        ].join("\n\n"),
-      );
-
-      builder.log.minor("Writing server entry");
-      writeFileSync(`${out}/handler.js`, handlerTemplate(envPrefix));
-      writeFileSync(
-        `${out}/index.js`,
-        target === "fetch" ? fetchEntryTemplate(envPrefix) : nodeEntryTemplate(envPrefix),
-      );
+    adapt(builder) {
+      // The build hook is a runtime boundary: SvelteKit calls it as a Promise
+      // API, so the build runs on a runtime this call owns.
+      const runtime = ManagedRuntime.make(NodeFileSystem.layer);
+      // Disposed once the run has settled, not from inside it: on effect
+      // 4.0.0 a runtime disposed by the program it is running never settles.
+      return runtime
+        .runPromise(writeBuild(builder, { out, precompress, envPrefix, target }))
+        .finally(() => runtime.dispose());
     },
 
     supports: {

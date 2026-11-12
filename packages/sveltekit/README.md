@@ -276,6 +276,11 @@ together with `package.json` and production `node_modules` (which must
 include `@thomasfosterau/effect-sveltekit`, `effect`, and
 `@effect/platform-node`).
 
+The adapter writes the build with Effect's `FileSystem` service on Node's file
+system, so `@effect/platform-node` must be installed to build either target
+(`target: "fetch"` included, though a Workers deployment never loads it). A
+file operation that fails rejects the build with its `PlatformError`.
+
 The adapter's optional `@effect/platform-node` peer pulls in `undici`, which
 needs Node `>=22.19`, so the production server needs Node `>=22.19` even
 though the package itself (like SvelteKit 3) declares `>=22.17`.

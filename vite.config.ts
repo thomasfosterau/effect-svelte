@@ -104,32 +104,6 @@ export default defineConfig({
       ],
     },
     overrides: [
-      // Build/test configs are evaluated by Vite and Vitest in bare Node,
-      // before any Effect runtime exists — there is no `Config` provider to
-      // read from and no `FileSystem` service to call, so `process.env` and
-      // `node:*` are the only things that work there. The Effect preset's
-      // service rules have no satisfiable fix in these files.
-      {
-        files: ["**/vite.config.ts", "**/svelte.config.js"],
-        rules: {
-          "effect/avoid-node-imports": "off",
-        },
-      },
-      // Build-time hooks: the `effectKit()` Vite plugin (`src/vite.ts`) and
-      // the adapter's `adapt(builder)` (`src/adapter/index.ts`) are called by
-      // Vite and SvelteKit's builder in bare Node, with no Effect runtime or
-      // platform layer in scope, and write the build's output files through
-      // the paths the builder hands them. `JSON.stringify` there emits a JS
-      // string literal into generated source; it is not a data boundary.
-      {
-        files: ["packages/sveltekit/src/vite.ts", "packages/sveltekit/src/adapter/index.ts"],
-        rules: {
-          "effect/avoid-node-imports": "off",
-          "effect/avoid-sync-fs": "off",
-          "effect/use-filesystem-service": "off",
-          "effect/avoid-direct-json": "off",
-        },
-      },
       // The fallback signatures of the `Forms` type-level tests: each exists
       // to accept what the real signature rejects — explicit type arguments
       // (`deserialize<string, undefined>()`), or a handlers object of any type,
@@ -246,23 +220,17 @@ export default defineConfig({
         files: ["packages/sveltekit/src/adapter/**", "packages/sveltekit/src/vite.ts"],
         rules: {
           "no-restricted-imports": "off",
-          // `adapter/serve.ts` starts the production HTTP SERVER with
-          // `node:http`'s `createServer`; the rule's fix (`HttpClient`) is for
-          // outbound requests.
-          "effect/use-http-client-service": "off",
         },
       },
-      // The adapter test's mock `Builder.generateServerInstance` must write
-      // synchronously: SvelteKit's contract for it returns `void`, and the
-      // test pins that `server.js` survives `adapt`'s earlier `rmSync(out)`.
-      // An Effect `FileSystem` write could land after that and hide an
-      // ordering bug. Every other file operation there uses `FileSystem`.
+      // Cannot apply: the rule bans the `node:http` import outright, taking it
+      // for an outbound request (its fix is `HttpClient`). `adapter/serve.ts`
+      // starts the production HTTP SERVER, and every `NodeHttpServer`
+      // constructor in `@effect/platform-node` (`layer`, `layerConfig`,
+      // `layerServer`, `make`) takes the `node:http` server factory as its
+      // first argument: `createServer` has to be imported from somewhere.
       {
-        files: ["packages/sveltekit/tests/adapter.test.ts"],
-        rules: {
-          "effect/use-filesystem-service": "off",
-          "effect/avoid-sync-fs": "off",
-        },
+        files: ["packages/sveltekit/src/adapter/serve.ts"],
+        rules: { "effect/use-http-client-service": "off" },
       },
     ],
     // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the
