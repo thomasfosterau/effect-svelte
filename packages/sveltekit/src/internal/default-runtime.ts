@@ -10,13 +10,12 @@
 
 import { type ServerRuntime, type UniversalRuntime } from "../app-runtime.js";
 import * as AppRuntime from "../app-runtime.js";
+import { lazy } from "./lazy.js";
 
-let serverRuntime: ServerRuntime | undefined;
 /** The shared default server runtime, created on first use. */
-export const defaultServerRuntime = (): ServerRuntime =>
-  (serverRuntime ??= AppRuntime.makeServerRuntime());
+export const defaultServerRuntime: () => ServerRuntime = lazy(() => AppRuntime.makeServerRuntime());
 
-let universalRuntime: UniversalRuntime | undefined;
 /** The shared default universal runtime, created on first use. */
-export const defaultUniversalRuntime = (): UniversalRuntime =>
-  (universalRuntime ??= AppRuntime.makeUniversalRuntime());
+export const defaultUniversalRuntime: () => UniversalRuntime = lazy(() =>
+  AppRuntime.makeUniversalRuntime(),
+);

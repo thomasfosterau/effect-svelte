@@ -4,6 +4,7 @@ import type { Handle } from "@sveltejs/kit/hooks";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as R from "effect/Record";
 import * as HttpClient from "effect/http/HttpClient";
 import { makeServerRuntime, makeUniversalRuntime } from "../src/app-runtime.js";
 import { EffectCauseError } from "../src/internal/error.js";
@@ -12,8 +13,11 @@ import {
   wrapActions,
   wrapEndpoint,
   wrapHandle,
+  wrapHandleError,
+  wrapHandleFetch,
   wrapInit,
   wrapLoad,
+  wrapReroute,
   wrapServerLoad,
 } from "../src/internal/auto.js";
 import { mockEvent, mockLoadEvent } from "./fixtures/request-event.js";
@@ -130,6 +134,51 @@ describe("wrapActions", () => {
 
   it("returns undefined for undefined input", () => {
     expect(wrapActions(undefined)).toBeUndefined();
+  });
+
+  it("drops an entry that holds undefined", async () => {
+    const actions = wrapActions({
+      create: () => Effect.succeed({ created: true }),
+      remove: undefined,
+    });
+    expect(R.keys(actions)).toEqual(["create"]);
+    expect(await actions.create(mockEvent())).toEqual({ created: true });
+  });
+});
+
+describe("an export that holds undefined", () => {
+  it("stays undefined through every wrapper", () => {
+    expect(wrapLoad(undefined)).toBeUndefined();
+    expect(wrapServerLoad(undefined)).toBeUndefined();
+    expect(wrapAction(undefined)).toBeUndefined();
+    expect(wrapActions(undefined)).toBeUndefined();
+    expect(wrapHandle(undefined)).toBeUndefined();
+    expect(wrapHandleFetch(undefined)).toBeUndefined();
+    expect(wrapHandleError(undefined)).toBeUndefined();
+    expect(wrapEndpoint(undefined)).toBeUndefined();
+    expect(wrapReroute(undefined)).toBeUndefined();
+    expect(wrapInit(undefined)).toBeUndefined();
+  });
+});
+
+describe("the default runtimes", () => {
+  it("run a server export with no runtime module, and with a module that exports none", async () => {
+    const load = () => Effect.succeed({ ok: true });
+    expect(await wrapServerLoad(load)(mockEvent())).toEqual({ ok: true });
+    expect(await wrapServerLoad(load, {})(mockEvent())).toEqual({ ok: true });
+  });
+
+  it("ignore a runtime module of the other kind", async () => {
+    // A universal runtime handed to a server wrapper is not a server runtime,
+    // so the export runs on the default server runtime instead.
+    const fn = wrapServerLoad(() => Effect.succeed({ ok: true }), {
+      runtime: makeUniversalRuntime(),
+    });
+    expect(await fn(mockEvent())).toEqual({ ok: true });
+    const universal = wrapLoad(() => Effect.succeed({ ok: true }), {
+      runtime: makeServerRuntime(),
+    });
+    expect(await universal(mockLoadEvent())).toEqual({ ok: true });
   });
 });
 

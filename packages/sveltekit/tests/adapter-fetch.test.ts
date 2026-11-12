@@ -40,6 +40,52 @@ const makeFetch = () =>
     Layer.empty,
   );
 
+describe("toWebHandler", () => {
+  /** Counts `init` calls and records what each was given. */
+  class CountingServer extends FakeServer {
+    readonly inits: Array<ServerInitOptions> = [];
+    override async init(options: ServerInitOptions): Promise<void> {
+      this.inits.push(options);
+    }
+  }
+
+  const fetchOf = (server: Server) =>
+    toWebHandler(
+      makeHandlerWith({
+        server,
+        assets: AssetSource.cloudflareAssets(fakeAssets),
+        read: () => {
+          throw new ForeignError("read() not supported in this test");
+        },
+      }),
+      Layer.empty,
+    );
+
+  it("does not build the app until the first request", () => {
+    const server = new CountingServer();
+    fetchOf(server);
+    expect(server.inits).toHaveLength(0);
+  });
+
+  it("builds the app once, however many requests arrive", async () => {
+    const server = new CountingServer();
+    const fetchHandler = fetchOf(server);
+    const responses = await Promise.all([
+      fetchHandler(new Request("http://localhost/a")),
+      fetchHandler(new Request("http://localhost/b")),
+    ]);
+    await fetchHandler(new Request("http://localhost/c"));
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(server.inits).toHaveLength(1);
+  });
+
+  it("initialises the server with an empty env when `env` is omitted", async () => {
+    const server = new CountingServer();
+    await fetchOf(server)(new Request("http://localhost/a"));
+    expect(server.inits.map((options) => options.env)).toEqual([{}]);
+  });
+});
+
 describe("toWebHandler with AssetSource.cloudflareAssets", () => {
   it("serves an asset from the Cloudflare assets binding", async () => {
     const fetchHandler = makeFetch();

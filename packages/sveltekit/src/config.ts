@@ -27,6 +27,7 @@
  * `DATABASE_HOST` env var just like it does from `process.env`.
  */
 
+import type { ServerInitOptions } from "@sveltejs/kit";
 import type * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
@@ -35,15 +36,19 @@ import * as P from "effect/Predicate";
 import * as R from "effect/Record";
 
 /** Drop `undefined` values so the record satisfies `ConfigProvider.fromEnv`. */
-const definedEntries = (env: Record<string, string | undefined>): Record<string, string> =>
+const definedEntries = (env: ServerInitOptions["env"]): Record<string, string> =>
   R.filter(env, P.isNotUndefined);
 
 /**
  * Creates a {@link ConfigProvider} backed by a SvelteKit env record (e.g. the
  * `env` export of `$env/dynamic/private`, or `import.meta.env`-style objects).
+ * The parameter is SvelteKit's own type for an environment map
+ * (`ServerInitOptions["env"]`), which those and `process.env` all satisfy.
+ * A variable that is missing or `undefined` is not set: a `Config` reading it
+ * fails with a `ConfigError`, or takes its default.
  */
 export const sveltekitConfigProvider = (
-  env: Record<string, string | undefined>,
+  env: ServerInitOptions["env"],
 ): ConfigProvider.ConfigProvider => ConfigProvider.fromEnv({ env: definedEntries(env) });
 
 /**
@@ -51,7 +56,7 @@ export const sveltekitConfigProvider = (
  * ambient config provider. Provide it to a server/universal runtime so the
  * application layer's `Config` reads resolve from SvelteKit's environment.
  */
-export const sveltekitConfig = (env: Record<string, string | undefined>): Layer.Layer<never> =>
+export const sveltekitConfig = (env: ServerInitOptions["env"]): Layer.Layer<never> =>
   ConfigProvider.layer(sveltekitConfigProvider(env));
 
 /**
@@ -85,6 +90,6 @@ export const sveltekitConfig = (env: Record<string, string | undefined>): Layer.
  * ```
  */
 export const readConfig = <A>(
-  env: Record<string, string | undefined>,
+  env: ServerInitOptions["env"],
   config: Config.Config<A>,
 ): Effect.Effect<A, Config.ConfigError> => Effect.provide(config, sveltekitConfig(env));

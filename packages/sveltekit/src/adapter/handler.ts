@@ -17,7 +17,7 @@
  * (see {@link toWebHandler}).
  */
 
-import type { Server as SvelteKitServer } from "@sveltejs/kit";
+import type { Server as SvelteKitServer, ServerInitOptions } from "@sveltejs/kit";
 import * as FileSystem from "effect/FileSystem";
 import * as HttpMethod from "effect/http/HttpMethod";
 import * as HttpEffect from "effect/http/HttpEffect";
@@ -72,8 +72,11 @@ export interface SvelteKitHandlerOptions {
   readonly base: string;
   /** Absolute path of the build output directory (contains `client/`, `server/`, `prerendered/`). */
   readonly dir: string;
-  /** Environment variables passed to the SvelteKit server (e.g. `process.env`). */
-  readonly env?: Record<string, string | undefined>;
+  /**
+   * Environment variables passed to the SvelteKit server (e.g. `process.env`),
+   * in the shape SvelteKit's `Server.init` takes. Defaults to an empty map.
+   */
+  readonly env?: ServerInitOptions["env"];
   /** Prefix for the runtime configuration environment variables (ORIGIN, ...). */
   readonly envPrefix?: string;
 }
@@ -82,10 +85,17 @@ export interface SvelteKitHandlerOptions {
 export interface SvelteKitNeutralHandlerOptions<RAssets> {
   /** The SvelteKit `server` instance exported by the build output (`./server.js`). */
   readonly server: SvelteKitServer;
-  /** Environment variables passed to the SvelteKit server. */
-  readonly env?: Record<string, string | undefined> | undefined;
-  /** Prefix for the runtime configuration environment variables (ORIGIN, ...). */
-  readonly envPrefix?: string | undefined;
+  /**
+   * Environment variables passed to the SvelteKit server, in the shape
+   * SvelteKit's `Server.init` takes. Defaults to an empty map; omit the key
+   * rather than passing `undefined`.
+   */
+  readonly env?: ServerInitOptions["env"];
+  /**
+   * Prefix for the runtime configuration environment variables (ORIGIN, ...).
+   * Defaults to no prefix; omit the key rather than passing `undefined`.
+   */
+  readonly envPrefix?: string;
   /** Where static client assets and prerendered pages come from. */
   readonly assets: AssetSource<RAssets>;
   /**
@@ -202,10 +212,10 @@ export const makeHandler = (
 
     const serverDir = path.join(options.dir, "server");
 
+    // `options` is passed through whole, so an `env` / `envPrefix` the caller
+    // omitted stays omitted; the neutral core ignores the file-system keys.
     return yield* makeHandlerWith<SvelteKitHttpAppServices>({
-      server: options.server,
-      env: options.env,
-      envPrefix: options.envPrefix,
+      ...options,
       // `read` backs the `read()` helper from `$app/server`, streaming server
       // assets from the build output.
       read: (file) => Stream.toReadableStreamWith(fs.stream(path.join(serverDir, file)), context),
@@ -337,13 +347,17 @@ export const toWebHandler = <RAssets, E>(
   // Build the layer, the app (server.init) and the per-request web handler
   // once, lazily on the first request, then dispatch each request through it.
   // `toWebHandlerLayerWith` runs `toHandler` once, when it builds the layer.
-  let handler: ((request: Request) => Promise<Response>) | undefined;
-  const build = (): ((request: Request) => Promise<Response>) =>
+  // `None` until the first request builds the handler.
+  let handler: Option.Option<(request: Request) => Promise<Response>> = Option.none();
+  const build = (): ((request: Request) => Promise<Response>) => {
     // SAFETY: `layer` provides `RAssets`, and the web handler provides the
     // `HttpServerRequest`, so the handler needs no per-request context; the
     // conditional type only stays unresolved while `RAssets` is generic.
-    HttpEffect.toWebHandlerLayerWith(layer, { toHandler: () => app }).handler as (
+    const built = HttpEffect.toWebHandlerLayerWith(layer, { toHandler: () => app }).handler as (
       request: Request,
     ) => Promise<Response>;
-  return async (request) => (handler ??= build())(request);
+    handler = Option.some(built);
+    return built;
+  };
+  return async (request) => Option.getOrElse(handler, build)(request);
 };
