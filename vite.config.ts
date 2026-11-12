@@ -236,11 +236,17 @@ export default defineConfig({
         files: ["packages/sveltekit/src/adapter/**", "packages/sveltekit/src/vite.ts"],
         rules: {
           "no-restricted-imports": "off",
-          // `adapter/serve.ts` starts the production HTTP SERVER with
-          // `node:http`'s `createServer`; the rule's fix (`HttpClient`) is for
-          // outbound requests.
-          "effect/use-http-client-service": "off",
         },
+      },
+      // Cannot apply: the rule bans the `node:http` import outright, taking it
+      // for an outbound request (its fix is `HttpClient`). `adapter/serve.ts`
+      // starts the production HTTP SERVER, and every `NodeHttpServer`
+      // constructor in `@effect/platform-node` (`layer`, `layerConfig`,
+      // `layerServer`, `make`) takes the `node:http` server factory as its
+      // first argument: `createServer` has to be imported from somewhere.
+      {
+        files: ["packages/sveltekit/src/adapter/serve.ts"],
+        rules: { "effect/use-http-client-service": "off" },
       },
       // The adapter test's mock `Builder.generateServerInstance` must write
       // synchronously: SvelteKit's contract for it returns `void`, and the
