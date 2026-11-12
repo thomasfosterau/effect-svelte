@@ -53,7 +53,9 @@
 
 import { redirect as kitRedirect } from "@sveltejs/kit";
 import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
 import * as P from "effect/Predicate";
+import * as R from "effect/Record";
 import { throwKitError } from "./internal/error.js";
 import { SvelteKit, type KitErrorTranslator } from "./kit.js";
 
@@ -71,7 +73,8 @@ export type ErrorStatus = number;
  * - `404` (a status) — `error(status, body)`. The body is the error's own
  *   non-empty `message` field, else its `_tag`.
  * - `{ status, message }` — `error(status, message(e))`; `message` may return a
- *   string or an `App.Error` object.
+ *   string or an `App.Error` object. Omit `message` for the default body (the
+ *   error's own non-empty `message` field, else its `_tag`).
  * - `"status"` — `error(e.status, body)`, for a catch-all error that carries its
  *   own status (a non-4xx/5xx status becomes `500`).
  * - `"redirect"` — `redirect(e.status, e.to ?? e.location)`; a missing or
@@ -83,7 +86,7 @@ export type CatalogueEntry<E> =
   | ErrorStatus
   | {
       readonly status: ErrorStatus;
-      readonly message?: ((error: E) => string | App.Error) | undefined;
+      readonly message?: (error: E) => string | App.Error;
     }
   | "status"
   | "redirect"
@@ -107,9 +110,10 @@ export interface ToSvelteKitOptions {
    * `EffectCauseError` (a 500 whose `cause` is the full Effect `Cause`).
    *
    * Pass {@link rethrowSquashed} to rethrow the squashed error unchanged
-   * instead, so `handleError` sees the original value.
+   * instead, so `handleError` sees the original value. Omit the key for the
+   * default.
    */
-  readonly fallback?: KitErrorTranslator | undefined;
+  readonly fallback?: KitErrorTranslator;
 }
 
 /** A {@link ToSvelteKitOptions.fallback} that rethrows `Cause.squash(cause)` unchanged. */
@@ -120,13 +124,13 @@ export const rethrowSquashed: KitErrorTranslator = (cause) => {
 const isTagged = (value: unknown): value is Tagged =>
   P.hasProperty(value, "_tag") && P.isString(value._tag);
 
-const isErrorStatus = (status: number | undefined): status is number =>
-  status !== undefined && Number.isInteger(status) && status >= 400 && status <= 599;
+const isErrorStatus = (status: number): boolean =>
+  Number.isInteger(status) && status >= 400 && status <= 599;
 
 const isRedirectStatus = (
-  status: number | undefined,
+  status: number,
 ): status is 300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308 =>
-  status !== undefined && Number.isInteger(status) && status >= 300 && status <= 308;
+  Number.isInteger(status) && status >= 300 && status <= 308;
 
 /** The error's own non-empty `message` field, else its `_tag`. */
 const defaultBody = (error: Tagged): string =>
@@ -139,26 +143,42 @@ const defaultBody = (error: Tagged): string =>
 
 const throwError = (status: number, body: string | App.Error): never => throwKitError(status, body);
 
-/** The error's numeric `status` field, if it has one. */
-const statusField = (error: Tagged): number | undefined =>
-  P.hasProperty(error, "status") && P.isNumber(error.status) ? error.status : undefined;
+/** The error's `key` field: `None` when it has none, or holds `null` / `undefined`. */
+const fieldOf = (error: Tagged, key: string): Option.Option<unknown> =>
+  P.hasProperty(error, key) ? Option.fromNullishOr(error[key]) : Option.none();
 
-/** The error's redirect target: its `to` field, else its `location`, if a string or `URL`. */
-const locationField = (error: Tagged): string | URL | undefined => {
-  const to = P.hasProperty(error, "to") ? error.to : undefined;
-  const location = to ?? (P.hasProperty(error, "location") ? error.location : undefined);
-  return P.isString(location) || location instanceof URL ? location : undefined;
-};
+/** The error's numeric `status` field: `None` when it has none. */
+const statusField = (error: Tagged): Option.Option<number> =>
+  Option.filter(fieldOf(error, "status"), P.isNumber);
+
+const isLocation = (value: unknown): value is string | URL =>
+  P.isString(value) || value instanceof URL;
+
+/**
+ * The error's redirect target: its `to` field, else its `location`. `None`
+ * when it has neither, or the one it has is not a string or `URL`.
+ */
+const locationField = (error: Tagged): Option.Option<string | URL> =>
+  Option.filter(
+    Option.orElse(fieldOf(error, "to"), () => fieldOf(error, "location")),
+    isLocation,
+  );
 
 const apply = (entry: CatalogueEntry<Tagged>, error: Tagged): never => {
   if (P.isNumber(entry)) return throwError(entry, defaultBody(error));
   if (P.isFunction(entry)) return entry(error);
   const status = statusField(error);
   if (entry === "status") {
-    return throwError(isErrorStatus(status) ? status : 500, defaultBody(error));
+    return throwError(
+      Option.getOrElse(Option.filter(status, isErrorStatus), () => 500),
+      defaultBody(error),
+    );
   }
   if (entry === "redirect") {
-    return kitRedirect(isRedirectStatus(status) ? status : 303, locationField(error) ?? "/");
+    return kitRedirect(
+      Option.getOrElse(Option.filter(status, isRedirectStatus), () => 303),
+      Option.getOrElse(locationField(error), () => "/"),
+    );
   }
   return throwError(
     entry.status,
@@ -203,16 +223,15 @@ export const toSvelteKit = <E extends Tagged = Tagged>(
 ): KitErrorTranslator => {
   // SAFETY: every key of a `Catalogue<E>` is one of `E`'s tags and its entry is
   // a `CatalogueEntry` of the matching member, which `apply` only ever calls
-  // with an error of that tag; the lookup below is guarded by `Object.hasOwn`,
-  // so absent keys read `undefined`.
-  const entries = catalogue as Readonly<Record<string, CatalogueEntry<Tagged> | undefined>>;
+  // with an error of that tag; the lookup below goes through `R.get` (own keys
+  // only), so an absent key reads `None`.
+  const entries = catalogue as Readonly<Record<string, CatalogueEntry<Tagged>>>;
   const fallback = options.fallback ?? SvelteKit.translate;
   return (cause) => {
     const squashed = Cause.squash(cause);
-    if (isTagged(squashed) && Object.hasOwn(entries, squashed._tag)) {
-      const entry = entries[squashed._tag];
-      if (entry !== undefined) return apply(entry, squashed);
-    }
-    return fallback(cause);
+    if (!isTagged(squashed)) return fallback(cause);
+    // A key a JavaScript caller set to `undefined` counts as absent.
+    const entry = Option.filter(R.get(entries, squashed._tag), P.isNotUndefined);
+    return Option.isSome(entry) ? apply(entry.value, squashed) : fallback(cause);
   };
 };

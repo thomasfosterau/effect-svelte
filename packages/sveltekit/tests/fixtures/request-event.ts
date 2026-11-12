@@ -21,13 +21,13 @@ const span = {} as Span;
 /** Options for {@link mockEvent}. */
 export interface MockEventOptions {
   /** The request URL (default `http://localhost/`). */
-  readonly url?: string | undefined;
+  readonly url?: string;
   /** The event's `locals` (default a fresh empty object). */
-  readonly locals?: App.Locals | undefined;
+  readonly locals?: App.Locals;
   /** The event's `cookies` (default a stub whose methods must not be called). */
-  readonly cookies?: Cookies | undefined;
+  readonly cookies?: Cookies;
   /** The event's `setHeaders` (default a no-op). */
-  readonly setHeaders?: ((headers: Record<string, string>) => void) | undefined;
+  readonly setHeaders?: RequestEvent["setHeaders"];
 }
 
 /**

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import type { RequestEvent } from "@sveltejs/kit";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Tracer from "effect/Tracer";
@@ -7,7 +8,7 @@ import { makeRuntimeAdapter, RequestRuntime } from "../src/request-runtime.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const makeMockEvent = (routeId: string | null = "/test", method = "GET"): any => ({
+const makeMockEvent = (routeId: RequestEvent["route"]["id"] = "/test", method = "GET"): any => ({
   route: { id: routeId },
   request: new Request(`http://localhost/${routeId ?? ""}`, { method }),
   url: new URL("http://localhost/"),

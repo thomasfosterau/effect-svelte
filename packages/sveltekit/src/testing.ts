@@ -74,14 +74,14 @@ interface TestCookie {
  * ordered list, so `getAll()` returns cookies in the order they were first set
  * (as SvelteKit's does), and `set` on an existing name replaces it in place.
  */
-class TestCookies {
+class TestCookies implements Omit<Cookies, "parse"> {
   private store: ReadonlyArray<TestCookie>;
 
   constructor(initial: Readonly<Record<string, string>> = {}) {
     this.store = Arr.map(R.toEntries(initial), ([name, value]) => ({ name, value }));
   }
 
-  get(name: string, _opts?: CookieParseOptions): string | undefined {
+  get(name: string, _opts?: CookieParseOptions): ReturnType<Cookies["get"]> {
     return Option.getOrUndefined(
       Option.map(
         Arr.findFirst(this.store, (cookie) => cookie.name === name),
@@ -127,8 +127,11 @@ export interface TestRequestEventOptions {
   readonly method?: string;
   /** Additional HTTP headers added to the underlying `Request`. */
   readonly headers?: HeadersInit;
-  /** The request body. Only usable with methods that accept a body. */
-  readonly body?: BodyInit | null;
+  /**
+   * The request body, as `fetch`'s own `RequestInit["body"]`. Only usable with
+   * methods that accept a body. Omit the key for a request without one.
+   */
+  readonly body?: RequestInit["body"];
   /**
    * Route params (e.g. `{ id: "123" }` for a route like `/items/[id]`).
    * Defaults to `{}`.
@@ -160,16 +163,16 @@ export interface TestRequestEventOptions {
 
 /**
  * The fields {@link TestRequestEvent} actually provides: a {@link RequestEvent}
- * without `tracing` / `isRemoteRequest`, with Map-backed cookies (no `parse`)
- * and the test's own `locals` / `platform` values.
+ * without `tracing` / `isRemoteRequest`, with in-memory cookies (no `parse`)
+ * and the test's own `locals` / `platform` values (`platform` keeps
+ * SvelteKit's own `RequestEvent["platform"]` type).
  */
 type TestRequestEventFixture = Omit<
   RequestEvent,
-  "cookies" | "locals" | "platform" | "tracing" | "isRemoteRequest"
+  "cookies" | "locals" | "tracing" | "isRemoteRequest"
 > & {
   readonly cookies: Omit<Cookies, "parse">;
   readonly locals: App.Locals;
-  readonly platform: App.Platform | undefined;
 };
 
 /**
@@ -266,11 +269,11 @@ export interface RunRemoteOptions<R> {
 // SAFETY: `layer` may be omitted only when the handler needs no services
 // (`R` is `never`, as `TestRunOptions.layer` documents), and then `Layer.empty`
 // provides all of `R`.
-const makeAdapter = <R>(opts: TestRunOptions<R> | undefined) =>
+const makeAdapter = <R>(opts: TestRunOptions<R> = {}) =>
   RequestRuntimeModule.makeRuntimeAdapter(
-    RequestRuntime.fromLayer((opts?.layer ?? Layer.empty) as Layer.Layer<R>),
+    RequestRuntime.fromLayer((opts.layer ?? Layer.empty) as Layer.Layer<R>),
     {
-      translateError: opts?.translateError ?? SvelteKit.translate,
+      translateError: opts.translateError ?? SvelteKit.translate,
     },
   );
 

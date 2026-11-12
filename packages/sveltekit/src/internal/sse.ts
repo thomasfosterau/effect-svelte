@@ -18,10 +18,10 @@ export const SSE_HEADERS = {
 export interface SseFrame {
   /** The event payload. Multi-line strings are split into multiple `data:` lines. */
   readonly data: string;
-  /** Optional event name (`event:` field). */
-  readonly event?: string | undefined;
-  /** Optional event id (`id:` field), which the browser echoes on reconnect. */
-  readonly id?: string | undefined;
+  /** Optional event name (`event:` field); omit the key for an unnamed event. */
+  readonly event?: string;
+  /** Optional event id (`id:` field), which the browser echoes on reconnect; omit the key for none. */
+  readonly id?: string;
 }
 
 /**

@@ -76,7 +76,7 @@ export default defineConfig({
       // parent to move to the outermost scope it could live in. Here that
       // means pulling test helpers out of the `describe` / `it` that owns them,
       // the type-level probes in `tests/client/forms.test.ts` away from the
-      // expected-error directives they sit beside, no-op placeholders for a `let` that is reassigned,
+      // type assertions they sit beside, no-op placeholders for a `let` that is reassigned,
       // and an EventSource listener out of the step that registers it
       // (`src/realtime.ts`): the scoping is deliberate at every site.
       "unicorn/consistent-function-scoping": "off",
@@ -102,13 +102,6 @@ export default defineConfig({
       // `useEffect`, and there is no React in this repo. Apps that call the
       // hook under this preset need the same line.
       "effect/avoid-react-hooks": "off",
-      // Its only fix contradicts the workspace's `exactOptionalPropertyTypes`
-      // convention (AGENTS.md): an optional member a caller may forward
-      // `undefined` into MUST be spelled `?: T | undefined`, which is most of
-      // its sites. The rest are published signatures that return `undefined`
-      // to Svelte templates (`{#if x}`), where an `Option` would be a breaking
-      // API change for every consumer.
-      "effect/prefer-option-over-null": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
       // The suites assert through their own helpers (`expectFailsWith`,
       // `expectFailure`, ...) as well as `expect` / `assert`.
@@ -271,23 +264,6 @@ export default defineConfig({
           "effect/use-filesystem-service": "off",
           "effect/avoid-sync-fs": "off",
         },
-      },
-      // Tests.
-      {
-        files: ["**/tests/**"],
-        rules: {
-          // The expect-error directives in the suites ARE the type-level
-          // assertions (a call that must fail to compile); deleting one deletes
-          // the test.
-          "effect/avoid-ts-ignore": "off",
-        },
-      },
-      // The `Forms.enhance` type-level tests assert at compile time: each body
-      // is calls under expect-error directives (or calls that must compile),
-      // checked by `vp run check`, with nothing to assert at runtime.
-      {
-        files: ["packages/sveltekit/tests/client/forms.test.ts"],
-        rules: { "vitest/expect-expect": "off" },
       },
     ],
     // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the

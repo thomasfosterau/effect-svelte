@@ -5,7 +5,7 @@ import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
 import { isHttpError, isRedirect } from "@sveltejs/kit";
 import type { SvelteKitServices } from "./app-runtime.js";
-import type { SvelteRouteParams } from "./internal/route-params.js";
+import type { SvelteRouteId, SvelteRouteParams } from "./internal/route-params.js";
 import { defaultServerRuntime as runtime } from "./internal/default-runtime.js";
 
 export type { SvelteKitServices };
@@ -41,7 +41,7 @@ export function serverLoad<
   Params extends SvelteRouteParams = SvelteRouteParams,
   ParentData extends Record<string, any> = any,
   OutputData extends Record<string, any> | void = any,
-  RouteId extends string | null = any,
+  RouteId extends SvelteRouteId = any,
 >(
   fn: (
     event: RequestEvent<Params, RouteId>,
@@ -74,7 +74,7 @@ export function serverLoad<
 export function action<
   Params extends SvelteRouteParams = SvelteRouteParams,
   OutputData extends Record<string, any> | void = any,
-  RouteId extends string | null = any,
+  RouteId extends SvelteRouteId = any,
 >(
   fn: (
     event: RequestEvent<Params, RouteId>,
@@ -101,7 +101,7 @@ export function action<
 export function actions<
   Params extends SvelteRouteParams = SvelteRouteParams,
   OutputData extends Record<string, any> | void = any,
-  RouteId extends string | null = any,
+  RouteId extends SvelteRouteId = any,
 >(
   actionsMap: Record<
     string,
@@ -143,7 +143,7 @@ const isKitControlFlow = (squashed: unknown): squashed is Redirect | HttpError =
  */
 export function endpoint<
   Params extends SvelteRouteParams = SvelteRouteParams,
-  RouteId extends string | null = any,
+  RouteId extends SvelteRouteId = any,
 >(
   fn: (event: RequestEvent<Params, RouteId>) => Effect.Effect<Response, unknown, SvelteKitServices>,
   options?: { exposeErrors?: boolean },
