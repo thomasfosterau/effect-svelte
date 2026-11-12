@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Stream from "effect/Stream";
 
@@ -14,7 +15,7 @@ export interface SignalEmitterOptions {
    * `RangeError`. This limits only the buffer kept while no run is connected:
    * once a run is connected, values it has yet to take queue without bound.
    */
-  readonly bufferSize?: number | undefined;
+  readonly bufferSize?: number;
 }
 
 /** The default {@link SignalEmitterOptions.bufferSize}: the latest value only. */
@@ -24,8 +25,7 @@ const defaultBufferSize = 1;
  * Normalises {@link SignalEmitterOptions.bufferSize} to a non-negative integer.
  * Throws a `RangeError` for a non-finite size.
  */
-const normaliseBufferSize = (bufferSize: number | undefined): number => {
-  if (bufferSize === undefined) return defaultBufferSize;
+const normaliseBufferSize = (bufferSize: number): number => {
   if (!Number.isFinite(bufferSize)) {
     throw new RangeError(
       `SignalEmitter: bufferSize must be a finite number, received ${String(bufferSize)}`,
@@ -57,7 +57,7 @@ const normaliseBufferSize = (bufferSize: number | undefined): number => {
  * ```svelte
  * <script lang="ts">
  *   import { SignalEmitter, useStream } from '@thomasfosterau/effect-svelte';
- *   import { Stream } from 'effect';
+ *   import { Option, Stream } from 'effect';
  *
  *   let count = $state(0);
  *   const emitter = new SignalEmitter<number>();
@@ -71,7 +71,7 @@ const normaliseBufferSize = (bufferSize: number | undefined): number => {
  *   const doubled = useStream(emitter.stream.pipe(Stream.map((n) => n * 2)));
  * </script>
  *
- * <button onclick={() => count++}>{doubled.latest}</button>
+ * <button onclick={() => count++}>{Option.getOrElse(doubled.latest, () => 0)}</button>
  * ```
  */
 export class SignalEmitter<A> {
@@ -81,7 +81,7 @@ export class SignalEmitter<A> {
    * connect (inside that run's Effect, so the constructor runs nothing), then
    * never shut down: it lives as long as the emitter.
    */
-  private pubsub: PubSub.PubSub<A> | undefined;
+  private pubsub: Option.Option<PubSub.PubSub<A>> = Option.none();
   /** Values emitted while no run is connected, oldest first. */
   private buffer: Array<A> = [];
   private bufferSize: number;
@@ -89,19 +89,27 @@ export class SignalEmitter<A> {
   private connected = 0;
 
   constructor(options: SignalEmitterOptions = {}) {
-    this.bufferSize = normaliseBufferSize(options.bufferSize);
-    // Subscribe first (the first run allocates the `PubSub`; the `??=` in
-    // `map` keeps whichever was stored first, so every run shares one), then count this run as connected and take the buffer in
-    // one synchronous step. A value emitted in between is buffered (no run was
-    // counted yet) and taken with the rest; every later value is published to
-    // the subscription. So nothing is lost, duplicated or reordered. Both are
-    // released when the stream's scope closes; the count drops first, so from
-    // then on values are buffered for the next run.
+    this.bufferSize = normaliseBufferSize(options.bufferSize ?? defaultBufferSize);
+    // Subscribe first (the first run allocates the `PubSub`; the `onNone`
+    // branch keeps whichever was stored first, so every run shares one), then
+    // count this run as connected and take the buffer in one synchronous step.
+    // A value emitted in between is buffered (no run was counted yet) and taken
+    // with the rest; every later value is published to the subscription. So
+    // nothing is lost, duplicated or reordered. Both are released when the
+    // stream's scope closes; the count drops first, so from then on values are
+    // buffered for the next run.
     this.source = Stream.unwrap(
       Effect.gen({ self: this }, function* () {
-        const pubsub =
-          this.pubsub ??
-          (yield* Effect.map(PubSub.unbounded<A>(), (fresh) => (this.pubsub ??= fresh)));
+        const pubsub = yield* Option.match(this.pubsub, {
+          onSome: Effect.succeed,
+          onNone: () =>
+            Effect.map(PubSub.unbounded<A>(), (fresh) => {
+              // Another run may have stored its `PubSub` since the read above.
+              const shared = Option.getOrElse(this.pubsub, () => fresh);
+              this.pubsub = Option.some(shared);
+              return shared;
+            }),
+        });
         const subscription = yield* PubSub.subscribe(pubsub);
         const buffered = yield* Effect.acquireRelease(
           Effect.sync(() => {
@@ -126,8 +134,8 @@ export class SignalEmitter<A> {
    */
   emit(value: A): void {
     // A connected run has allocated the `PubSub`.
-    if (this.connected > 0 && this.pubsub !== undefined) {
-      PubSub.publishUnsafe(this.pubsub, value);
+    if (this.connected > 0 && Option.isSome(this.pubsub)) {
+      PubSub.publishUnsafe(this.pubsub.value, value);
       return;
     }
     if (this.bufferSize <= 0) return;

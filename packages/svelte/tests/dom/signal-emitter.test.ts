@@ -6,6 +6,7 @@
  */
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
+import * as Option from "effect/Option";
 import { flushSync } from "svelte";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import SignalEmitterProbe from "./SignalEmitterProbe.svelte";
@@ -36,11 +37,11 @@ describe("SignalEmitter in a component", () => {
   it("delivers the initial emit from a $effect to a useStream consumer, then each change", async () => {
     const { target, runtime, controls } = setup(false);
 
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("0");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toEqual(Option.some("0"));
 
     controls().increment();
     flushSync();
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("0,2");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toEqual(Option.some("0,2"));
 
     await runtime.dispose();
   });
@@ -52,15 +53,15 @@ describe("SignalEmitter in a component", () => {
     flushSync();
     controls().increment();
     flushSync();
-    expect(text(target, "values")).toBeNull();
+    expect(text(target, "values")).toEqual(Option.none());
 
     controls().show();
     flushSync();
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("2");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toEqual(Option.some("2"));
 
     controls().increment();
     flushSync();
-    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toBe("2,4");
+    await expect.poll(() => text(target, "values"), { timeout: 2000 }).toEqual(Option.some("2,4"));
 
     await runtime.dispose();
   });

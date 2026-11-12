@@ -1,9 +1,10 @@
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type * as AsyncResult from "effect/reactivity/AsyncResult";
-import { interruptFiber, runFork, type RuntimeLike } from "./run.js";
+import { holds, interruptFiber, runFork, type RuntimeLike } from "./run.js";
 
 /**
  * The reactive holder driven by {@link makeLiveStream}. The rune-backed
@@ -62,11 +63,12 @@ export function makeLiveStream<A, E, R>(
   // Identifies the live subscription. A superseded run's late emission (or
   // exit) is dropped by comparing against this token, so a fiber that is being
   // interrupted cannot clobber the value the newer subscription just set.
-  let active: symbol | null = null;
+  // `None` while nothing is subscribed.
+  let active: Option.Option<symbol> = Option.none();
 
   const subscribe = (stream: Stream.Stream<A, E, R>): (() => void) => {
     const token = Symbol();
-    active = token;
+    active = Option.some(token);
 
     // Keep the previous value visible as a waiting `Success` while the new
     // subscription starts (stale-while-revalidate). On the very first run this
@@ -75,7 +77,7 @@ export function makeLiveStream<A, E, R>(
 
     const consume = Stream.runForEach(stream, (value) =>
       Effect.sync(() => {
-        if (active !== token) return;
+        if (!holds(active, token)) return;
         // Each emission replaces the current value — never appends.
         state.emit(value);
       }),
@@ -88,7 +90,7 @@ export function makeLiveStream<A, E, R>(
     const program = Effect.flatMap(Effect.yieldNow, () => consume).pipe(
       Effect.onExit((exit) =>
         Effect.sync(() => {
-          if (active !== token) return;
+          if (!holds(active, token)) return;
           // A completed stream leaves the last emission in place.
           if (Exit.isSuccess(exit)) return;
           const cause = exit.cause;
@@ -104,7 +106,7 @@ export function makeLiveStream<A, E, R>(
     const fiber = runFork(runtime)(program);
 
     return () => {
-      if (active === token) active = null;
+      if (holds(active, token)) active = Option.none();
       interruptFiber(fiber);
     };
   };

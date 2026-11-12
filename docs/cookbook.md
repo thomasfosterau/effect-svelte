@@ -281,7 +281,7 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
 ```svelte
 <script lang="ts">
   import { AsyncResult, Store, useStream } from "@thomasfosterau/effect-svelte";
-  import { Stream } from "effect";
+  import { Option, Stream } from "effect";
   import { MediaQuery } from "svelte/reactivity";
   import { toStore } from "svelte/store";
   import { loadDashboard } from "#lib/dashboard.ts"; // ("full" | "compact") => Effect<Dashboard, DashboardError>
@@ -297,8 +297,8 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
 
 {#if AsyncResult.isFailure(dashboard.current)}
   <p>Couldn't load the dashboard.</p>
-{:else if dashboard.latest}
-  <ul>{#each dashboard.latest.widgets as w (w.id)}<li>{w.title}</li>{/each}</ul>
+{:else if Option.isSome(dashboard.latest)}
+  <ul>{#each dashboard.latest.value.widgets as w (w.id)}<li>{w.title}</li>{/each}</ul>
 {:else}
   <p>Loading…</p>
 {/if}
@@ -315,11 +315,12 @@ contract, so `Store.toStream` cannot take it directly. `toStore` from
   To keep following the breakpoint, handle the error inside the `switchMap`,
   e.g. `Stream.fromEffect(loadDashboard(…).pipe(Effect.retry(…)))` or a
   `catch` that maps it to a fallback value.
-- `useStream` keeps every emission in `values`; read `latest`. That is fine for
-  a value that changes as rarely as a breakpoint.
+- `useStream` keeps every emission in `values`; read `latest`, an `Option`
+  that is `None` until the first emission. That is fine for a value that
+  changes as rarely as a breakpoint.
 - SSR: the server cannot know the viewport, so there `MediaQuery.current` is
   the fallback (`true` here), and `useStream` does not subscribe at all.
-  `dashboard.latest` is `undefined` on the server and on the first client
+  `dashboard.latest` is `None` on the server and on the first client
   render, both render "Loading…", and hydration matches.
 - A `SignalEmitter` fed from `$effect(() => emitter.emit(wide.current))`
   also works: by default the emitter buffers the latest value emitted before

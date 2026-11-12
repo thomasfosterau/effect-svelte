@@ -12,8 +12,8 @@
 
   interface Props {
     use: () => { readonly current: AsyncResult.AsyncResult<A, E> };
-    onSuccess?: ((value: A) => void) | undefined;
-    onFailure?: (() => void) | undefined;
+    onSuccess?: (value: A) => void;
+    onFailure?: () => void;
   }
 
   let { use, onSuccess, onFailure }: Props = $props();
