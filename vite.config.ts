@@ -78,12 +78,6 @@ export default defineConfig({
       // `SvelteRuntime` and `SvelteKitRuntime` are published static-only
       // namespaces; turning them into modules would break every consumer.
       "typescript/no-extraneous-class": ["error", { allowStaticOnly: true }],
-      // Its fix (`<V>(value: V)` → `(value: unknown)`) is exactly what
-      // `effect/no-unknown-parameters` rejects: the single-use type parameter is
-      // that rule's own remedy for a passthrough predicate. The other sites are
-      // published caller-chosen-result signatures (`requested<Result>()`
-      // mirrors `$app/server`), where dropping the parameter breaks callers.
-      "typescript/no-unnecessary-type-parameters": "off",
       // `casting-awareness` is an awareness prompt, not a defect rule — it
       // fires on every `as`, including the narrowings Svelte's and SvelteKit's
       // types structurally require. Stays visible as a warning.
@@ -134,6 +128,19 @@ export default defineConfig({
           "effect/avoid-sync-fs": "off",
           "effect/use-filesystem-service": "off",
           "effect/avoid-direct-json": "off",
+        },
+      },
+      // The fallback signatures of the `Forms` type-level tests: each exists
+      // to accept what the real signature rejects — explicit type arguments
+      // (`deserialize<string, undefined>()`), or a handlers object of any type,
+      // interface-typed and misspelt keys included — so the test can assert
+      // the rejection as a type instead of an expect-error directive. A type
+      // argument can only be accepted by a type parameter, and nothing in a
+      // fallback relates to it, so these parameters are single-use by design.
+      {
+        files: ["packages/sveltekit/tests/client/fixtures/rejected-calls.ts"],
+        rules: {
+          "typescript/no-unnecessary-type-parameters": "off",
         },
       },
       // The runtime edge. These packages are a runtime boundary: Svelte

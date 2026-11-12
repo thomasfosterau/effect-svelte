@@ -57,8 +57,13 @@ type Phase<T> =
   | { readonly kind: "done"; readonly results: ReadonlyArray<T> }
   | { readonly kind: "error"; readonly error: string };
 
-const defaultErrorMessage = <E>(error: E): string =>
-  P.isError(error) ? error.message : "Search failed.";
+/**
+ * The default `errorMessage`. It is typed as the option itself, for an error of
+ * any type, so it serves every `E`.
+ */
+const defaultErrorMessage: NonNullable<
+  UseDebouncedSearchOptions<never, unknown, never>["errorMessage"]
+> = (error) => (P.isError(error) ? error.message : "Search failed.");
 
 /**
  * Debounced, latest-wins typeahead search on {@link useStream}.

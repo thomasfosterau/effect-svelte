@@ -31,14 +31,11 @@ import type {
   SubmitInput,
 } from "../../src/forms.js";
 import { formsStubs, resetFormsStubs } from "./fixtures/app-forms.js";
+import { rejectedDeserialize, rejectedEnhance } from "./fixtures/rejected-calls.js";
+import type { Rejected, RejectedSubmit } from "./fixtures/rejected-calls.js";
 import { ForeignError } from "../fixtures/foreign-error.js";
 
 afterEach(resetFormsStubs);
-
-/** The type of a call that the function's own signature does not accept. */
-interface Rejected {
-  readonly rejected: true;
-}
 
 /**
  * `f` with `fallback`'s signatures as further overloads, so a call that `f`'s
@@ -51,50 +48,8 @@ interface Rejected {
 const orRejected = <F extends object, Fallback>(f: F, fallback: Fallback): F & Fallback =>
   Object.assign(f, fallback);
 
-/** What {@link enhanceOrRejected} returns for a call `Forms.enhance` rejects. */
-type RejectedSubmit = SubmitFunction & Rejected;
-
-/** A handler's result, whatever it fails with or requires. */
-type AnyHandlerResult = Effect.Effect<void, unknown, unknown>;
-
-/**
- * Accepts any handlers and options. The constraint only gives unannotated
- * handler parameters their types: `Handlers` is inferred from the argument, so
- * it admits a key `Forms.enhance` does not know.
- */
-/** The handler keys `Forms.enhance` knows. */
-type HandlerName = "onSubmit" | "onResult" | "onError";
-
-interface RejectedEnhance {
-  <
-    Handlers extends {
-      readonly onSubmit?: (input: SubmitInput) => AnyHandlerResult;
-      readonly onResult?: (options: Forms.ResultOptions) => AnyHandlerResult;
-      readonly onError?: (error: never) => AnyHandlerResult;
-    },
-  >(
-    handlers: Handlers,
-    ...options: ReadonlyArray<unknown>
-  ): RejectedSubmit;
-  /** Handlers whose values are not functions at all, such as an explicit `undefined`. */
-  (
-    handlers: Partial<Readonly<Record<HandlerName, Forms.EnhanceHandlers[HandlerName]>>>,
-    ...options: ReadonlyArray<unknown>
-  ): RejectedSubmit;
-}
-const rejectedEnhance: RejectedEnhance = () =>
-  assert.fail("only its type is used: orRejected() returns the function itself");
-
 /** `Forms.enhance`, typing a call it rejects as a {@link RejectedSubmit}. */
 const enhanceOrRejected = orRejected(Forms.enhance, rejectedEnhance);
-
-/** Accepts one or two type arguments of any type, as `Forms.deserialize` does not. */
-interface RejectedDeserialize {
-  <_Success>(result: string): Rejected;
-  <_Success, _Failure>(result: string): Rejected;
-}
-const rejectedDeserialize: RejectedDeserialize = () =>
-  assert.fail("only its type is used: orRejected() returns the function itself");
 
 /** `Forms.deserialize`, typing a call it rejects as {@link Rejected}. */
 const deserializeOrRejected = orRejected(Forms.deserialize, rejectedDeserialize);

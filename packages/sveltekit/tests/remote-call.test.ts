@@ -32,13 +32,18 @@ const expectFailsWith = <E>(effect: Effect.Effect<unknown, E>, error: E): Effect
     expect(reason.error).toBe(error);
   });
 
+/** What these tests reject a remote call with: an `Error`, or a non-`Error` such as an HTTP error body. */
+type RejectionReason =
+  | ForeignError
+  | { readonly status: number; readonly body: { readonly message: string } };
+
 /**
  * A remote-call result that rejects with `error` when awaited, including via
  * `.updates()`. The base promise is pre-marked as handled, so leaving it
  * un-awaited (when only `.updates()` is) reports no unhandled rejection;
  * awaiting it still rejects.
  */
-const rejecting = <E>(reason: E) => {
+const rejecting = (reason: RejectionReason) => {
   const base = Promise.reject(reason);
   base.catch(() => {});
   return Object.assign(base, { updates: () => Promise.reject(reason) });
