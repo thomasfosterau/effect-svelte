@@ -21,7 +21,7 @@
  * This module is internal — the public Vite plugin generates references to it.
  */
 
-import type { Action, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
+import type { Action, ActionFailure, Actions, Load, RequestEvent, ServerLoad } from "@sveltejs/kit";
 import type {
   Handle,
   HandleClientError,
@@ -60,8 +60,11 @@ type UserFn<Arg, Plain> = (arg: Arg) => UserEffect<Awaited<Plain>> | Plain;
 /** The argument-less function form of a user `init` export (see {@link UserFn}). */
 type UserThunk = () => UserEffect<void> | void | Promise<void>;
 
-/** Any server runtime: whatever its layer provides and fails with. */
-type AnyServerRuntime = ServerRuntime<never, unknown>;
+/**
+ * Any server runtime: whatever its layer provides and fails with, and whatever
+ * `ActionFailure` its action translator returns.
+ */
+type AnyServerRuntime = ServerRuntime<never, unknown, ActionFailure<unknown>>;
 
 /** Any universal runtime: whatever its layer provides and fails with. */
 type AnyUniversalRuntime = UniversalRuntime<never, unknown>;
@@ -208,6 +211,21 @@ export function wrapServerLoad(
 }
 
 /**
+ * Shared implementation for form actions: as {@link serverEventHandler}, but
+ * the export's Effect runs through the server runtime's `action` wrapper, so
+ * a `SvelteKit.fail()` failure, or a `fail()` the runtime's action translator
+ * returns, is the action's result.
+ */
+const actionHandler =
+  (value: LoadLikeInput<ReturnType<Action>>, runtimeMod?: RuntimeModule): Action =>
+  async (event) => {
+    const result = resolveExport(value, event);
+    if (!isUserEffect(result)) return await result;
+
+    return serverRuntimeOf(runtimeMod).action(() => assumeProvided(result))(event);
+  };
+
+/**
  * Wraps a single SvelteKit action handler. `undefined` stays `undefined`.
  */
 export function wrapAction(
@@ -217,7 +235,7 @@ export function wrapAction(
 export function wrapAction(value: undefined, runtimeMod?: RuntimeModule): undefined;
 export function wrapAction(value?: LoadLikeInput<ReturnType<Action>>, runtimeMod?: RuntimeModule) {
   return Option.fromUndefinedOr(value).pipe(
-    Option.map((present): Action => serverEventHandler(present, runtimeMod)),
+    Option.map((present) => actionHandler(present, runtimeMod)),
     Option.getOrUndefined,
   );
 }
@@ -242,7 +260,7 @@ export function wrapActions(value?: UserActions, runtimeMod?: RuntimeModule) {
       return R.getSomes(
         R.map(actions, (action) =>
           Option.map(Option.fromUndefinedOr(action), (present) =>
-            serverEventHandler(present, runtimeMod),
+            actionHandler(present, runtimeMod),
           ),
         ),
       );

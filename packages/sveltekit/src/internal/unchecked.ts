@@ -58,39 +58,23 @@ export const onErrorOf = <RSubmit, RResult, RError, ESubmit, EResult, E>(
   handlers.onError as EnhanceHandlers<RError, ESubmit, EResult>["onError"];
 
 /**
- * An `ActionFailure` an error translator returns instead of throwing, typed
- * `never` as the translator contract (`KitErrorTranslator`) is.
- *
- * SvelteKit has no thrown form of `fail()`: an action reports a failure by
- * RETURNING the `ActionFailure`. A translator stands where the wrappers
- * otherwise throw, so its type says `never`, and every wrapper returns the
- * translator's result straight to SvelteKit, which is what delivers the
- * failure. Typing the contract as "throws or returns an `ActionFailure`"
- * would put that union in the result type of every wrapper (loads, hooks and
- * endpoints included), where it cannot occur.
- */
-export const returnedToSvelteKit = (failure: ActionFailure<unknown>): never =>
-  // SAFETY: see above; the value reaches SvelteKit as the action's return
-  // value through callers that return the translator's result unchanged.
-  failure as never;
-
-/**
  * An `Errors.toSvelteKit` catalogue as the translator reads it: by the `_tag`
  * of whatever error a failed `Cause` holds, each entry typed as accepting any
  * tagged error.
  *
  * Every key of a `Catalogue<E>` is one of `E`'s tags and its entry is typed
  * for the member of `E` with that tag; the translator calls an entry only with
- * an error whose `_tag` is the entry's key. That the error with that tag IS
+ * an error whose `_tag` is the entry's key (what an entry may return,
+ * `Returned`, is unchanged). That the error with that tag IS
  * that member is the caller's claim, made by passing its error union as `E`:
  * a failed `Cause` holds `unknown`, and a `_tag` is all a tagged error can be
  * checked for at runtime.
  */
-export const catalogueEntries = <E extends Tagged>(
-  catalogue: Catalogue<E>,
-): Readonly<Record<string, CatalogueEntry<Tagged>>> =>
+export const catalogueEntries = <E extends Tagged, Returned extends ActionFailure<unknown>>(
+  catalogue: Catalogue<E, Returned>,
+): Readonly<Record<string, CatalogueEntry<Tagged, Returned>>> =>
   // SAFETY: see above; an entry is only applied to an error of its own tag.
-  catalogue as Readonly<Record<string, CatalogueEntry<Tagged>>>;
+  catalogue as Readonly<Record<string, CatalogueEntry<Tagged, Returned>>>;
 
 /**
  * A normalised remote-function validator (the `"unchecked"` marker or a
