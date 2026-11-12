@@ -85,11 +85,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Create or update the version PR
+        id: version
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           script: pnpm run version
           commit-message: "chore: version packages"
           pr-title: "chore: version packages"
+      # Changesets has no assignee setting, so the PR it opens (as
+      # github-actions[bot]) is assigned here; `pr-number` is the action's
+      # output for the PR it created or updated. The REST assignees endpoint
+      # accepts `pull-requests: write` for a pull request, so the job needs no
+      # `issues: write` (which `gh pr edit --add-assignee` would).
+      - name: Assign the owner to the version PR
+        if: steps.version.outputs.pr-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.version.outputs.pr-number }}
+        run: gh api --method POST "repos/$GH_REPO/issues/$PR_NUMBER/assignees" -f "assignees[]=thomasfosterau" --silent
 
   publish:
     name: Publish to npm
