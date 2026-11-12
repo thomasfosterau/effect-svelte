@@ -253,6 +253,9 @@ describe("useEffect setData", () => {
   });
 });
 
+/** A hook's `setData`, as the probes of "setData updater" capture it. */
+type SetData = (updater: (previous: Option.Option<number>) => number) => void;
+
 describe("setData updater", () => {
   it("receives None before the first value, then Some with the current one", () => {
     const seen: Array<Option.Option<number>> = [];
@@ -260,19 +263,20 @@ describe("setData updater", () => {
       seen.push(previous);
       return Option.getOrElse(previous, () => 10) + 1;
     };
-    let setData: (updater: (previous: Option.Option<number>) => number) => void = () => {};
+    let setData = Option.none<SetData>();
     const target = mountProbe({
       use: () => {
         // Not `immediate`: the result stays `Initial` until `setData` writes it.
         const hook = useEffect(Effect.succeed(0), { runtime });
-        setData = hook.setData;
+        setData = Option.some(hook.setData);
         return hook;
       },
     });
     expect(text(target, "tag")).toEqual(Option.some("Initial"));
 
-    setData(record);
-    setData(record);
+    assert(Option.isSome(setData), "the probe did not run `use`");
+    setData.value(record);
+    setData.value(record);
     flushSync();
 
     expect(seen).toEqual([Option.none(), Option.some(11)]);
@@ -281,17 +285,18 @@ describe("setData updater", () => {
 
   it("useQuery's updater receives Some with the fetched value", () => {
     const seen: Array<Option.Option<number>> = [];
-    let setData: (updater: (previous: Option.Option<number>) => number) => void = () => {};
+    let setData = Option.none<SetData>();
     const target = mountProbe({
       use: () => {
         const hook = useQuery(Effect.succeed(5), { runtime });
-        setData = hook.setData;
+        setData = Option.some(hook.setData);
         return hook;
       },
     });
     expect(text(target, "value")).toEqual(Option.some("5"));
 
-    setData((previous) => {
+    assert(Option.isSome(setData), "the probe did not run `use`");
+    setData.value((previous) => {
       seen.push(previous);
       return Option.getOrElse(previous, () => 0) * 2;
     });
@@ -650,23 +655,23 @@ describe("useReactiveQuery", () => {
   });
 });
 
+/** A `Reactivity` runtime plus a synchronous `invalidate` for the tests. */
+const makeReactivity = async () => {
+  const managed = ManagedRuntime.make(Reactivity.layer);
+  const context = await managed.context();
+  return {
+    runtime: context,
+    invalidate: (keys: ReadonlyArray<unknown>) => managed.runSync(Reactivity.invalidate(keys)),
+    dispose: async () => {
+      mounter.cleanup();
+      await managed.dispose();
+    },
+  };
+};
+
 describe("useReactiveStream", () => {
   // `useReactiveStream` is built on `createSubscriber`, whose `start` runs
   // untracked: the thunks must be tracked some other way (#140).
-
-  /** A `Reactivity` runtime plus a synchronous `invalidate` for the tests. */
-  const makeReactivity = async () => {
-    const managed = ManagedRuntime.make(Reactivity.layer);
-    const context = await managed.context();
-    return {
-      runtime: context,
-      invalidate: (keys: ReadonlyArray<unknown>) => managed.runSync(Reactivity.invalidate(keys)),
-      dispose: async () => {
-        mounter.cleanup();
-        await managed.dispose();
-      },
-    };
-  };
 
   it("runs once for every reader and appends a value per invalidation", async () => {
     const reactivity = await makeReactivity();

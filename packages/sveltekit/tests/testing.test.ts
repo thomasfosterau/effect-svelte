@@ -16,6 +16,9 @@ import { ForeignError } from "./fixtures/foreign-error.js";
 
 // ─── TestRequestEvent ─────────────────────────────────────────────────────────
 
+/** A `fetch` that answers every request with the body `mocked`. */
+const mockFetch: typeof fetch = async () => new Response("mocked");
+
 describe("TestRequestEvent", () => {
   it("defaults to GET http://localhost/", () => {
     const event = TestRequestEvent();
@@ -81,7 +84,6 @@ describe("TestRequestEvent", () => {
   });
 
   it("accepts a custom fetch function", async () => {
-    const mockFetch: typeof fetch = async () => new Response("mocked");
     const event = TestRequestEvent({ fetch: mockFetch });
     const res = await event.fetch("http://example.com");
     expect(await res.text()).toBe("mocked");

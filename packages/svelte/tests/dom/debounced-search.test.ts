@@ -5,12 +5,13 @@
  * `SignalEmitter` dropped them, until #126 fixed its stream cleanup), and a
  * superseded in-flight search must be interrupted, not merely ignored.
  */
+import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Option from "effect/Option";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
+import { afterEach, assert, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import DebouncedSearch from "./DebouncedSearch.svelte";
 import { flush, makeMounter, text } from "./helpers.js";
 import { ForeignError } from "../fixtures/foreign-error.js";
@@ -40,16 +41,17 @@ const setup = (
   debounceMs = 50,
 ) => {
   const runtime = ManagedRuntime.make(Layer.empty);
-  let emit: (q: string) => void = () => {};
+  let controller = Option.none<{ emit: (q: string) => void }>();
   const target = mounter.mount(DebouncedSearch, {
     runtime,
     debounceMs,
     onSearch,
     expose: (c: { emit: (q: string) => void }) => {
-      emit = c.emit;
+      controller = Option.some(c);
     },
   });
-  return { target, runtime, emit: (q: string) => emit(q) };
+  assert(Option.isSome(controller), "the fixture did not expose its controller");
+  return { target, runtime, emit: controller.value.emit };
 };
 
 describe("useDebouncedSearch", () => {
@@ -75,13 +77,10 @@ describe("useDebouncedSearch", () => {
     // `expect.poll`'s 50 ms sampling interval: the pending window (debounce plus
     // sleep) ended right as the second sample fired, so a loaded runner sampled
     // only "idle".
-    let release: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const gate = Deferred.makeUnsafe<void>();
     const { target, emit, runtime } = setup(
       (q) =>
-        (q === "beta" ? Effect.tryPromise(() => gate) : Effect.sleep(Duration.millis(5))).pipe(
+        (q === "beta" ? Deferred.await(gate) : Effect.sleep(Duration.millis(5))).pipe(
           Effect.map(() => filter(q)),
         ),
       10,
@@ -94,7 +93,7 @@ describe("useDebouncedSearch", () => {
     emit("beta");
     await expect.poll(() => text(target, "pending")).toEqual(Option.some("pending"));
     expect(results(target)).toEqual(["Parent Issue alpha"]);
-    release();
+    Deferred.doneUnsafe(gate, Effect.void);
     await expect.poll(() => results(target)).toEqual(["Parent Issue beta"]);
 
     emit("   ");

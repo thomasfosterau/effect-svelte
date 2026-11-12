@@ -27,7 +27,7 @@ export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Pr
       onNone: () => Cause.squash(result.cause),
       onSome: (error) => error,
     });
-    return rejected(reason);
+    return observed(Promise.reject<A>(reason));
   }
 
   const value = AsyncResult.value(result);
@@ -38,7 +38,7 @@ export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Pr
 }
 
 /**
- * A rejected promise whose rejection is pre-observed with a no-op handler.
+ * `promise`, a rejected one, with its rejection pre-observed by a no-op handler.
  *
  * Failures are surfaced as rejected promises from a `$derived`; a reactive
  * re-render can produce (and then discard) such a promise before anything
@@ -46,8 +46,7 @@ export function resultToPromise<A, E>(result: AsyncResult.AsyncResult<A, E>): Pr
  * Node's `unhandledRejection` warning, while the returned promise still rejects
  * for every real consumer (the `catch` runs on a separate branch).
  */
-function rejected<A, Reason>(reason: Reason): Promise<A> {
-  const promise = Promise.reject<A>(reason);
+function observed<A>(promise: Promise<A>): Promise<A> {
   promise.catch(() => {});
   return promise;
 }

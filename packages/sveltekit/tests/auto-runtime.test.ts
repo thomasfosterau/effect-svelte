@@ -161,11 +161,13 @@ describe("an export that holds undefined", () => {
   });
 });
 
+/** A server `load` export that needs no services. */
+const loadOk = () => Effect.succeed({ ok: true });
+
 describe("the default runtimes", () => {
   it("run a server export with no runtime module, and with a module that exports none", async () => {
-    const load = () => Effect.succeed({ ok: true });
-    expect(await wrapServerLoad(load)(mockEvent())).toEqual({ ok: true });
-    expect(await wrapServerLoad(load, {})(mockEvent())).toEqual({ ok: true });
+    expect(await wrapServerLoad(loadOk)(mockEvent())).toEqual({ ok: true });
+    expect(await wrapServerLoad(loadOk, {})(mockEvent())).toEqual({ ok: true });
   });
 
   it("ignore a runtime module of the other kind", async () => {

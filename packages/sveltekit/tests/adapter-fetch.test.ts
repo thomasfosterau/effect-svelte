@@ -40,6 +40,19 @@ const makeFetch = () =>
     Layer.empty,
   );
 
+/** The web handler for `server`, with assets from `fakeAssets` and no `read()`. */
+const fetchOf = (server: Server) =>
+  toWebHandler(
+    makeHandlerWith({
+      server,
+      assets: AssetSource.cloudflareAssets(fakeAssets),
+      read: () => {
+        throw new ForeignError("read() not supported in this test");
+      },
+    }),
+    Layer.empty,
+  );
+
 describe("toWebHandler", () => {
   /** Counts `init` calls and records what each was given. */
   class CountingServer extends FakeServer {
@@ -48,18 +61,6 @@ describe("toWebHandler", () => {
       this.inits.push(options);
     }
   }
-
-  const fetchOf = (server: Server) =>
-    toWebHandler(
-      makeHandlerWith({
-        server,
-        assets: AssetSource.cloudflareAssets(fakeAssets),
-        read: () => {
-          throw new ForeignError("read() not supported in this test");
-        },
-      }),
-      Layer.empty,
-    );
 
   it("does not build the app until the first request", () => {
     const server = new CountingServer();

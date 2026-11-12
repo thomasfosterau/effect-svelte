@@ -67,6 +67,13 @@ export interface FromEventSourceOptions {
   readonly implementation?: EventSourceConstructor;
 }
 
+/** A listener that offers each event it receives to `queue` as an {@link SseMessage}. */
+const offerSseMessage =
+  (queue: Queue.Queue<SseMessage, EventSourceError | Cause.Done>) =>
+  (e: MessageEvent): void => {
+    Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
+  };
+
 /**
  * Consume a Server-Sent-Events endpoint as a `Stream` of {@link SseMessage}.
  *
@@ -109,9 +116,9 @@ export const fromEventSource = (
                 ? new Impl(url)
                 : new Impl(url, { withCredentials: options.withCredentials });
 
-            const onMessage = (e: MessageEvent): void => {
-              Queue.offerUnsafe(queue, { event: e.type, data: e.data, lastEventId: e.lastEventId });
-            };
+            // One listener for every event name, so a name listed twice (or
+            // `"message"` in `events`) is registered once.
+            const onMessage = offerSseMessage(queue);
 
             source.addEventListener("message", onMessage);
             Arr.forEach(options?.events ?? [], (name) => source.addEventListener(name, onMessage));

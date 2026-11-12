@@ -370,9 +370,7 @@ export interface FromStreamOptions<A, R = never> {
 }
 
 /** `fromStream`'s default `data:` encoder: the element as a JSON string. */
-const encodeJson: <A>(value: A) => string = Schema.encodeSync(
-  Schema.fromJsonString(Schema.Unknown),
-);
+const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
 /**
  * Create a SvelteKit endpoint that streams an Effect `Stream` to the browser as

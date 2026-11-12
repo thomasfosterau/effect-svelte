@@ -25,8 +25,10 @@ import * as P from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import { SvelteKitRuntime, SvelteKitRequestEvent } from "./runtime.js";
 import {
-  isBareHandler as isBareHandlerValue,
+  type EffectVoidHandler,
+  isBareHandler,
   toStandardValidator,
+  type Validator,
 } from "./internal/remote-validators.js";
 import * as RemoteRun from "./internal/remote-run.js";
 import {
@@ -83,22 +85,13 @@ function unavailable(name: string): never {
   });
 }
 
-/** Any validator argument the remote helpers accept in the handler-with-validation position. */
-type Validator = "unchecked" | StandardSchemaV1 | Schema.Top;
-
 type EffectHandler<In, Out, Env> = (arg: In) => Effect.Effect<Out, unknown, Env>;
-type EffectVoidHandler<Out, Env> = () => Effect.Effect<Out, unknown, Env>;
 
 /** `inputs` / `dynamic` options of a remote `prerender`, for input type `In`. */
 interface PrerenderOptions<In> {
   inputs?: () => Promise<In[]> | In[];
   dynamic?: boolean;
 }
-
-/** True when the argument is the no-validation handler overload (typed narrowing). */
-const isBareHandler = <Out, Env>(
-  value: Validator | EffectVoidHandler<Out, Env>,
-): value is EffectVoidHandler<Out, Env> => isBareHandlerValue(value);
 
 /**
  * Normalise a validator for kit's `$app/server` helpers, typed as the
@@ -184,32 +177,12 @@ const makeQueryBatch = <Env>(run: Runner): QueryBatchFn<Env> => {
   return impl;
 };
 
-/** `$app/server`, with `requested` typed as a generic passthrough. */
-type AppServerWithRequested = Omit<typeof AppServer, "requested"> & {
-  readonly requested?: <Result>(...args: unknown[]) => Result;
-};
-
-// SAFETY: widens `requested` to optional (older kits may lack it, so the call
-// site checks before calling) and erases its overloads, which `requested` below
-// re-exposes with the caller-chosen `Result`.
-const appServerCompat = AppServer as AppServerWithRequested;
-
 function getQueryLive(): typeof AppServer.query.live {
   // An older kit has no `query.live`: reading it there gives `None`.
   return Option.getOrElse(
     Option.filter(Option.fromUndefinedOr(AppServer.query.live), (live) => P.isFunction(live)),
     () => unavailable("query.live"),
   );
-}
-
-function getRequested(): <Result>(...args: unknown[]) => Result {
-  const requestedFn = appServerCompat.requested;
-
-  if (!P.isFunction(requestedFn)) {
-    unavailable("requested");
-  }
-
-  return requestedFn;
 }
 
 /**
@@ -417,13 +390,17 @@ const makePrerender = <Env>(run: Runner): PrerenderFn<Env> => {
 };
 
 /**
- * SvelteKit's `requested` from `$app/server`, passed through. Throws when the
- * installed SvelteKit version does not provide it.
+ * SvelteKit's `requested` from `$app/server`, with SvelteKit's own signature:
+ * inside a remote `command` or `form`, the `{ arg, query }` entries for the
+ * `query` (or `query.live`) instances the client asked to refresh (or
+ * reconnect), up to `limit`. Throws a {@link RemoteFunctionUsageError} when
+ * called on a SvelteKit version that does not provide it.
  */
-export function requested<Result = unknown>(...args: unknown[]): Result {
-  const requestedFn = getRequested();
-  return requestedFn<Result>(...args);
-}
+export const requested: typeof AppServer.requested = Option.getOrElse(
+  // An older kit has no `requested`: reading it there gives `None`.
+  Option.filter(Option.fromUndefinedOr(AppServer.requested), (fn) => P.isFunction(fn)),
+  () => () => unavailable("requested"),
+);
 
 /** A `query` with its `batch` / `live` helpers attached. */
 export type QueryNamespace<Env> = QueryFn<Env> & {
