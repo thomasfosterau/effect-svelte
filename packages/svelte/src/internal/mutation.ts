@@ -1,4 +1,5 @@
 import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
@@ -103,9 +104,16 @@ export function makeMutation<A, E, I, C, R>(
             ? callbacks.invalidates(input)
             : callbacks.invalidates;
           if (keys !== undefined) {
-            // SAFETY: `invalidates` requires the runtime to provide `Reactivity` (the
-            // documented contract of the option); `R` does not record it.
-            runFork(runtime as RuntimeLike<Reactivity.Reactivity>)(Reactivity.invalidate(keys));
+            // `invalidates` requires the runtime to provide `Reactivity` (the
+            // documented contract of the option), which `R` does not record: look
+            // the service up in the running fiber's context, where a runtime
+            // without it dies with Effect's "Service not found" defect, as
+            // `Reactivity.invalidate` would.
+            runFork(runtime)(
+              Effect.contextWith((services: Context.Context<never>) =>
+                Context.getUnsafe(services, Reactivity.Reactivity).invalidate(keys),
+              ),
+            );
           }
           callbacks.onSettled?.(input, context);
           return;

@@ -6,7 +6,7 @@ import * as P from "effect/Predicate";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as Str from "effect/String";
-import { getRuntime } from "./context.svelte.js";
+import { ambientRuntime } from "./context.svelte.js";
 import { runSync, type RuntimeLike } from "./internal/run.js";
 import { useStream } from "./stream.svelte.js";
 
@@ -105,10 +105,7 @@ const defaultErrorMessage: NonNullable<
 export function useDebouncedSearch<T, E = never, R = never>(
   options: UseDebouncedSearchOptions<T, E, R>,
 ): UseDebouncedSearchReturn<T> {
-  // SAFETY: the shared runtime context is untyped (`RuntimeLike<never>`); without
-  // `options.runtime`, the documented contract is that the ancestor `provideRuntime()`
-  // supplied every service `R` names.
-  const runtime = options.runtime ?? (getRuntime() as RuntimeLike<R>);
+  const runtime = options.runtime ?? ambientRuntime<R>();
   const debounce = options.debounce ?? Duration.millis(150);
   const errorMessage: (error: E) => string = options.errorMessage ?? defaultErrorMessage;
   const empty: DebouncedSearchState<T> = { pending: false, results: [], error: "" };

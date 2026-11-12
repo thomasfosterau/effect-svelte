@@ -1,4 +1,5 @@
 <script lang="ts" generics="A">
+  import * as Option from "effect/Option";
   import type * as Stream from "effect/Stream";
   import type { RuntimeLike } from "../../src/internal/run.js";
   import { useLiveStream } from "../../src/live-stream.svelte.js";
@@ -6,19 +7,15 @@
   let {
     make,
     runtime,
-    initial,
-    hasInitial = false,
+    seed = Option.none(),
   }: {
     make: () => Stream.Stream<A, string, never>;
     runtime: RuntimeLike<never>;
-    initial?: A;
-    hasInitial?: boolean;
+    seed?: Option.Option<A>;
   } = $props();
 
-  // SAFETY: the only caller passing `hasInitial: true` (live-stream.test.ts)
-  // also passes `initial`, so here `initial` holds the caller's `A`.
-  const live = hasInitial
-    ? useLiveStream<A, string, never>(make, { runtime, initial: initial as A })
+  const live = Option.isSome(seed)
+    ? useLiveStream<A, string, never>(make, { runtime, initial: seed.value })
     : useLiveStream<A, string, never>(make, { runtime });
 </script>
 
