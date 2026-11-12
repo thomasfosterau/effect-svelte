@@ -6,7 +6,12 @@
  * rejects without it; a defect always rejects.
  */
 
-import type { ActionResult, SubmitFunction } from "$app/forms";
+import type {
+  ActionResult,
+  SubmitFunction,
+  applyAction as kitApplyAction,
+  deserialize as kitDeserialize,
+} from "$app/forms";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -114,6 +119,25 @@ describe("Forms.deserialize", () => {
     // @ts-expect-error: `Failure` has no default, as in `$app/forms`
     Forms.deserialize<{ id: string }>("{}");
   });
+
+  it("constrains Success and Failure as $app/forms does", () => {
+    // The constraints are read off SvelteKit's `applyAction`, so the wrappers
+    // accept and produce exactly what SvelteKit's functions do.
+    expectTypeOf<Parameters<typeof Forms.applyAction>[0]>().toEqualTypeOf<
+      Parameters<typeof kitApplyAction>[0]
+    >();
+    expectTypeOf(Forms.deserialize("{}")).toEqualTypeOf<
+      Effect.Effect<ReturnType<typeof kitDeserialize>, unknown>
+    >();
+    // An action that returns nothing has `undefined` data.
+    expectTypeOf(Forms.deserialize<undefined, undefined>("{}")).toEqualTypeOf<
+      Effect.Effect<ActionResult<undefined, undefined>, unknown>
+    >();
+    // @ts-expect-error: the data of an action is a record (or undefined), as in `$app/forms`
+    Forms.deserialize<string, undefined>("{}");
+    // @ts-expect-error: `null` is not action data, as in `$app/forms`
+    Forms.deserialize<{ id: string }, null>("{}");
+  });
 });
 
 describe("Forms.enhance with failing handlers", () => {
@@ -122,9 +146,9 @@ describe("Forms.enhance with failing handlers", () => {
   /** Every error the handlers in these tests fail with. */
   type HandlerError = Invalid | Forms.ApplyActionError;
 
-  /** Handlers forwarded as `undefined`: an absent, optional `onResult`. */
+  /** Handlers a wrapper forwards: an optional `onResult`, absent when the key is omitted. */
   interface OptionalOnResult {
-    readonly onResult?: undefined;
+    readonly onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>;
   }
 
   /** A `SubmitFunction` input whose `cancel()` is recorded in `cancelled`. */
@@ -647,9 +671,12 @@ describe("Forms.enhance with failing handlers", () => {
       { onResult: ({ result }) => Forms.applyAction(result), onError: () => Effect.void },
       {},
     );
-    Forms.enhance({ onSubmit: () => Effect.void }, { runtime: undefined });
-    Forms.enhance({ onSubmit: () => Effect.void }, undefined);
     Forms.enhance({ onSubmit: () => Effect.void }, { runtime: Context.empty() });
+    // An absent runtime, or absent options, are left out rather than `undefined`.
+    // @ts-expect-error: the runtime is omitted, not set to undefined
+    Forms.enhance({ onSubmit: () => Effect.void }, { runtime: undefined });
+    // @ts-expect-error: the options are omitted, not passed as undefined
+    Forms.enhance({ onSubmit: () => Effect.void }, undefined);
   });
 
   it("treats an effect requiring any or unknown as requiring no services", () => {
@@ -669,13 +696,30 @@ describe("Forms.enhance with failing handlers", () => {
     Forms.enhance({ onSubmit: () => unknownR, onResult: () => unknownR });
   });
 
-  it("accepts handlers forwarded as undefined", () => {
-    const optional: OptionalOnResult = { onResult: undefined };
+  it("accepts handlers forwarded with an absent (omitted) handler", () => {
+    const optional: OptionalOnResult = {};
     Forms.enhance({ onSubmit: () => Effect.void, ...optional });
-    Forms.enhance({ onSubmit: undefined, onResult: undefined, onError: undefined });
 
-    const forwarded = (onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>) =>
-      Forms.enhance({ onSubmit: () => Effect.void, onResult });
+    const forwarded = (handlers: OptionalOnResult) =>
+      Forms.enhance({ onSubmit: () => Effect.void, ...handlers });
     expectTypeOf(forwarded).returns.toEqualTypeOf<SubmitFunction>();
+  });
+
+  it("takes an absent handler as an omitted key, not as undefined", async () => {
+    // @ts-expect-error: an absent handler is omitted, not set to undefined
+    const submit = Forms.enhance({ onSubmit: undefined, onResult: undefined, onError: undefined });
+
+    const viaParameter = (onResult?: (options: Forms.ResultOptions) => Effect.Effect<void>) =>
+      // @ts-expect-error: an optional parameter may be undefined, which the key may not
+      Forms.enhance({ onSubmit: () => Effect.void, onResult });
+    expectTypeOf(viaParameter).returns.toEqualTypeOf<SubmitFunction>();
+
+    // A plain JavaScript caller that does pass `undefined` gets the same
+    // behaviour as omitting the handlers: nothing runs before the request, and
+    // SvelteKit's default result behaviour applies.
+    const { input, cancelled } = submitInput();
+    await expect(submit(input)).resolves.toBeUndefined();
+    expect(cancelled()).toBe(false);
+    await expect(viaParameter()(input)).resolves.toBeUndefined();
   });
 });

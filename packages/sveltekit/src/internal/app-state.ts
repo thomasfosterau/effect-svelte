@@ -12,7 +12,8 @@
  * @internal
  */
 
-import type { NavigationTarget, NavigationType } from "$app/navigation";
+import type { NavigationTarget } from "$app/navigation";
+import type { Page, navigating as kitNavigating } from "$app/state";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -22,20 +23,41 @@ import { runSync } from "./run.js";
 import { failQueueOnSetupError } from "./stream-callback.js";
 
 /**
- * The fields of SvelteKit's `page` we snapshot. Mirrors the shape of
- * `@sveltejs/kit`'s `Page`, but as a plain readonly record rather than the live
- * mutating proxy.
+ * The fields of SvelteKit's `page` we snapshot, as a plain readonly record
+ * rather than the live mutating proxy. It mirrors `$app/state`'s `Page`,
+ * except that the fields SvelteKit sets to `null` when there is nothing to
+ * report are an `Option` here: `route.id`, `error` and `shallow`. The rest
+ * (`url`, `params`, `status`, `data`, `state`, `form`) are SvelteKit's values,
+ * unchanged.
  */
 export interface PageSnapshot<P extends ReadonlyPage = ReadonlyPage> {
+  /** The URL of the page. */
   readonly url: P["url"];
+  /** The parameters of the page's route, as SvelteKit types them. */
   readonly params: P["params"];
-  readonly route: P["route"];
+  /** Info about the page's route. */
+  readonly route: {
+    /** The ID of the route (such as `/blog/[slug]`): `None` when no route is matched. */
+    readonly id: Option.Option<NonNullable<P["route"]["id"]>>;
+  };
+  /** The HTTP status code of the page. */
   readonly status: P["status"];
-  readonly error: P["error"];
+  /** The page's error, from the `handleError` hooks: `None` when the page has not failed. */
+  readonly error: Option.Option<NonNullable<P["error"]>>;
+  /** The merged data of the page's `load` functions. */
   readonly data: P["data"];
+  /** The page state set through `goto` / shallow routing. */
   readonly state: P["state"];
+  /**
+   * The data of the last form action, as SvelteKit passes it on (typed `any`
+   * there, and `null` until a form has been submitted).
+   */
   readonly form: P["form"];
-  readonly shallow: P["shallow"];
+  /**
+   * The target of the current shallow navigation: `None` when no shallow
+   * navigation has occurred.
+   */
+  readonly shallow: Option.Option<NonNullable<P["shallow"]>>;
 }
 
 /**
@@ -48,8 +70,8 @@ export interface ReadonlyPage {
   // SvelteKit 3 types `page.url` as an immutable `ReadonlyURL` (from
   // `$app/state`); everything but `searchParams` is enough here.
   readonly url: Readonly<Omit<URL, "searchParams">>;
-  readonly params: Record<string, string | undefined>;
-  readonly route: { readonly id: string | null };
+  readonly params: Page["params"];
+  readonly route: Readonly<Page["route"]>;
   readonly status: number;
   readonly error: unknown;
   readonly data: App.PageData;
@@ -65,19 +87,21 @@ export interface ReadonlyPage {
  * consumers see a stable value (the proxy mutates in place on every
  * navigation, which would make a captured reference unreliable). Nested values
  * (`url`, `data`, ...) are *not* deep-cloned: they're replaced wholesale on each
- * navigation, so a shallow copy is enough to distinguish snapshots.
+ * navigation, so a shallow copy is enough to distinguish snapshots. The
+ * fields SvelteKit sets to `null` (`route.id`, `error`, `shallow`) become an
+ * `Option`, `None` for `null`.
  */
 export function snapshotPage<P extends ReadonlyPage>(page: P): PageSnapshot<P> {
   return {
     url: page.url,
     params: page.params,
-    route: page.route,
+    route: { id: Option.fromNullishOr(page.route.id) },
     status: page.status,
-    error: page.error,
+    error: Option.fromNullishOr(page.error),
     data: page.data,
     state: page.state,
     form: page.form,
-    shallow: page.shallow,
+    shallow: Option.fromNullishOr(page.shallow),
   };
 }
 
@@ -135,44 +159,62 @@ export function watchedStream<A>(watch: Watch, read: () => A): Stream.Stream<A> 
 // ─── navigating ──────────────────────────────────────────────────────────────
 
 /**
- * A snapshot of an in-flight SvelteKit navigation, as `$app/state`'s
- * `navigating` exposes it. `delta` is the history step count for a `popstate`
- * navigation and `null` otherwise; `complete` resolves when the navigation
- * finishes and rejects if it fails or is aborted.
+ * A snapshot of an in-flight SvelteKit navigation, copied from `$app/state`'s
+ * `navigating`. The fields SvelteKit sets to `null` when there is nothing to
+ * report are an `Option` here; a {@link NavigationTarget} is SvelteKit's own
+ * object, unchanged.
  */
 export interface NavigatingSnapshot {
-  readonly type: Exclude<NavigationType, "enter">;
-  readonly from: NavigationTarget | null;
-  readonly to: NavigationTarget | null;
+  /** How the navigation started (`"link"`, `"goto"`, `"popstate"`, `"form"` or `"leave"`). */
+  readonly type: InFlightNavigation["type"];
+  /** Where the navigation was triggered from: `None` where SvelteKit's `from` is `null`. */
+  readonly from: Option.Option<NavigationTarget>;
+  /** Where the navigation is going: `None` where SvelteKit's `to` is `null`. */
+  readonly to: Option.Option<NavigationTarget>;
+  /** Whether the navigation unloads the page (a full-page navigation, not a client-side one). */
   readonly willUnload: boolean;
-  readonly delta: number | null;
+  /**
+   * The number of history steps of a back / forward (`popstate`) navigation:
+   * `None` for every other type of navigation.
+   */
+  readonly delta: Option.Option<number>;
+  /**
+   * Resolves when the navigation finishes; rejects if it fails or is aborted.
+   * It never settles for a navigation that unloads the page.
+   */
   readonly complete: Promise<void>;
 }
 
 /**
- * The shape of `$app/state`'s `navigating`: every field is `null` while no
- * navigation is in flight.
+ * The shape of `$app/state`'s `navigating`, as SvelteKit types it: a
+ * `Navigation` while one is in flight, and otherwise an object whose fields
+ * are all `null`.
  */
-export interface ReadonlyNavigating {
-  readonly type: NavigatingSnapshot["type"] | null;
-  readonly from: NavigationTarget | null;
-  readonly to: NavigationTarget | null;
-  readonly willUnload: boolean | null;
-  readonly delta?: number | null | undefined;
-  readonly complete: Promise<void> | null;
-}
+export type ReadonlyNavigating = typeof kitNavigating;
+
+/** `$app/state`'s `navigating` while a navigation is in flight (its `type` is not `null`). */
+type InFlightNavigation = Exclude<ReadonlyNavigating, { readonly type: null }>;
 
 /**
  * Copies `navigating` into a plain {@link NavigatingSnapshot}, or `None` when
- * no navigation is in flight (`type` is `null`). Reads every field, so a
- * watcher tracks the whole object.
+ * no navigation is in flight (`type` is `null`). The snapshot's `from` and `to`
+ * are `None` where SvelteKit's are `null`, and its `delta` is `Some` only for a
+ * `popstate` navigation, the one type SvelteKit gives a `delta`. Every field of
+ * SvelteKit's `navigating` reads the same rune state, so a watcher that runs
+ * this tracks the whole object.
  */
 export function snapshotNavigating(
   navigating: ReadonlyNavigating,
 ): Option.Option<NavigatingSnapshot> {
-  const { type, from, to, willUnload, delta, complete } = navigating;
-  if (type === null || willUnload === null || complete === null) return Option.none();
-  return Option.some({ type, from, to, willUnload, delta: delta ?? null, complete });
+  if (navigating.type === null) return Option.none();
+  return Option.some({
+    type: navigating.type,
+    from: Option.fromNullishOr(navigating.from),
+    to: Option.fromNullishOr(navigating.to),
+    willUnload: navigating.willUnload,
+    delta: navigating.type === "popstate" ? Option.fromNullishOr(navigating.delta) : Option.none(),
+    complete: navigating.complete,
+  });
 }
 
 // ─── updated ─────────────────────────────────────────────────────────────────

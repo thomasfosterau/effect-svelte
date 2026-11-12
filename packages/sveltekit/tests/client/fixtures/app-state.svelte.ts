@@ -2,31 +2,33 @@
  * A rune-backed stand-in for SvelteKit's `$app/state`, aliased in for the
  * `client` test project (see `vite.config.ts`). It mirrors the structure of
  * Kit 3's `src/runtime/app/state/client.svelte.js` — `$state.raw` fields behind
- * getter objects — plus setters the tests drive.
+ * getter objects — plus setters the tests drive. The shapes are SvelteKit's
+ * own (`null` where `$app/state` has `null`), typed from its `Page` and
+ * `navigating`.
  */
 
-import type { Navigation } from "$app/navigation";
+import type { Page, navigating as kitNavigating } from "$app/state";
 
-class FakePage {
-  data = $state.raw<App.PageData>({});
-  form = $state.raw<unknown>(null);
-  error = $state.raw<unknown>(null);
-  params = $state.raw<Record<string, string>>({});
-  route = $state.raw<{ id: string | null }>({ id: null });
-  shallow = $state.raw<unknown>(null);
-  state = $state.raw<unknown>({});
+class FakePage implements Page {
+  data = $state.raw<Page["data"]>({});
+  form = $state.raw<Page["form"]>(null);
+  error = $state.raw<Page["error"]>(null);
+  params = $state.raw<Page["params"]>({});
+  route = $state.raw<Page["route"]>({ id: null });
+  shallow = $state.raw<Page["shallow"]>(null);
+  state = $state.raw<Page["state"]>({});
   status = $state.raw(-1);
-  url = $state.raw(new URL("https://example.com/"));
+  url = $state.raw<Page["url"]>(new URL("https://example.com/"));
 }
 
 const internalPage = new FakePage();
 
 /** Assigns `fields` onto the page, as Kit's `update_page` does. */
-export function setPage(fields: Partial<FakePage>): void {
+export function setPage(fields: Partial<Page>): void {
   Object.assign(internalPage, fields);
 }
 
-export const page = {
+export const page: Page = {
   get data() {
     return internalPage.data;
   },
@@ -56,7 +58,20 @@ export const page = {
   },
 };
 
-let navigation = $state.raw<Navigation | null>(null);
+/** `$app/state`'s `navigating`, as SvelteKit types it. */
+type Navigating = typeof kitNavigating;
+
+/** `navigating` while no navigation is in flight: every field is `null`. */
+const idle: Navigating = {
+  from: null,
+  to: null,
+  type: null,
+  willUnload: null,
+  delta: null,
+  complete: null,
+};
+
+let navigation = $state.raw<Navigating>(idle);
 let navigatingTypeReads = 0;
 
 /** How many times `navigating.type` has been read — i.e. watcher runs. */
@@ -64,30 +79,35 @@ export function navigatingReads(): number {
   return navigatingTypeReads;
 }
 
-/** Sets (or clears, with `null`) the in-flight navigation. */
-export function setNavigation(value: Navigation | null): void {
+/** Sets the in-flight navigation. */
+export function setNavigation(value: Navigating): void {
   navigation = value;
+}
+
+/** Clears the in-flight navigation: `navigating`'s fields are `null` again. */
+export function clearNavigation(): void {
+  navigation = idle;
 }
 
 export const navigating = {
   get from() {
-    return navigation ? navigation.from : null;
+    return navigation.from;
   },
   get to() {
-    return navigation ? navigation.to : null;
+    return navigation.to;
   },
   get type() {
     navigatingTypeReads += 1;
-    return navigation ? navigation.type : null;
+    return navigation.type;
   },
   get willUnload() {
-    return navigation ? navigation.willUnload : null;
+    return navigation.willUnload;
   },
   get delta() {
-    return navigation?.type === "popstate" ? navigation.delta : null;
+    return navigation.type === "popstate" ? navigation.delta : null;
   },
   get complete() {
-    return navigation ? navigation.complete : null;
+    return navigation.complete;
   },
 };
 

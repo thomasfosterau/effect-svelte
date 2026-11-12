@@ -58,7 +58,8 @@ export type {
  * first name only the services of the handlers TypeScript types first (such as
  * an `onError` passed by name), and the rest once the runtime provides those.
  * Handlers that require no services run on the default runtime, and the options
- * may be omitted; an effect typed as requiring `any` or `unknown` is treated as
+ * may be omitted (an absent handler, runtime or options argument is left out,
+ * not passed as `undefined`); an effect typed as requiring `any` or `unknown` is treated as
  * requiring no services, so no runtime is demanded. A function that wraps
  * `enhance` for handlers requiring any `R` forwards its options as
  * `...options: EnhanceOptionsArgs<R>` (or takes a required
@@ -100,6 +101,24 @@ export class ApplyActionError extends Schema.TaggedError<ApplyActionError>()("Ap
 }) {}
 
 /**
+ * The `ActionResult` that `$app/forms`' `applyAction` accepts, with its
+ * `Success` and `Failure` at SvelteKit's own constraints.
+ */
+type KitActionResult = Parameters<typeof kitApplyAction>[0];
+
+/**
+ * The constraint SvelteKit puts on the `Success` data of an `ActionResult`,
+ * read off `$app/forms`' `applyAction` so it follows SvelteKit's.
+ */
+type ActionSuccess = Extract<KitActionResult, { readonly type: "success" }>["data"];
+
+/**
+ * The constraint SvelteKit puts on the `Failure` data of an `ActionResult`,
+ * read off `$app/forms`' `applyAction` so it follows SvelteKit's.
+ */
+type ActionFailure = Extract<KitActionResult, { readonly type: "failure" }>["data"];
+
+/**
  * Apply an `ActionResult` to the page (updating `page.form` / `page.status`,
  * resetting the form, etc.) as an Effect. Wraps `$app/forms`' `applyAction`.
  *
@@ -119,10 +138,7 @@ export class ApplyActionError extends Schema.TaggedError<ApplyActionError>()("Ap
  * });
  * ```
  */
-export const applyAction = <
-  Success extends Record<string, unknown> | undefined,
-  Failure extends Record<string, unknown> | undefined,
->(
+export const applyAction = <Success extends ActionSuccess, Failure extends ActionFailure>(
   result: ActionResult<Success, Failure>,
 ): Effect.Effect<void, ApplyActionError> =>
   Effect.tryPromise({
@@ -137,12 +153,10 @@ export const applyAction = <
  *
  * `Success` and `Failure` are the caller's claim about the action's data, as
  * for `$app/forms`' `deserialize`, and like it they have no defaults: left
- * out, each is its constraint, `Record<string, unknown> | undefined`.
+ * out, each is its constraint, which is SvelteKit's (a record of the action's
+ * data, or `undefined`).
  */
-export const deserialize = <
-  Success extends Record<string, unknown> | undefined,
-  Failure extends Record<string, unknown> | undefined,
->(
+export const deserialize = <Success extends ActionSuccess, Failure extends ActionFailure>(
   result: string,
 ): Effect.Effect<ActionResult<Success, Failure>, unknown> =>
   Effect.try({

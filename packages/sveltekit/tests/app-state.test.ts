@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
+import type { NavigationTarget } from "$app/navigation";
 import {
   type ReadonlyNavigating,
   type ReadonlyPage,
@@ -39,16 +40,39 @@ describe("snapshotPage", () => {
     expect(snap).toEqual({
       url: page.url,
       params: page.params,
-      route: page.route,
+      route: { id: Option.some("/blog/[slug]") },
       status: page.status,
-      error: page.error,
+      error: Option.none(),
       data: page.data,
       state: page.state,
       form: page.form,
-      shallow: page.shallow,
+      shallow: Option.none(),
     });
     // A shallow copy, not the same object.
     expect(snap).not.toBe(page);
+    // SvelteKit's own values are passed on, not copied.
+    expect(snap.url).toBe(page.url);
+    expect(snap.params).toBe(page.params);
+    expect(snap.data).toBe(page.data);
+  });
+
+  it("is None where SvelteKit's page has null: no matched route, no error, no shallow navigation", () => {
+    const snap = snapshotPage({ ...makePage("/missing"), route: { id: null } });
+    expect(Option.isNone(snap.route.id)).toBe(true);
+    expect(Option.isNone(snap.error)).toBe(true);
+    expect(Option.isNone(snap.shallow)).toBe(true);
+  });
+
+  it("is Some with the page's error and shallow target when it has them", () => {
+    const error = { message: "Not Found" };
+    const shallow = { params: null, route: null, url: new URL("https://example.com/photo/1") };
+    const snap = snapshotPage({ ...makePage("/a"), status: 404, error, shallow });
+    assert(Option.isSome(snap.error), "expected an error");
+    expect(snap.error.value).toBe(error);
+    assert(Option.isSome(snap.shallow), "expected a shallow target");
+    expect(snap.shallow.value).toBe(shallow);
+    assert(Option.isSome(snap.route.id), "expected a route id");
+    expect(snap.route.id.value).toBe("/blog/[slug]");
   });
 });
 
@@ -189,6 +213,19 @@ const idle: ReadonlyNavigating = {
   complete: null,
 };
 
+const target = (pathname: string): NavigationTarget => ({
+  params: {},
+  route: { id: pathname },
+  url: new URL(`https://example.com${pathname}`),
+  scroll: null,
+});
+
+/** A minimal `PopStateEvent` for Node, which has `Event` but not its subclasses. */
+class FakePopStateEvent extends Event implements PopStateEvent {
+  readonly state = null;
+  readonly hasUAVisualTransition = false;
+}
+
 describe("snapshotNavigating", () => {
   it("is None while no navigation is in flight", () => {
     expect(Option.isNone(snapshotNavigating(idle))).toBe(true);
@@ -196,39 +233,59 @@ describe("snapshotNavigating", () => {
 
   it("copies an in-flight navigation into a plain snapshot", () => {
     const complete = Promise.resolve();
+    const from = target("/a");
+    const to = target("/b");
     const navigating: ReadonlyNavigating = {
       type: "popstate",
-      from: null,
-      to: null,
+      shallow: false,
+      from,
+      to,
       willUnload: false,
       delta: -1,
+      event: new FakePopStateEvent("popstate"),
       complete,
     };
     const snap = snapshotNavigating(navigating);
     expect(snap).toEqual(
       Option.some({
         type: "popstate",
-        from: null,
-        to: null,
+        from: Option.some(from),
+        to: Option.some(to),
         willUnload: false,
-        delta: -1,
+        delta: Option.some(-1),
         complete,
       }),
     );
     assert(Option.isSome(snap), "expected a snapshot");
     expect(snap.value).not.toBe(navigating);
+    // The targets are SvelteKit's own objects, and `complete` its promise.
+    assert(Option.isSome(snap.value.from), "expected an origin");
+    expect(snap.value.from.value).toBe(from);
+    assert(Option.isSome(snap.value.to), "expected a destination");
+    expect(snap.value.to.value).toBe(to);
+    expect(snap.value.complete).toBe(complete);
   });
 
-  it("normalises a missing delta to null", () => {
+  it("is None for a null from / to, and for the delta of a navigation that is not a popstate", () => {
+    const complete = Promise.resolve();
     const snap = snapshotNavigating({
-      type: "link",
+      type: "goto",
+      shallow: false,
       from: null,
       to: null,
-      willUnload: false,
-      complete: Promise.resolve(),
+      willUnload: true,
+      complete,
     });
-    assert(Option.isSome(snap), "expected a snapshot");
-    expect(snap.value.delta).toBeNull();
+    expect(snap).toEqual(
+      Option.some({
+        type: "goto",
+        from: Option.none(),
+        to: Option.none(),
+        willUnload: true,
+        delta: Option.none(),
+        complete,
+      }),
+    );
   });
 });
 
