@@ -121,7 +121,7 @@ describe("makeHandler", () => {
           dir: yield* makeBuildDir(),
         });
       }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
-      expect(lastInitOptions?.env).toEqual({});
+      expect(Option.map(lastInitOptions, (options) => options.env)).toEqual(Option.some({}));
     }),
   );
 
