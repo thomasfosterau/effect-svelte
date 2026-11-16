@@ -38,7 +38,7 @@ catalog:
   "@sveltejs/vite-plugin-svelte": ^7.3.1
   # Test-only: the serialiser SvelteKit runs `transport` through, for a real
   # round trip of `optionTransporter` (packages/sveltekit/tests).
-  devalue: ^5.9.4
+  devalue: ^6.0.3
   "@types/node": ^26.6.6
   # Must equal the vitest that vite-plus bundles (see `vitest` below); vite-plus
   # refuses to run coverage on a mismatch.
