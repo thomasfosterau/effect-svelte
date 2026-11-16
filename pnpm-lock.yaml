@@ -37,8 +37,8 @@ catalogs:
       specifier: 5.1.0
       version: 5.1.0
     devalue:
-      specifier: ^5.9.4
-      version: 5.9.4
+      specifier: ^6.0.3
+      version: 6.0.3
     fallow:
       specifier: 3.43.1
       version: 3.43.1
@@ -168,7 +168,7 @@ importers:
         version: 3.2.0(@sveltejs/vite-plugin-svelte@7.3.1(@voidzero-dev/vite-plus-core@1.6.0(@types/node@26.6.6)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.3))(@typescript/typescript6@6.0.2)(@voidzero-dev/vite-plus-core@1.6.0(@types/node@26.6.6)(@typescript/typescript6@6.0.2)(yaml@2.9.0))(svelte@5.57.3)
       devalue:
         specifier: 'catalog:'
-        version: 5.9.4
+        version: 6.0.3
       svelte:
         specifier: 'catalog:'
         version: 5.57.3
@@ -1230,6 +1230,10 @@ packages:
 
   devalue@5.9.4:
     resolution: {integrity: sha512-sPAT4pztbu6586/hrhOnMKS17IJrvg12mXiSPSS3W5qDeN2RGgvZ0diZCm31dBbnevfVmujNO3IM2wrS4Y2Rhg==}
+
+  devalue@6.0.3:
+    resolution: {integrity: sha512-3woMEITftG1wKeO/4d/QXH1DVKctTSZg3jNGPpjp9hNr5Hos8MCFF5McTML5ZtgKDObm2R591B0spRp2IVernA==}
+    engines: {node: '>=18'}
 
   dom-accessibility-api@0.5.16:
     resolution: {integrity: sha512-X7BJ2yElsnOJ30pZF4uIIDfBEVgF4XEBxL9Bxhy6dnrm5hkzqmsWHGTiHqRiITNhMyFLyAiWndIJP7Z1NTteDg==}
@@ -2492,6 +2496,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   devalue@5.9.4: {}
+
+  devalue@6.0.3: {}
 
   dom-accessibility-api@0.5.16: {}
 
