@@ -1,7 +1,7 @@
 /**
  * The hooks that start a run from inside their own `$effect` (`useEffect` with
  * `immediate: true`, `useQuery`, `useDerived`, `useReactiveQuery`) must not make
- * that effect depend on their own result state (#127).
+ * that effect depend on their own result state.
  *
  * Starting a run reads the result (`startWaiting` keeps the previous value),
  * and a synchronous Effect settles before `runFork` returns (`settle` carries
@@ -15,11 +15,11 @@
  *
  * `useReactiveStream` starts its run from a `createSubscriber` start callback,
  * which Svelte runs untracked, so it reads its thunks in a `$derived` instead;
- * the same split applies (#140). `useInvalidateKeys` re-runs queries on the
+ * the same split applies. `useInvalidateKeys` re-runs queries on the
  * spot, so calling it from an `$effect` must not track their reads either;
  * nor may `useReactiveMutation`'s `run()` or `useMutation`'s `mutate()`, which
  * also call thunks and callbacks and run the mutation up to its first async
- * step (#142).
+ * step.
  *
  * Synchronous Effects settle inside the `$effect`, so `flushSync()` after
  * `mount` is enough to see the settled result; asynchronous ones are released
@@ -671,7 +671,7 @@ const makeReactivity = async () => {
 
 describe("useReactiveStream", () => {
   // `useReactiveStream` is built on `createSubscriber`, whose `start` runs
-  // untracked: the thunks must be tracked some other way (#140).
+  // untracked: the thunks must be tracked some other way.
 
   it("runs once for every reader and appends a value per invalidation", async () => {
     const reactivity = await makeReactivity();

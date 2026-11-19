@@ -1,7 +1,7 @@
 /**
  * The `./client` entry exports every namespace member twice: through its
  * namespace (`Navigation.goto`) and as a plain named export (`goto`), which a
- * browser bundle can tree-shake member by member (#195). The two must be the
+ * browser bundle can tree-shake member by member. The two must be the
  * same values, and no member may be missing from the flat exports.
  */
 
@@ -34,7 +34,7 @@ const missingFlat = (ns: R.ReadonlyRecord<string, unknown>): ReadonlyArray<strin
 /** How many members `ns` has. */
 const memberCount = (ns: R.ReadonlyRecord<string, unknown>): number => R.size(ns);
 
-describe("./client flat named exports (#195)", () => {
+describe("./client flat named exports", () => {
   it.each(R.toEntries(namespaces))("%s: every member is also a named export", (_, ns) => {
     expect(memberCount({ ...ns })).toBeGreaterThan(0);
     expect(missingFlat({ ...ns })).toEqual([]);

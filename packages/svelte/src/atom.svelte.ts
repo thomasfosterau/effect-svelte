@@ -2,10 +2,9 @@
  * Svelte 5 runes binding for Effect's reactivity atoms
  * (`effect/reactivity`).
  *
- * Effect ships first-party atom bindings for React, Solid and Vue but, as of
- * this writing, none for Svelte. This module is that binding — the bridge until
- * an official `@effect/atom-svelte` lands (#23), deliberately kept small so it
- * can be swapped for it: the registry, the caching, the request de-duplication
+ * Effect ships first-party atom bindings for React, Solid and Vue but none for
+ * Svelte. This module is that binding, kept small so an official one could
+ * replace it: the registry, the caching, the request de-duplication
  * and the keyed invalidation all live in Effect; this module only wires a
  * registry subscription to Svelte's dependency tracker. Consumers reach the
  * registry through {@link makeAtomRegistry} / {@link provideAtomRegistry} /

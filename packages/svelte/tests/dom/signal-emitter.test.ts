@@ -1,5 +1,5 @@
 /**
- * `SignalEmitter` driven from a component, as its TSDoc example does (#134):
+ * `SignalEmitter` driven from a component, as its TSDoc example does:
  * the `$effect`'s `emit`s must reach a `useStream` consumer, including those
  * made before the consumer's run has connected (connecting is asynchronous, and
  * `useStream` only starts its run once the template reads it).

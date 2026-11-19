@@ -1,9 +1,7 @@
 /**
  * Effect-native SvelteKit control-flow errors and a turnkey boundary translator.
  *
- * Every server consumer previously needed to hand-roll their own `translateError`
- * that mapped domain errors → `redirect()` / `error()` / `fail()`. This module
- * ships the catalogue those consumers all reinvented:
+ * Maps domain errors to `redirect()` / `error()` / `fail()`:
  *
  * - {@link KitRedirect}, {@link KitError}, {@link KitActionFailure} — tagged
  *   Effect failure types for each SvelteKit control-flow call.

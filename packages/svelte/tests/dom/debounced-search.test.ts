@@ -1,9 +1,7 @@
 /**
- * `useDebouncedSearch`, ported from the shared components library's
- * `combobox-async-search` suite. The regression it guards: query changes emitted
- * on a LATER tick than mount must reach the search (an earlier bridge through
- * `SignalEmitter` dropped them, until #126 fixed its stream cleanup), and a
- * superseded in-flight search must be interrupted, not merely ignored.
+ * `useDebouncedSearch`: query changes emitted on a later tick than mount must
+ * reach the search, and a superseded in-flight search must be interrupted, not
+ * merely ignored.
  */
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";

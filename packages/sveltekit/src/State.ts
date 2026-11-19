@@ -36,9 +36,7 @@
  * never emit, so consuming one there (for example with `Stream.runHead`)
  * hangs rather than failing.
  *
- * These are streams and a service rather than atoms; an atom-based variant
- * may follow once the official `@effect/atom-svelte` integration lands (see
- * issue #23).
+ * These are streams and a service rather than atoms.
  *
  * @example
  * ```svelte

@@ -10,7 +10,7 @@
  * browser bundle: the published build turns each namespace into a single
  * object, so reaching one member through it keeps the namespace's every
  * member (and what they import), while a named import keeps only what it
- * uses (#195).
+ * uses.
  */
 
 // Effect wrappers for $app/navigation: promise-returning helpers (goto,
