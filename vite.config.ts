@@ -1,23 +1,11 @@
-/**
- * Workspace-root Vite+ configuration. Owns the repo-wide format/lint/staged
- * passes (read statically by `vp fmt` / `vp lint` / `vp staged`) and the root
- * aggregates (`check`, `test:coverage`).
- *
- * Per-package `pack` / `test` config lives in each package's own
- * `vite.config.ts` (`packages/svelte`, `packages/sveltekit`), and each
- * package's `check` / `test:unit` / `build` are scripts in its
- * `package.json`. A new package adds itself to the aggregate lists below.
- *
- * Shape copied from the effect-web library's root config.
- */
+// Root config: repo-wide format, lint and staged passes, and the aggregate
+// tasks. Each package's own vite.config.ts holds its pack and test config.
 
 import effect from "@enfect/oxlint";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  // Staged-file checks run by `vp staged` (pre-commit, installed by `vp config`
-  // in the root `prepare`). oxfmt cannot format `.svelte`, so Svelte files go
-  // through lint alone.
+  // oxfmt cannot format `.svelte`, so Svelte files go through lint alone.
   staged: {
     "*.{js,ts,css,json,md}": "vp check --fix",
     "*.svelte": "vp lint --fix",
@@ -26,11 +14,8 @@ export default defineConfig({
   run: {
     cache: true,
     tasks: {
-      // The type gate, as one task: every package's `check` (svelte-check
-      // over `src`, `tests` and the `.svelte` fixtures, on the TS6 compiler).
-      // A pure graph node; the packages are named explicitly because a
-      // `from: "dependencies"` edge does not traverse the workspace root's own
-      // devDependencies.
+      // The packages are named explicitly: a `from: "dependencies"` edge does
+      // not traverse the workspace root's own devDependencies.
       check: {
         command: "echo 'check: every type gate green'",
         dependsOn: [
@@ -39,25 +24,28 @@ export default defineConfig({
         ],
         cache: false,
       },
-      // CI, as one task: what `.github/workflows/ci.yml` runs after the
-      // install, and what a contributor runs to see the same verdict
-      // (AGENTS.md § Verification, steps 2–6, in that order). It stops at the
-      // first failing gate. Not cached itself; the tasks it runs are.
       ci: {
         command:
           "vp check && vp run check && vp run -r test:unit && vp run -r build && pnpm audit --audit-level high",
         cache: false,
       },
-      // Every package's suite under one Istanbul coverage map
-      // (`coverage/coverage-final.json`), which `fallow audit` reads for exact
-      // per-function CRAP scores (`health.coverage` in .fallowrc.json).
-      // Without it fallow estimates every function as uncovered, and any
-      // function with cyclomatic complexity ≥ 5 fails the gate on its own.
-      // Run this before `fallow audit` (the Claude Code PreToolUse fallow gate
-      // runs the audit on `git commit` / `git push` but never refreshes this
-      // map).
+      // One Istanbul map over every package, which `fallow audit` reads.
       "test:coverage": {
         command: "vp test run --coverage",
+        cache: false,
+      },
+      fallow: {
+        command: "vp exec fallow --summary",
+        cache: false,
+      },
+      // Run by the pre-commit hook.
+      "fallow:audit": {
+        command: "vp exec fallow audit --base origin/trunk --quiet",
+        dependsOn: ["test:coverage"],
+        cache: false,
+      },
+      "changeset:version": {
+        command: "changeset version && vp fmt && pnpm install --lockfile-only",
         cache: false,
       },
     },
@@ -82,11 +70,8 @@ export default defineConfig({
       // `SvelteRuntime` and `SvelteKitRuntime` are published static-only
       // namespaces; turning them into modules would break every consumer.
       "typescript/no-extraneous-class": ["error", { allowStaticOnly: true }],
-      // Cannot apply (owner decision, #213): a React-only rule that matches a
-      // call by NAME (`useEffect`, `useState`, …) without checking where it is
-      // imported from. effect-svelte's own Svelte rune hook is named
-      // `useEffect`, and there is no React in this repo. Apps that call the
-      // hook under this preset need the same line.
+      // A React-only rule matching calls by name; effect-svelte's own rune
+      // hook is named `useEffect`. Apps that call the hook need the same line.
       "effect/avoid-react-hooks": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
       // The suites assert through their own helpers (`expectFailsWith`,
@@ -127,10 +112,8 @@ export default defineConfig({
         files: ["packages/svelte/src/internal/run.ts", "packages/sveltekit/src/internal/run.ts"],
         rules: { "effect/effect-run-in-body": "off" },
       },
-      // Import boundaries on EXTERNAL specifiers (AGENTS.md § Common
-      // pitfalls); the boundaries between this repo's own files are fallow
-      // zones in .fallowrc.json. effect-svelte must work in a plain Svelte
-      // app, so it never names SvelteKit at all.
+      // Boundaries on external specifiers; boundaries between this repo's own
+      // files are fallow zones in .fallowrc.json.
       {
         files: ["packages/svelte/src/**"],
         rules: {
@@ -250,12 +233,8 @@ export default defineConfig({
         rules: { "effect/use-http-client-service": "off" },
       },
     ],
-    // Type-aware lint through vite-plus's bundled oxlint-tsgolint: the
-    // type-aware rules (floating promises and the like), plus `typeCheck`,
-    // which reports TypeScript errors in the `.ts` files from `vp check`
-    // itself. Measured on 2026-10-30: zero findings on this tree, a planted
-    // TS2322 is caught, and it adds ~3 s to `vp lint`. It does not replace
-    // the `check` task (svelte-check), which alone reads `.svelte` files.
+    // `typeCheck` reports TypeScript errors in `.ts` files; svelte-check (the
+    // `check` task) is still the only gate that reads `.svelte` files.
     options: {
       typeAware: true,
       typeCheck: true,
@@ -270,19 +249,14 @@ export default defineConfig({
 
   /** `vp check` (Oxfmt) */
   fmt: {
-    // CHANGELOG.md is written by `changeset version`: left as generated, so a
-    // "chore: version packages" PR can never fail the format check.
+    // CHANGELOG.md is written by `changeset version`.
     ignorePatterns: ["**/dist/**", "**/coverage/**", "**/CHANGELOG.md"],
   },
 
   test: {
-    // One entry per package: each package's own vite.config.ts holds its
-    // Vitest projects, so the root run and the root coverage map cover them
-    // all.
     projects: ["packages/*/vite.config.ts"],
     coverage: {
       provider: "istanbul",
-      // `json` writes coverage-final.json, the map `fallow audit` reads.
       reporter: ["text-summary", "json-summary", "json"],
       reportsDirectory: "./coverage",
       include: ["packages/*/src/**/*.ts"],

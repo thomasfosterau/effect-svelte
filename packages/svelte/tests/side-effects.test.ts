@@ -13,7 +13,7 @@ import * as R from "effect/Record";
  * bundler drop every module of this package that its imports do not reach.
  * That is what keeps `import { SignalEmitter } from
  * "@thomasfosterau/effect-svelte"` from dragging every rune hook, the atom
- * registry and the default `ManagedRuntime` into a consumer's bundle (#188).
+ * registry and the default `ManagedRuntime` into a consumer's bundle.
  *
  * The flag is a promise about every module, so this file guards both halves:
  * no module does anything at load beyond declaring, and a single named import
@@ -153,7 +153,7 @@ const bundledModules = async (
 /**
  * The timeout for a test that bundles through `vp pack` / rolldown: each
  * bundle is real CPU work, which a loaded runner or Istanbul instrumentation
- * can push past vitest's 5 s default (#199).
+ * can push past vitest's 5 s default.
  */
 const bundleTimeout = 60_000;
 

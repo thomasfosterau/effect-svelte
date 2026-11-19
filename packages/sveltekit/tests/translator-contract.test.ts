@@ -1,5 +1,5 @@
 /**
- * The error-translator contract (#273): a translator only throws, except a
+ * The error-translator contract: a translator only throws, except a
  * form action's, which may return `fail()`'s `ActionFailure`. Only the action
  * wrappers accept that one, and they carry the failure in their result type.
  */

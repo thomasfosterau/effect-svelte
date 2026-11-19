@@ -1,6 +1,6 @@
 # packages/svelte — `@thomasfosterau/effect-svelte`
 
-Effect integration for Svelte 5 runes: an ambient runtime (`provideRuntime` / `getRuntime`), rune hooks that run Effects for a component (`useEffect`, `useDerived`, `useQuery`, `useMutation`, `useLiveStream`, …), bridges to `effect/reactivity` atoms and `Reactivity`, and `Store` / `emitter` adapters. One entry: `.` (`src/index.ts`). Read the root [AGENTS.md](../../AGENTS.md) first.
+Effect integration for Svelte 5 runes: an ambient runtime (`provideRuntime` / `getRuntime`), rune hooks that run Effects for a component (`useEffect`, `useDerived`, `useQuery`, `useMutation`, `useLiveStream`, …), bridges to `effect/reactivity` atoms and `Reactivity`, and `Store` / `emitter` adapters. One entry: `.` (`src/index.ts`).
 
 ## Boundary
 

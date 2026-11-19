@@ -1,33 +1,20 @@
 # effect-svelte
 
-Two packages, `@thomasfosterau/effect-svelte` and `@thomasfosterau/effect-sveltekit`, for using [Effect](https://effect.website) v4 within Svelte 5 components and SvelteKit applications.
+[Effect](https://effect.website) v4 for Svelte 5 runes and SvelteKit: rune hooks that run Effects and Streams in components, and wrappers that let loads, actions, endpoints, hooks and remote functions return Effects.
 
-**Disclaimer:** This repository has almost entirely been created using Claude Code and extracts a bunch of utilities I've written for my own (private) projects. Expect the API to churn based on what I need for my own projects before there is a v1.0 release. I let Claude open its own issues and PRs here, so they’re not necessarily written by me.
-
-| Package                                                                                              | What it is                                                                                                                                                                                                 | Docs                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@thomasfosterau/effect-svelte`](https://www.npmjs.com/package/@thomasfosterau/effect-svelte)       | Effect integration for Svelte 5 runes: an ambient runtime and rune hooks (`useDerived`, `useQuery`, `useMutation`, `useLiveStream`, …) exposing `AsyncResult` through `.current`. Works in any Svelte app. | [README](packages/svelte/README.md) · [reference](docs/effect-svelte.md)                                                                                                                                                                                                                                                                  |
-| [`@thomasfosterau/effect-sveltekit`](https://www.npmjs.com/package/@thomasfosterau/effect-sveltekit) | SvelteKit integration: load / action / endpoint / hook wrappers, remote functions, the `effectKit()` Vite plugin and an Effect deployment adapter.                                                         | [README](packages/sveltekit/README.md) · [server](docs/sveltekit-server.md) · [hooks](docs/sveltekit-hooks.md) · [client](docs/sveltekit-client.md) · [remote functions](docs/sveltekit-remote-functions.md) · [adapter](docs/sveltekit-adapter.md) · [Vite plugin](docs/sveltekit-vite-plugin.md) · [testing](docs/sveltekit-testing.md) |
+> [!CAUTION]
+> Experimental and pre-1.0, largely written with Claude Code. The API may change between minor versions.
 
 ## Install
 
-To just use the plain Svelte package:
-
-```bash
+```sh
 pnpm add @thomasfosterau/effect-svelte effect svelte
+pnpm add @thomasfosterau/effect-sveltekit @sveltejs/kit   # for SvelteKit
 ```
 
-To use both the Svelte and SvelteKit packages:
+`effect` (`^4.0.0`) is a peer: keep a single copy in your app.
 
-```bash
-pnpm add @thomasfosterau/effect-svelte @thomasfosterau/effect-sveltekit effect svelte @sveltejs/kit
-```
-
-`effect` (`^4.0.0`) is a peer: keep a single copy of it in your app.
-
-## Example
-
-Run an Effect from a component and render its `AsyncResult`:
+## Usage
 
 ```svelte
 <script lang="ts">
@@ -35,21 +22,12 @@ Run an Effect from a component and render its `AsyncResult`:
   import { Effect } from "effect";
 
   provideRuntime();
-
-  let userId = $state(1);
-  const user = useDerived(() =>
-    Effect.succeed({ id: userId, name: `User ${userId}` }).pipe(Effect.delay("200 millis")),
-  );
+  let id = $state(1);
+  const user = useDerived(() => Effect.succeed({ id, name: `User ${id}` }));
 </script>
 
-<button onclick={() => userId++}>Next</button>
-
-{#if AsyncResult.isSuccess(user.current)}
-  <p>{user.current.value.name}</p>
-{/if}
+{#if AsyncResult.isSuccess(user.current)}<p>{user.current.value.name}</p>{/if}
 ```
-
-Or return an Effect from a SvelteKit `load`:
 
 ```ts
 // src/routes/items/[id]/+page.server.ts
@@ -59,12 +37,16 @@ import { Effect } from "effect";
 export const load = serverLoad((event) => Effect.succeed({ id: event.params.id }));
 ```
 
-The package READMEs are the short npm front pages; the reference is in [`docs/`](docs/), linked from the table above, and recipes are in the [cookbook](docs/cookbook.md). Each export also carries a doc comment, shown on hover.
+## Packages
 
-## License
+| Package                                                            | What it is                                                                                                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@thomasfosterau/effect-svelte`](packages/svelte/README.md)       | Ambient runtime and rune hooks (`useDerived`, `useQuery`, `useLiveStream`, atoms, …); no SvelteKit dependency                              |
+| [`@thomasfosterau/effect-sveltekit`](packages/sveltekit/README.md) | Load / action / endpoint / hook wrappers, remote functions, client helpers, the `effectKit()` Vite plugin and an Effect deployment adapter |
 
-MIT
+## More
 
-## Contributing
+- Reference and recipes: [`docs/`](docs/) (start with [effect-svelte](docs/effect-svelte.md), [SvelteKit server](docs/sveltekit-server.md) and the [cookbook](docs/cookbook.md)).
+- [Contributing](docs/CONTRIBUTING.md) · [Publishing](docs/PUBLISHING.md) · [Security](docs/SECURITY.md)
 
-Setup, hooks and individual checks are in [CONTRIBUTING.md](./CONTRIBUTING.md); conventions for humans and agents in [AGENTS.md](./AGENTS.md). Releases are automated with Changesets and npm trusted publishing (OIDC); see [PUBLISHING.md](./PUBLISHING.md). Report vulnerabilities as described in [SECURITY.md](./SECURITY.md).
+MIT © Thomas Foster

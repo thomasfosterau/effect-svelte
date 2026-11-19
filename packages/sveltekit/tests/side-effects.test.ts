@@ -22,7 +22,7 @@ import manifest from "../package.json";
  * That is what keeps `import { ResponseHeaders } from
  * "@thomasfosterau/effect-sveltekit"` in a universal `src/hooks.ts` from
  * dragging the default runtime, `HttpClient` and `Stream` into the client
- * entry (#188).
+ * entry.
  *
  * The flag is a promise about every module, so this file guards both halves:
  * no module does anything at load beyond declaring, and a single named import
@@ -174,7 +174,7 @@ const bundledModules = async (
  *
  * The published `dist/` differs from `src/` in one way that matters here:
  * tsdown materialises an `export * as Ns` re-export into an `__exportAll({…})`
- * object, which a consumer's bundler cannot shake (#191). So a recipe has to
+ * object, which a consumer's bundler cannot shake. So a recipe has to
  * be probed against packed output, not only against the sources.
  */
 const packedModules = (probes: ReadonlyArray<string>, entry = "index.js") =>
@@ -211,7 +211,7 @@ const packedModules = (probes: ReadonlyArray<string>, entry = "index.js") =>
 /**
  * The timeout for a test that bundles through `vp pack` / rolldown: each
  * bundle is real CPU work, which a loaded runner or Istanbul instrumentation
- * can push past vitest's 5 s default (#199).
+ * can push past vitest's 5 s default.
  */
 const bundleTimeout = 60_000;
 
@@ -248,7 +248,7 @@ describe('"sideEffects": false', () => {
     "the README's ResponseHeaders recipe, packed, keeps only what it reaches",
     () =>
       Effect.gen(function* () {
-        // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe (#188, #191).
+        // packages/sveltekit/README.md, the universal `src/hooks.ts` recipe.
         const recipe = `import { transport, responseHeadersTransporter } from "$pkg";
       export const hooks = transport({ ResponseHeaders: responseHeadersTransporter });`;
         // Control: the same recipe through the `Hooks` namespace. The packed build
@@ -268,7 +268,7 @@ describe('"sideEffects": false', () => {
     "a named import from ./client, packed, keeps only what it reaches",
     () =>
       Effect.gen(function* () {
-        // A browser bundle's `goto` (#195): the flat export keeps only
+        // A browser bundle's `goto`: the flat export keeps only
         // `Navigation.js`, while the namespace's `__exportAll` object also
         // keeps the lifecycle members and the event registry behind them.
         const flat = `import { goto } from "$pkg"; export const go = goto;`;

@@ -1,16 +1,9 @@
 name: CI
 
-# ONE workflow, ONE command: `vp run ci`. The pipeline lives in the root
-# `ci` task in vite.config.ts (format + lint, the type gate, every package's
-# tests and build, the audit: AGENTS.md § Verification, steps 2–6), so CI and
-# a local `vp run ci` are the same thing. Nothing here needs a database, a
-# stage or a credential, so every PR runs the whole gate.
-#
-# The one job, `ci`, runs it on a Node matrix; each leg is its own check
-# (`ci (node lts)`, `ci (node latest)`), and a ruleset requires each by name.
-
 on:
   pull_request:
+    branches: [trunk]
+    types: [opened, reopened, synchronize, ready_for_review]
   push:
     branches: [trunk]
   workflow_dispatch:
@@ -19,7 +12,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/trunk' }}
 
-# No permissions by default; the matrix job grants only read access.
 permissions: {}
 
 jobs:
@@ -32,32 +24,46 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Aliases setup-vp resolves through `vp env use`: `lts` is the newest
-        # LTS release and `latest` the newest release, never a pre-release
-        # (the "Show the toolchain" step logs what each leg got).
         node: [lts, latest]
     env:
-      # A modest ceiling for every Node process in the pipeline. NODE_OPTIONS
-      # is inherited by every child, including each vitest fork.
       NODE_OPTIONS: --max-old-space-size=2048
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-
-      # Vite+ (with the matrix's Node, and pnpm) + a frozen-lockfile install;
-      # see the action's header.
-      - uses: ./.github/actions/setup
+      - uses: voidzero-dev/setup-vp@v1.22.0
         with:
+          version-file: pnpm-workspace.yaml
           node-version: ${{ matrix.node }}
-
+          cache: true
+          run-install: true
       - name: Restore the Vite+ task cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache@v6.1.0
         with:
           path: node_modules/.vite/task-cache
           key: vp-task-v1-${{ runner.os }}-node-${{ matrix.node }}-${{ github.sha }}
           restore-keys: |
             vp-task-v1-${{ runner.os }}-node-${{ matrix.node }}-
+      - run: vp run ci
 
-      - name: CI
-        run: vp run ci
+  devcontainer:
+    name: devcontainer
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      DEVCONTAINER_CLI: "@devcontainers/cli@0.89.0"
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # Only to run the CLI on the runner; the container installs its own.
+      - uses: voidzero-dev/setup-vp@v1.22.0
+        with:
+          version-file: pnpm-workspace.yaml
+          run-install: false
+      - name: Build and start the container
+        run: vp dlx "$DEVCONTAINER_CLI" up --workspace-folder .
+      - name: Check vp inside the container
+        run: vp dlx "$DEVCONTAINER_CLI" exec --workspace-folder . vp --version

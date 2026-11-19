@@ -14,7 +14,7 @@ export * as Remote from "./Remote.js";
  * The `Remote` namespace's members as plain named exports. Prefer these in
  * client code: the published build turns `Remote` into a single object, so
  * reaching a member through it keeps every member in the bundle, while a named
- * import keeps only what it uses (#191).
+ * import keeps only what it uses.
  */
 export {
   callQuery,
@@ -38,7 +38,7 @@ export * as Hooks from "./Hooks.js";
  * build turns `Hooks` into a single object, so `Hooks.transport` also keeps
  * `Hooks.reroute` and the default universal runtime behind it in the client
  * bundle, while `import { transport } from "@thomasfosterau/effect-sveltekit"`
- * keeps only the transport helpers (#188, #191).
+ * keeps only the transport helpers.
  */
 export {
   reroute,
