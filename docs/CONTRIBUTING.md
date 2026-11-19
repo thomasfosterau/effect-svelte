@@ -28,6 +28,7 @@ Fallow is a guide, not dogma: use it to polish your work. Before deleting "unuse
 
 - **Effect.** Use Effect (v4) idioms throughout, and strongly prefer Effect's own modules (`Option`, `Array`, `Match`, `Schema`, `effect/http`, `effect/reactivity`, …) over hand-rolled equivalents; convert existing code where practical. Exceptions: Svelte component code, non-Effect APIs adapted at the edge (Svelte and SvelteKit callbacks), and hot paths where measured performance needs plain code. Read the installed `node_modules/effect` (its `AGENTS.md`, `ai-docs/`, typings) rather than guessing an API.
 - Import Effect modules by path as namespaces (`import * as Effect from "effect/Effect"`; `Arr`, `P`, `R`, `Str`, `Eq`, `Bool` for the helper modules). Relative imports use `.js`.
+- Exports follow Effect's layout: `index.ts` re-exports PascalCase module namespaces (`export * as Runtime from "./Runtime.js"`), and each module is also importable from a PascalCase subpath (`"./Runtime"`).
 - Absence is `Option`. `exactOptionalPropertyTypes` is on: options-bag members are `readonly x?: T`, optional parameters `x?: T`.
 - Fix lint findings in code; a rule is relaxed only in `vite.config.ts`, with its reason. Type assertions live only in `packages/sveltekit/src/internal/unchecked.ts`, each with a `// SAFETY:` comment.
 - **Comments.** A short file header only where it adds context. Doc comments on exports where they add to IntelliSense (and name the error channel); inline comments only for the non-obvious. No references to issues, PRs or history.

@@ -1,5 +1,5 @@
 ---
-"@thomasfosterau/effect-svelte": patch
+"@thomasfosterau/effect-svelte": minor
 ---
 
-Declare Node.js `>=22.12.0` as the supported floor; Node 20 is end-of-life.
+Drop support for Node.js 20, which is end-of-life: the floor is now `>=22.12.0`.
