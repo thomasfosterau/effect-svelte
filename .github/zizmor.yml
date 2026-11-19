@@ -1,12 +1,10 @@
-# zizmor configuration (`uvx zizmor --offline .github`).
+# `uvx zizmor --offline .github` should report nothing beyond what is configured here.
+# Actions are pinned by exact tag; .github/workflows/actions.lock locks them to commits.
 rules:
   dependabot-cooldown:
     config:
-      # The owner's policy: pnpm's `minimumReleaseAge` is 8 hours and
-      # Dependabot waits the smallest whole number of days above it
-      # (dependabot.yml header), not zizmor's default of 7.
       days: 1
-  self-repository:
-    # `uses: ./.github/actions/setup` is the documented local-action form;
-    # the `$/` spelling zizmor suggests is too new to rely on here.
-    disable: true
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin
