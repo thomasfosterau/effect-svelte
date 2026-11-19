@@ -1,32 +1,19 @@
-# Publishing & releases
+# Publishing
 
-Releases are automated with [Changesets](https://github.com/changesets/changesets) and the **Release** workflow ([release.yml](.github/workflows/release.yml)), and published to npm via [OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — there is no `NPM_TOKEN`. See [SECURITY.md](./SECURITY.md) for the security rationale. Two packages are published:
+[Changesets](https://github.com/changesets/changesets) manages versions and changelogs for `@thomasfosterau/effect-svelte` and `@thomasfosterau/effect-sveltekit`; publishing is npm trusted publishing (OIDC) from the protected `release` environment. There is no `NPM_TOKEN`.
 
-- `@thomasfosterau/effect-svelte` (`packages/svelte`)
-- `@thomasfosterau/effect-sveltekit` (`packages/sveltekit`)
+## Release flow
 
-## The release flow
+1. A PR with a changeset merges into `trunk`.
+2. The Release workflow ([release.yml](../.github/workflows/release.yml)) opens or updates the `chore: version packages` PR (`vp run changeset:version`), assigned to the owner.
+3. Merging it makes the next run publish, after the `release` environment's approval: `pnpm run release` builds, runs `pnpm publish --ignore-scripts` for each bumped package (pnpm does the OIDC exchange and rewrites `catalog:` / `workspace:` specifiers) and tags the release.
 
-1. **Add a changeset with your change.** Run `pnpm changeset`, pick the packages and the bump (`patch` / `minor` / `major`) and write a user-facing summary, then commit the generated file alongside your change. Which changes need one is set out in [AGENTS.md](AGENTS.md#branches-and-pull-requests). Preview what is pending with `pnpm changeset status`.
-2. **Merge to `trunk`.** The Release workflow runs and, while changesets are pending, opens or updates a **"chore: version packages"** PR on `changeset-release/trunk` that applies the version bumps and rolls the changesets into each package's `CHANGELOG.md`; the job then assigns that PR to the owner. The version step is `changeset version && vp fmt && pnpm install --lockfile-only`, with `"format": false` in `.changeset/config.json`: Changesets 3 otherwise auto-detects the `oxfmt` binary Vite+ installs and runs it on the new changelogs, but that binary is Vite+'s IDE-only shim and exits 1 outside LSP mode. `vp fmt` formats the changelogs instead, so the version PR passes `vp check`.
-3. **Merge the version PR.** With no changesets left, the workflow runs `pnpm run release`: `vp run -r build`, then `pnpm -r --filter './packages/*' publish --access public --no-git-checks --ignore-scripts` (which skips versions already on npm and rewrites the `catalog:` / `workspace:` specifiers into real ranges), then `changeset tag`, whose `New tag:` lines the Changesets action uses to push the tags and create the GitHub releases.
+`pnpm run`, not `vp run`, drives the publish: `vp run` drops the OIDC request variables. Don't force provenance (`--provenance`); pnpm adds it when the repository and package are public.
 
-`pnpm run`, not `vp run`, drives both scripts: `vp run` does not forward the `ACTIONS_ID_TOKEN_REQUEST_URL` / `_TOKEN` variables the OIDC exchange needs. Since pnpm 11, `pnpm publish` no longer delegates to the npm CLI: pnpm fetches the GitHub Actions OIDC token itself and exchanges it for a short-lived npm token, so the job never upgrades npm. `--ignore-scripts` keeps any publish lifecycle script out of the job holding `id-token: write`. Provenance is pnpm's call: with no `pnpm_config_provenance` set it attaches provenance only when the OIDC token reports a public repository **and** the registry reports the package as public. Never force it (`--provenance`, `publishConfig.provenance`); an explicit request makes a publish from a private repository fail.
+The release jobs install with `--ignore-scripts` and set `pnpm_config_verify_deps_before_run: "false"`, so no dependency script runs in a job holding `id-token: write`.
 
-## Maintainer setup (one-time)
+## One-time owner setup
 
-1. **Allow Actions to open the version PR.** **Settings → Actions → General → Workflow permissions** → enable **"Allow GitHub Actions to create and approve pull requests"**. Without it the workflow pushes `changeset-release/trunk` but fails at the PR-creation step.
-2. **Configure the trusted publisher** on npmjs.com for **each** package → **Settings → Trusted Publisher** → GitHub Actions:
-   - Organization or user: `thomasfosterau`
-   - Repository: `effect-svelte`
-   - Workflow filename: `release.yml`
-   - Environment: `release`
-
-   Then remove any classic automation tokens for the package. A trusted publisher can only be added to a package that already exists, so a brand-new package's first version is published by hand once (`vp run -r build && pnpm --filter <name> publish --access public` with a short-lived granular token) before OIDC takes over ([npm/cli#8544](https://github.com/npm/cli/issues/8544)).
-
-3. **Protect the `release` environment.** **Settings → Environments → `release`** → enable **Required reviewers** (yourself) and restrict deployment to `trunk`, so every publish pauses for manual approval (refreshing the version PR runs outside the environment and does not). (If the environment does not exist, GitHub creates it unprotected on the first run.)
-4. **Protect `trunk`.** Require pull requests and the passing CI checks (`ci (node lts)` and `ci (node latest)`, one per leg of the CI matrix) before merge, and disallow direct pushes, so a release can only be triggered by merging the reviewed version PR.
-
-## Manual fallback
-
-If the workflow can't open the PR (setting 1 is still off), the `changeset-release/trunk` branch is still pushed with the correct bump — open the version PR from it by hand. Never run `pnpm run version` or `pnpm run release` locally: versioning and publishing happen only in the Release workflow, which holds the OIDC identity npm trusts.
+1. Settings → Actions → General: allow GitHub Actions to create and approve pull requests.
+2. On npmjs.com, for each package: Settings → Trusted Publisher → GitHub Actions, repository `thomasfosterau/effect-svelte`, workflow `release.yml`, environment `release`. A new package's first version must be published by hand once before a trusted publisher can be added.
+3. Environments → `release`: required reviewers, deployments from `trunk` only.

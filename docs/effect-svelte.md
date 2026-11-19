@@ -141,7 +141,7 @@ It also exposes a reactive `promise` for `{#await}`-free async templates (`exper
 
 ## Atoms
 
-Effect v4 ships atoms, the registry behind them and keyed invalidation in core (`effect/reactivity`); this package is the Svelte 5 binding (until an official `@effect/atom-svelte` lands — see [#23](https://github.com/thomasfosterau/effect-svelte/issues/23)). `useAtomResult` reads a query atom's `AsyncResult` — `AtomHttpApi` queries, `Atom.make(effect)` — with stale-while-revalidate `waiting`, and `invalidateAtomKeys` re-runs every mounted atom registered against the keys a mutation names. `useAtom` reads (and, for a writable atom, `set`s) any atom. The atom argument is a thunk, so a `$state`-keyed request re-subscribes to the new atom.
+Effect v4 ships atoms, the registry behind them and keyed invalidation in core (`effect/reactivity`); this package is the Svelte 5 binding. `useAtomResult` reads a query atom's `AsyncResult` — `AtomHttpApi` queries, `Atom.make(effect)` — with stale-while-revalidate `waiting`, and `invalidateAtomKeys` re-runs every mounted atom registered against the keys a mutation names. `useAtom` reads (and, for a writable atom, `set`s) any atom. The atom argument is a thunk, so a `$state`-keyed request re-subscribes to the new atom.
 
 ```svelte
 <script lang="ts">
