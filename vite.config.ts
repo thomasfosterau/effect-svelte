@@ -14,6 +14,16 @@ export default defineConfig({
   run: {
     cache: true,
     tasks: {
+      // The API reference the Pages workflow publishes. Examples are
+      // rendered but not compiled (`tscExecutable: "true"` in docgen.json).
+      docgen: {
+        command: "echo 'docgen: every package documented'",
+        dependsOn: [
+          "@thomasfosterau/effect-svelte#docgen",
+          "@thomasfosterau/effect-sveltekit#docgen",
+        ],
+        cache: false,
+      },
       // The packages are named explicitly: a `from: "dependencies"` edge does
       // not traverse the workspace root's own devDependencies.
       check: {
