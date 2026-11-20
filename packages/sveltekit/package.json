@@ -74,6 +74,7 @@
     "access": "public"
   },
   "scripts": {
+    "docgen": "docgen",
     "build": "vp pack",
     "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
     "test:unit": "vp test run"
@@ -84,6 +85,7 @@
     "magic-string": "catalog:"
   },
   "devDependencies": {
+    "@effect/docgen": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@sveltejs/kit": "catalog:",

@@ -154,3 +154,7 @@ fallow.sarif
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .vitest/
+
+# docgen output (`vp run docgen`), published by the Pages workflow.
+packages/svelte/docs/api/
+packages/sveltekit/docs/api/

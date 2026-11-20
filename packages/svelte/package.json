@@ -42,11 +42,13 @@
     "access": "public"
   },
   "scripts": {
+    "docgen": "docgen",
     "build": "vp pack",
     "check": "svelte-check --tsconfig ./tsconfig.json --threshold error",
     "test:unit": "vp test run"
   },
   "devDependencies": {
+    "@effect/docgen": "catalog:",
     "@effect/vitest": "catalog:",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
