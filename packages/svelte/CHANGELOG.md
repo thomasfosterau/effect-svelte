@@ -1,5 +1,11 @@
 # @thomasfosterau/effect-svelte
 
+## 0.8.0
+
+### Minor Changes
+
+- e17b597: Drop support for Node.js 20, which is end-of-life: the floor is now `>=22.12.0`.
+
 ## 0.7.0
 
 ### Minor Changes

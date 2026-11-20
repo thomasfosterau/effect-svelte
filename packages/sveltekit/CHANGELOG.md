@@ -1,5 +1,12 @@
 # @thomasfosterau/effect-sveltekit
 
+## 0.11.1
+
+### Patch Changes
+
+- Updated dependencies [e17b597]
+  - @thomasfosterau/effect-svelte@0.8.0
+
 ## 0.11.0
 
 ### Minor Changes
