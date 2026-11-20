@@ -16,3 +16,7 @@ Read [README.md](README.md) and [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) fir
 - **`typescript` is TS6** (`@typescript/typescript6`): svelte-check and the declaration bundler need its JS API. Every workspace package lists `typescript: "catalog:"`, or svelte-check crashes on a second instance.
 - **Runtime edge.** Only `src/internal/run.ts` in each package calls `Effect.run*`; don't add another.
 - **`useEffect`** is effect-svelte's own hook, so `effect/avoid-react-hooks` is off.
+
+## Fallow
+
+- `vp install` links the `fallow` skill into `.claude/skills/fallow` from the installed package (approved under `permissions` in `pnpm-workspace.yaml`); the repository's own fallow rules are in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).

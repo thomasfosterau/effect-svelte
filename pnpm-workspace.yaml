@@ -50,7 +50,9 @@ catalogs:
 overrides:
   # Bare keys, not the `vite@*` / `vitest@*` that `vp migrate` writes: with
   # those, effect-sveltekit's `vite` peer installs the real `vite`, and
-  # `vp pack` refuses to run. Restore them after a migrate.
+  # `vp pack` refuses to run. Restore them after a migrate. pnpm 12 no longer
+  # applies an `npm:` override to an auto-installed peer, so
+  # packages/sveltekit also lists `vite` as a dev dependency.
   vite: "catalog:"
   vitest: "catalog:"
   # `effect` must be a singleton.
@@ -64,6 +66,17 @@ overrides:
 allowBuilds:
   esbuild: true
   msgpackr-extract: false
+
+# Agent skills dependencies ship (pnpm 12.11+). `fallow` ships `fallow` and
+# `fallow-setup`; only `fallow` is linked, since the repository is already set
+# up. Build grants stay in `allowBuilds`: a `permissions` entry without `build`
+# leaves its package's `allowBuilds` grant in force.
+permissions:
+  fallow:
+    skills: [fallow]
+
+skills:
+  dirs: [.claude/skills]
 
 peerDependencyRules:
   allowAny:
