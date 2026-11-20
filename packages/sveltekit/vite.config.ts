@@ -30,6 +30,10 @@ export default defineConfig({
     dts: true,
     sourcemap: true,
     deps: {
+      // tsdown <0.23 compatibility: resolve external dependency subpaths.
+      // Remove to preserve subpath imports as written (the new default).
+      // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
+      resolveDepSubpath: true,
       // SvelteKit virtual modules are provided by the consumer's app.
       // Node builtins are only imported by the adapter modules, which run
       // exclusively in Node (vite.config.ts / the production server).

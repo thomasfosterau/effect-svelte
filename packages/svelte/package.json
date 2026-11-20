@@ -52,7 +52,8 @@
     "@effect/vitest": "catalog:",
     "svelte": "catalog:",
     "svelte-check": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "effect": "catalog:peers",
