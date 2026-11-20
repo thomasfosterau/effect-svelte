@@ -91,7 +91,8 @@
     "svelte": "catalog:",
     "svelte-check": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@effect/platform-node": "catalog:peers",
