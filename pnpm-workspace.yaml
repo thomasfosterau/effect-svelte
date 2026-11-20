@@ -50,7 +50,9 @@ catalogs:
 overrides:
   # Bare keys, not the `vite@*` / `vitest@*` that `vp migrate` writes: with
   # those, effect-sveltekit's `vite` peer installs the real `vite`, and
-  # `vp pack` refuses to run. Restore them after a migrate.
+  # `vp pack` refuses to run. Restore them after a migrate. pnpm 12 no longer
+  # applies an `npm:` override to an auto-installed peer, so
+  # packages/sveltekit also lists `vite` as a dev dependency.
   vite: "catalog:"
   vitest: "catalog:"
   # `effect` must be a singleton.
