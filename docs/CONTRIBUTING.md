@@ -4,7 +4,7 @@
 
 - Branch off `trunk` and open a pull request into `trunk`; never commit to `trunk` directly. Open a draft PR as soon as you start, and keep one PR per change, however large. Squash-merge with a conventional prefix (`feat:`, `fix:`, `docs:`, `chore:`, `ci:`). Rebase onto `origin/trunk` rather than merging it in.
 - File an issue for anything you notice that is out of scope, and keep issue bodies evergreen: edit the body as understanding improves rather than appending comments.
-- Dependabot keeps dependencies current. By hand, on the matching Dependabot PR:
+- Dependabot keeps dependencies current. It can't make the moves below: make them in a PR from a new branch started from its head (never push to a `dependabot/*` branch, which stops it rebasing), and it closes its own PR once yours merges:
   - **toolchain** (`vite-plus`): run `vp dlx --package=vite-plus@<v> vp migrate --no-interactive`, drop the `minimumReleaseAgeExclude` entries it adds, restore the bare `vite` / `vitest` override keys, set `@vitest/coverage-istanbul` to the new `vitest`, and bump the devcontainer image tag.
   - **typescript** is an npm alias (`@typescript/typescript6`), moved by hand.
   - **security floors** under `overrides` are raised or dropped as their advisories move.
