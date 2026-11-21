@@ -33,10 +33,11 @@ catalog:
   # package lists `typescript: "catalog:"`, or peer auto-install pulls in a
   # second instance and svelte-check crashes on `defineConfig`.
   typescript: "npm:@typescript/typescript6@6.0.2"
-  # `vite` (vite-plus's aliased core) and `vitest` must match vite-plus; see
-  # docs/CONTRIBUTING.md for the by-hand toolchain update.
-  vite-plus: 1.6.0
-  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
+  # `vite` (vite-plus's aliased core) and `vitest` must equal what vite-plus
+  # itself depends on (`npm view vite-plus@<v> dependencies`), not the
+  # vite-plus version; see docs/CONTRIBUTING.md for the by-hand update.
+  vite-plus: 1.7.0
+  vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
   vitest: 5.1.0
 
 # Peer ranges the published packages declare.
@@ -78,14 +79,6 @@ permissions:
 
 skills:
   dirs: [.claude/skills]
-
-peerDependencyRules:
-  allowAny:
-    - vite
-    - vitest
-  allowedVersions:
-    vite: "*"
-    vitest: "*"
 
 # Hold new versions for 24 hours (in minutes), matching Dependabot's 1-day cooldown.
 minimumReleaseAge: 1440
