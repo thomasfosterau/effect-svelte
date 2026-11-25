@@ -18,7 +18,7 @@ catalog:
   "@sveltejs/kit": ^3.4.0
   "@sveltejs/vite-plugin-svelte": ^7.3.1
   # Test-only: SvelteKit's `transport` serialiser.
-  devalue: ^6.0.3
+  devalue: ^6.0.4
   "@types/node": ^26.6.6
   # Must equal vite-plus's `vitest` pin.
   "@vitest/coverage-istanbul": 5.1.0
