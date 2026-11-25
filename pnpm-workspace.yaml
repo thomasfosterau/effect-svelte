@@ -23,7 +23,7 @@ catalog:
   # Must equal vite-plus's `vitest` pin.
   "@vitest/coverage-istanbul": 5.1.0
   effect: 4.1.4
-  fallow: 3.46.0
+  fallow: 3.48.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
   svelte: ^5.59.1
