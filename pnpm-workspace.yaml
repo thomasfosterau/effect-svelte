@@ -15,7 +15,7 @@ catalog:
   "@effect/vitest": 4.1.5
   "@enfect/oxlint": ^0.10.0
   "@standard-schema/spec": ^1.1.0
-  "@sveltejs/kit": ^3.4.0
+  "@sveltejs/kit": ^3.4.1
   "@sveltejs/vite-plugin-svelte": ^7.3.2
   # Test-only: SvelteKit's `transport` serialiser.
   devalue: ^6.0.4
@@ -26,7 +26,7 @@ catalog:
   fallow: 3.48.0
   happy-dom: ^21.0.4
   magic-string: ^1.4.5
-  svelte: ^5.59.1
+  svelte: ^5.59.2
   svelte-check: ^4.7.8
   # TypeScript 6 under the `typescript` name: svelte-check, the language
   # service and `vp pack`'s declaration emit need its JS API. Every workspace
@@ -44,7 +44,7 @@ catalog:
 catalogs:
   peers:
     "@effect/platform-node": ^4.0.0
-    "@sveltejs/kit": ^3.4.0
+    "@sveltejs/kit": ^3.4.1
     effect: ^4.0.0
     svelte: ^5.40.0
     vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
